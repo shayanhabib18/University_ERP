@@ -8,9 +8,8 @@ const roles = [
   },
   {
     title: 'Student',
-    description: 'Login or Sign up to access your courses and resources.',
+    description: 'Login as student to access your portal.',
     loginPath: '/login/student',
-    signupPath: '/signup/student',
   },
   {
     title: 'Faculty',
@@ -38,7 +37,7 @@ export default function MainPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white py-10 px-4">
       <h1 className="text-4xl md:text-5xl font-extrabold text-center text-blue-700 mb-12 transition-opacity duration-1000 animate-fadeIn">
-        🎓 Welcome to University ERP System
+        University ERP System
       </h1>
 
       <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 max-w-7xl mx-auto">
@@ -53,21 +52,13 @@ export default function MainPage() {
             </h2>
             <p className="text-gray-600 mb-4">{role.description}</p>
 
-            <div className="flex gap-3 flex-wrap justify-center">
+            <div className="flex gap-3 justify-center">
               <Link
                 to={role.loginPath}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
               >
                 Login
               </Link>
-              {role.signupPath && (
-                <Link
-                  to={role.signupPath}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-                >
-                  Signup
-                </Link>
-              )}
             </div>
           </div>
         ))}

@@ -1,13 +1,26 @@
+// src/pages/login/AdminLogin.jsx
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const navigate = useNavigate();
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // handle login logic here (e.g., form validation, API call)
+    
+    // Hardcoded admin credentials
+    const ADMIN_CREDENTIALS = {
+      email: "admin@university.edu",
+      password: "admin123"
+    };
+
+    if (email === ADMIN_CREDENTIALS.email && password === ADMIN_CREDENTIALS.password) {
+      navigate("/admin/dashboard"); // Redirect to dashboard
+    } else {
+      alert(`Invalid credentials. Use:\nEmail: ${ADMIN_CREDENTIALS.email}\nPassword: ${ADMIN_CREDENTIALS.password}`);
+    }
   };
 
   return (
@@ -25,7 +38,7 @@ export default function AdminLogin() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out"
-              placeholder="Enter your email"
+              placeholder="admin@university.edu"
               required
             />
           </div>
@@ -37,7 +50,7 @@ export default function AdminLogin() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out"
-              placeholder="Enter your password"
+              placeholder="admin123"
               required
             />
           </div>
@@ -50,11 +63,7 @@ export default function AdminLogin() {
         </form>
         <div className="mt-4 text-center">
           <p className="text-sm text-gray-600">
-            <Link
-              to="#"
-              className="text-blue-600 hover:text-blue-700"
-              // You can implement the logic for sending an email later
-            >
+            <Link to="#" className="text-blue-600 hover:text-blue-700">
               Forgot Password?
             </Link>
           </p>

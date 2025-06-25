@@ -1,119 +1,83 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 export default function StudentLogin() {
-  const [loginType, setLoginType] = useState("rollCnic"); // "rollCnic" or "email"
-  const [rollCnic, setRollCnic] = useState("");
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState(""); // Roll number or email
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleLogin = (e) => {
     e.preventDefault();
-    // Handle login logic here
-    if (loginType === "rollCnic") {
-      console.log("Logging in with RollNo-CNIC:", rollCnic, password);
+
+    // ✅ Hardcoded student credentials (can login using either roll number or email)
+    const hardcodedStudent = {
+      rollNo: "BSSE1234",
+      email: "student@university.edu",
+      password: "student123",
+    };
+
+    const isValidUser =
+      (identifier === hardcodedStudent.rollNo || identifier === hardcodedStudent.email) &&
+      password === hardcodedStudent.password;
+
+    if (isValidUser) {
+      setError("");
+      navigate("/student/dashboard"); // Redirect to student dashboard
     } else {
-      console.log("Logging in with Email:", email, password);
+      setError("Invalid roll number/email or password");
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md transition-all transform hover:scale-105 hover:shadow-xl duration-500">
-        <h2 className="text-3xl font-semibold text-center text-blue-600 mb-6 animate__animated animate__fadeIn animate__delay-1s">
-          Student Login
-        </h2>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-4">
+      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
+        <h2 className="text-3xl font-bold text-center text-blue-700 mb-6">Student Login</h2>
 
-        {/* Login method switch */}
-        <div className="flex justify-center gap-4 mb-6">
-          <button
-            className={`px-4 py-2 rounded-md text-sm font-medium ${
-              loginType === "rollCnic"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 text-gray-700"
-            }`}
-            onClick={() => setLoginType("rollCnic")}
-          >
-            RollNo/CNIC
-          </button>
-          <button
-            className={`px-4 py-2 rounded-md text-sm font-medium ${
-              loginType === "email"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 text-gray-700"
-            }`}
-            onClick={() => setLoginType("email")}
-          >
-            Email
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          {loginType === "rollCnic" ? (
-            <div className="mb-4">
-              <label htmlFor="rollCnic" className="block text-gray-700 text-sm font-medium">
-                RollNo/CNIC
-              </label>
-              <input
-                type="text"
-                id="rollCnic"
-                value={rollCnic}
-                onChange={(e) => setRollCnic(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                placeholder="e.g. 20SE012-3520212345678"
-                required
-              />
-            </div>
-          ) : (
-            <div className="mb-4">
-              <label htmlFor="email" className="block text-gray-700 text-sm font-medium">
-                Email
-              </label>
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                placeholder="Enter your email"
-                required
-              />
-            </div>
-          )}
-
-          <div className="mb-6">
-            <label htmlFor="password" className="block text-gray-700 text-sm font-medium">
-              Password
-            </label>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-gray-700 font-medium mb-1">Roll Number or Email</label>
             <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-              placeholder="Enter your password"
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-500"
+              placeholder="e.g. BSSE1234 or student@university.edu"
               required
             />
           </div>
 
+          <div>
+            <label className="block text-gray-700 font-medium mb-1">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-500"
+              placeholder="e.g. student123"
+              required
+            />
+          </div>
+
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition duration-300"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg"
           >
             Login
           </button>
-        </form>
 
-        <div className="mt-4 text-center">
-          <p className="text-sm text-gray-600">
-            <Link
-              to="#"
-              className="text-blue-600 hover:text-blue-700"
+          <div className="text-center mt-2">
+            <button
+              type="button"
+              className="text-sm text-blue-600 hover:underline focus:outline-none"
+              onClick={() => alert("Please contact your department admin to reset password.")}
             >
-              Forgot Password?
-            </Link>
-          </p>
-        </div>
+              Forgot password?
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
