@@ -16,9 +16,10 @@ import HandleRequests from './pages/admin/HandleRequests';
 
 // Student Dashboard Pages
 import StudentDashboard from "./pages/students/StudentDashboard";
-import Transcript from "./pages/students/Transcript";
 import Profile from "./pages/students/Profile";
+import AttendancePage from './pages/students/AttendencePage';
 import Courses from "./pages/students/Courses";
+import Transcript from './pages/students/Transcripts';
 import Notifications from "./pages/students/Notifications";
 import Requests from "./pages/students/Requests";
 
@@ -44,11 +45,11 @@ function App() {
 
         {/* Student Dashboard Pages */}
         <Route path="/student/dashboard" element={<StudentDashboard />} />
-        <Route path="/student/transcript" element={<Transcript />} />
         <Route path="/student/profile" element={<Profile />} />
         <Route path="/student/courses" element={<Courses />} />
         <Route path="/student/notifications" element={<Notifications />} />
         <Route path="/student/requests" element={<Requests />} />
+        <Route path="/attendance" element={<AttendancePage />} />
       </Routes>
     </Router>
   );
