@@ -2,9 +2,7 @@ import { useState } from "react";
 import { Megaphone, PlusCircle } from "lucide-react";
 
 const FacultyAnnouncements = () => {
-  const [filter, setFilter] = useState("All");
-
-  const receivedAnnouncements = [
+  const [announcements, setAnnouncements] = useState([
     {
       id: 1,
       sender: "Vice Chancellor",
@@ -26,29 +24,23 @@ const FacultyAnnouncements = () => {
       message: "University will remain closed on Eid holidays.",
       date: "2025-06-23",
     },
-  ];
+  ]);
 
   const [teacherMessage, setTeacherMessage] = useState("");
-  const [teacherPosts, setTeacherPosts] = useState([]);
+  const [posted, setPosted] = useState([]);
 
   const handlePost = () => {
     if (!teacherMessage.trim()) return;
-    const newPost = {
+    const newAnnouncement = {
       id: Date.now(),
       sender: "You",
       role: "Faculty",
-      message: teacherMessage.trim(),
+      message: teacherMessage,
       date: new Date().toISOString().split("T")[0],
     };
-    setTeacherPosts([newPost, ...teacherPosts]);
+    setPosted([newAnnouncement, ...posted]);
     setTeacherMessage("");
   };
-
-  const filterOptions = ["All", "VC", "Chairman", "Chancellor"];
-
-  const filtered = filter === "All"
-    ? receivedAnnouncements
-    : receivedAnnouncements.filter((a) => a.role === filter);
 
   return (
     <div className="max-w-5xl mx-auto mt-10 p-6 bg-white shadow-md rounded-lg space-y-10">
@@ -56,50 +48,28 @@ const FacultyAnnouncements = () => {
         <Megaphone /> Announcements
       </h2>
 
-      {/* 🔍 Filter Buttons */}
-      <div className="flex gap-3 flex-wrap mb-6">
-        {filterOptions.map((type) => (
-          <button
-            key={type}
-            onClick={() => setFilter(type)}
-            className={`px-5 py-1.5 rounded-full text-sm font-semibold transition ${
-              filter === type
-                ? "bg-indigo-600 text-white shadow"
-                : "bg-gray-200 text-gray-800 hover:bg-gray-300"
-            }`}
-          >
-            {type}
-          </button>
-        ))}
-      </div>
-
-      {/* 🔔 VC/Chairman/Chancellor Announcements */}
+      {/* 🔔 Received Announcements */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">
-          Official Announcements
+        <h3 className="text-xl font-semibold text-gray-800 mb-4">
+          From VC, Chairman & Chancellor
         </h3>
-
-        {filtered.length === 0 ? (
-          <p className="text-sm text-gray-500">No announcements found.</p>
-        ) : (
-          <div className="space-y-4">
-            {filtered.map((a) => (
-              <div
-                key={a.id}
-                className="border-l-4 pl-4 py-3 border-indigo-500 bg-gray-50 rounded"
-              >
-                <p className="text-sm text-gray-500">{a.date} · {a.role}</p>
-                <p className="font-medium text-gray-900">{a.message}</p>
-                <p className="text-xs text-gray-400 mt-1">~ {a.sender}</p>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="space-y-4">
+          {announcements.map((a) => (
+            <div
+              key={a.id}
+              className="border-l-4 pl-4 py-2 border-indigo-500 bg-gray-50 rounded"
+            >
+              <p className="text-sm text-gray-500">{a.date} - {a.role}</p>
+              <p className="font-medium text-gray-800">{a.message}</p>
+              <p className="text-xs text-gray-400">~ {a.sender}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* 📝 Faculty Announcement Form */}
-      <div className="border-t pt-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">
+      {/* 📢 Faculty's Own Announcements */}
+      <div className="pt-6 border-t">
+        <h3 className="text-xl font-semibold text-gray-800 mb-4">
           Make Announcement for Students
         </h3>
 
@@ -107,7 +77,7 @@ const FacultyAnnouncements = () => {
           value={teacherMessage}
           onChange={(e) => setTeacherMessage(e.target.value)}
           rows={3}
-          placeholder="Write something to announce..."
+          placeholder="Type your announcement here..."
           className="w-full p-2 border rounded mb-3"
         />
 
@@ -118,13 +88,11 @@ const FacultyAnnouncements = () => {
           <PlusCircle size={18} /> Post Announcement
         </button>
 
-        {teacherPosts.length > 0 && (
+        {posted.length > 0 && (
           <div className="mt-6">
-            <h4 className="text-md font-semibold mb-2 text-gray-700">
-              Your Announcements
-            </h4>
+            <h4 className="text-lg font-semibold mb-2 text-gray-700">Your Announcements</h4>
             <div className="space-y-3">
-              {teacherPosts.map((a) => (
+              {posted.map((a) => (
                 <div
                   key={a.id}
                   className="bg-purple-50 border-l-4 border-purple-500 p-3 rounded"

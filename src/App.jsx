@@ -19,9 +19,11 @@ import StudentDashboard from "./pages/students/StudentDashboard";
 import Profile from "./pages/students/Profile";
 import AttendancePage from './pages/students/AttendencePage';
 import Courses from "./pages/students/Courses";
-import Transcript from './pages/students/Transcripts';
 import Notifications from "./pages/students/Notifications";
 import Requests from "./pages/students/Requests";
+
+//Faculty Dashboard Pages
+import FacultyDashboard from './pages/faculty/FacultyDashboard';
 
 function App() {
   return (
@@ -50,6 +52,9 @@ function App() {
         <Route path="/student/notifications" element={<Notifications />} />
         <Route path="/student/requests" element={<Requests />} />
         <Route path="/attendance" element={<AttendancePage />} />
+
+        {/*Faculty Dashboard Pages */}
+        <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
       </Routes>
     </Router>
   );
