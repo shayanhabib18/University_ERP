@@ -3,7 +3,7 @@ import { Menu, X, Bell, BookOpen, ClipboardList, FileText, Mail, User, LogOut, H
 import Courses from "./Courses";
 import Notifications from "./Notifications";
 import AssignmentsQuizzes from "./AssignmentsQuizzes";
-import Transcript from "./Transcripts";
+// import Transcript from "./Transcripts";
 import Profile from "./Profile";
 import Requests from "./Requests";
 
@@ -12,7 +12,7 @@ const sidebarLinks = [
   { name: "My Profile", icon: <User size={18} /> },
   { name: "Assignments & Quizzes", icon: <ClipboardList size={18} /> },
   { name: "Courses / Enrollments", icon: <BookOpen size={18} /> },
-  { name: "Generate Transcript", icon: <FileText size={18} /> },
+  // { name: "Generate Transcript", icon: <FileText size={18} /> },
   { name: "Requests / Messages", icon: <Mail size={18} /> },
   { name: "Notifications", icon: <Bell size={18} /> }
 ];
@@ -152,39 +152,14 @@ export default function StudentDashboard() {
                   ))}
               </div>
             </div>
-
-            {/* Upcoming Deadlines */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-              <h2 className="text-xl font-semibold text-gray-800 mb-6">Upcoming Deadlines</h2>
-              <div className="space-y-4">
-                {[
-                  { course: "CS-2406", assignment: "Assignment 3 - Security Protocols", due: "Tomorrow, 11:59 PM" },
-                  { course: "MS-3801", assignment: "Business Plan Submission", due: "In 3 days" },
-                  { course: "PHYS-2021", assignment: "Lab Report #5", due: "Next Monday" },
-                ].map((item, index) => (
-                  <div key={index} className="flex items-start gap-4 p-3 hover:bg-gray-50 rounded-lg transition">
-                    <div className="bg-red-100 p-2 rounded-full mt-1">
-                      <Clock className="text-red-600" size={16} />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-medium">{item.assignment}</h3>
-                      <div className="flex justify-between items-center">
-                        <p className="text-sm text-gray-500">{item.course}</p>
-                        <span className="text-sm font-medium text-red-600">{item.due}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         );
       case "My Profile":
         return <Profile />;
       case "Courses / Enrollments":
         return <Courses />;
-      case "Generate Transcript":
-        return <Transcript />;
+      // case "Generate Transcript":
+      //   return <Transcript />;
       case "Assignments & Quizzes":
         return <AssignmentsQuizzes />;
       case "Requests / Messages":

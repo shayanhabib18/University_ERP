@@ -6,7 +6,7 @@ const mockCourses = [
     name: "Introduction to Programming",
     students: [
       { id: "S1", name: "Ali Raza" },
-      { id: "S2", name: "Sara Khan" },
+      { id: "S2", name: "Waleed Atta" },
       { id: "S3", name: "Usman Tariq" },
     ],
   },
@@ -14,7 +14,7 @@ const mockCourses = [
     id: "CS102",
     name: "Data Structures",
     students: [
-      { id: "S4", name: "Ayesha Malik" },
+      { id: "S4", name: "Faizan Malik" },
       { id: "S5", name: "Bilal Ahmed" },
     ],
   },

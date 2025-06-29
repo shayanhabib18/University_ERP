@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Megaphone, PlusCircle } from "lucide-react";
+import { Megaphone } from "lucide-react";
 
 const FacultyAnnouncements = () => {
   const [filter, setFilter] = useState("All");
@@ -21,28 +21,12 @@ const FacultyAnnouncements = () => {
     },
     {
       id: 3,
-      sender: "Chancellor",
-      role: "Chancellor",
+      sender: "",
+      role: "Co-ordinator",
       message: "University will remain closed on Eid holidays.",
       date: "2025-06-23",
     },
   ];
-
-  const [teacherMessage, setTeacherMessage] = useState("");
-  const [teacherPosts, setTeacherPosts] = useState([]);
-
-  const handlePost = () => {
-    if (!teacherMessage.trim()) return;
-    const newPost = {
-      id: Date.now(),
-      sender: "You",
-      role: "Faculty",
-      message: teacherMessage.trim(),
-      date: new Date().toISOString().split("T")[0],
-    };
-    setTeacherPosts([newPost, ...teacherPosts]);
-    setTeacherMessage("");
-  };
 
   const filterOptions = ["All", "VC", "Chairman", "Chancellor"];
 
@@ -93,47 +77,6 @@ const FacultyAnnouncements = () => {
                 <p className="text-xs text-gray-400 mt-1">~ {a.sender}</p>
               </div>
             ))}
-          </div>
-        )}
-      </div>
-
-      {/* 📝 Faculty Announcement Form */}
-      <div className="border-t pt-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">
-          Make Announcement for Students
-        </h3>
-
-        <textarea
-          value={teacherMessage}
-          onChange={(e) => setTeacherMessage(e.target.value)}
-          rows={3}
-          placeholder="Write something to announce..."
-          className="w-full p-2 border rounded mb-3"
-        />
-
-        <button
-          onClick={handlePost}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded flex items-center gap-2"
-        >
-          <PlusCircle size={18} /> Post Announcement
-        </button>
-
-        {teacherPosts.length > 0 && (
-          <div className="mt-6">
-            <h4 className="text-md font-semibold mb-2 text-gray-700">
-              Your Announcements
-            </h4>
-            <div className="space-y-3">
-              {teacherPosts.map((a) => (
-                <div
-                  key={a.id}
-                  className="bg-purple-50 border-l-4 border-purple-500 p-3 rounded"
-                >
-                  <p className="text-sm text-gray-500">{a.date}</p>
-                  <p className="text-gray-800">{a.message}</p>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </div>
