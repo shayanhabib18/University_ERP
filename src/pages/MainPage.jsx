@@ -38,18 +38,15 @@ const roles = [
     color: 'bg-amber-100'
   },
   {
-    title: 'Vice Chancellor',
-    description: 'Institutional analytics and strategic decision support',
-    loginPath: '/login/vc',
-    icon: <BarChart4 className="w-8 h-8 text-indigo-600" />,
+    title: 'Executive Portal',
+    description: 'High-level access for Vice Chancellor and Chancellor to manage institutional analytics, governance, and strategy',
+    loginPath: '/login/executive', // merged path
+    icon: (
+      <div className="flex space-x-1">
+        <Award className="w-6 h-6 text-red-500" />
+      </div>
+    ),
     color: 'bg-indigo-100'
-  },
-  {
-    title: 'Chancellor',
-    description: 'Executive oversight and institutional governance',
-    loginPath: '/login/chancellor',
-    icon: <Award className="w-8 h-8 text-red-600" />,
-    color: 'bg-red-100'
   },
 ];
 
@@ -76,7 +73,7 @@ export default function MainPage() {
             className={`group relative rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 ${role.color}`}
           >
             <div className="p-6 flex flex-col h-full">
-              {/* Icon with colored background */}
+              {/* Icon */}
               <div className="w-14 h-14 flex items-center justify-center rounded-lg bg-white mb-4 shadow-sm">
                 {role.icon}
               </div>
@@ -96,8 +93,8 @@ export default function MainPage() {
                 </Link>
               </div>
             </div>
-            
-            {/* Decorative element */}
+
+            {/* Decorative line */}
             <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white to-transparent opacity-30 group-hover:opacity-50 transition-opacity"></div>
           </div>
         ))}
