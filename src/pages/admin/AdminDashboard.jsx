@@ -13,7 +13,7 @@ import {
   CheckCircle,
   UserCog,
   BookMarked,
-  Bell
+  Bell,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import DepartmentManagement from "./DepartmentManagement";
@@ -28,7 +28,7 @@ const sidebarLinks = [
   "Faculty Management",
   "Student Management",
   "Requests",
-  "Announcements"
+  "Announcements",
 ];
 
 export default function AdminDashboard() {
@@ -45,9 +45,12 @@ export default function AdminDashboard() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <h1 className="text-3xl font-bold text-gray-800">
-                  Admin Dashboard <span className="text-indigo-600">Overview</span>
+                  Admin Dashboard{" "}
+                  <span className="text-indigo-600">Overview</span>
                 </h1>
-                <p className="text-gray-500 mt-1">Welcome back! Here's your system summary</p>
+                <p className="text-gray-500 mt-1">
+                  Welcome back! Here's your system summary
+                </p>
               </div>
               <button
                 onClick={() => navigate("/")}
@@ -66,35 +69,45 @@ export default function AdminDashboard() {
                     <Users className="text-indigo-600" size={20} />
                   </div>
                   <div>
-                    <h3 className="text-gray-500 text-sm font-medium">Total Students</h3>
+                    <h3 className="text-gray-500 text-sm font-medium">
+                      Total Students
+                    </h3>
                     <p className="text-2xl font-bold text-gray-800 mt-1">512</p>
-                    <p className="text-xs text-indigo-600 mt-2">+12 this Semester</p>
+                    <p className="text-xs text-indigo-600 mt-2">
+                      +12 this Semester
+                    </p>
                   </div>
                 </div>
               </div>
-              
+
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
                 <div className="flex items-center gap-4">
                   <div className="bg-blue-100 p-3 rounded-lg">
                     <UserCog className="text-blue-600" size={20} />
                   </div>
                   <div>
-                    <h3 className="text-gray-500 text-sm font-medium">Total Faculty</h3>
+                    <h3 className="text-gray-500 text-sm font-medium">
+                      Total Faculty
+                    </h3>
                     <p className="text-2xl font-bold text-gray-800 mt-1">45</p>
                     <p className="text-xs text-blue-600 mt-2">3 new hires</p>
                   </div>
                 </div>
               </div>
-              
+
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
                 <div className="flex items-center gap-4">
                   <div className="bg-emerald-100 p-3 rounded-lg">
                     <BookMarked className="text-emerald-600" size={20} />
                   </div>
                   <div>
-                    <h3 className="text-gray-500 text-sm font-medium">Courses</h3>
+                    <h3 className="text-gray-500 text-sm font-medium">
+                      Courses
+                    </h3>
                     <p className="text-2xl font-bold text-gray-800 mt-1">67</p>
-                    <p className="text-xs text-emerald-600 mt-2">5 new this semester</p>
+                    <p className="text-xs text-emerald-600 mt-2">
+                      5 new this semester
+                    </p>
                   </div>
                 </div>
               </div>
@@ -165,7 +178,9 @@ export default function AdminDashboard() {
                       </div>
                       <div>
                         <p className="font-medium">{req.title}</p>
-                        <p className="text-sm text-gray-500">{req.description} • {req.time}</p>
+                        <p className="text-sm text-gray-500">
+                          {req.description} • {req.time}
+                        </p>
                       </div>
                     </li>
                   ))}
@@ -197,10 +212,14 @@ export default function AdminDashboard() {
               <div className="bg-indigo-100 p-2 rounded-lg">
                 <Home className="text-indigo-600" size={20} />
               </div>
-              <h1 className="text-2xl font-bold text-indigo-700">{activeTab}</h1>
+              <h1 className="text-2xl font-bold text-indigo-700">
+                {activeTab}
+              </h1>
             </div>
             <div className="bg-indigo-50 p-6 rounded-lg border border-indigo-100">
-              <p className="text-gray-600 text-center">Content is being prepared</p>
+              <p className="text-gray-600 text-center">
+                Content is being prepared
+              </p>
             </div>
           </div>
         );
@@ -210,10 +229,14 @@ export default function AdminDashboard() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* Sidebar */}
-      <aside className={`bg-slate-900 text-white w-64 py-7 px-2 fixed inset-y-0 left-0 transform ${
-        menuOpen ? "translate-x-0" : "-translate-x-full"
-      } md:translate-x-0 transition-transform duration-300 ease-in-out z-50 shadow-xl`}>
-        <h2 className="text-2xl font-bold text-center text-blue-800 mb-6">Admin Panel</h2>
+      <aside
+        className={`bg-slate-900 text-white w-64 py-7 px-2 fixed inset-y-0 left-0 transform ${
+          menuOpen ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0 transition-transform duration-300 ease-in-out z-50 shadow-xl`}
+      >
+        <h2 className="text-2xl font-bold text-center text-blue-800 mb-6">
+          Admin Panel
+        </h2>
         <nav className="space-y-2">
           {sidebarLinks.map((link) => (
             <button
@@ -223,7 +246,9 @@ export default function AdminDashboard() {
                 setMenuOpen(false);
               }}
               className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
-                activeTab === link ? "bg-indigo-700 font-semibold text-white" : "hover:bg-indigo-600"
+                activeTab === link
+                  ? "bg-indigo-700 font-semibold text-white"
+                  : "hover:bg-indigo-600"
               }`}
             >
               {link}
@@ -234,8 +259,8 @@ export default function AdminDashboard() {
 
       {/* Mobile menu button */}
       <div className="md:hidden fixed top-4 left-4 z-50">
-        <button 
-          onClick={() => setMenuOpen(!menuOpen)} 
+        <button
+          onClick={() => setMenuOpen(!menuOpen)}
           className="text-white bg-indigo-600 hover:bg-indigo-700 p-2 rounded shadow"
           aria-label="Toggle menu"
         >
@@ -244,9 +269,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Main content area */}
-      <main className="flex-1 ml-0 md:ml-64 p-6">
-        {renderContent()}
-      </main>
+      <main className="flex-1 ml-0 md:ml-64 p-6">{renderContent()}</main>
     </div>
   );
 }

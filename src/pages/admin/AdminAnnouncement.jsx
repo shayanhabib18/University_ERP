@@ -25,8 +25,14 @@ export default function AdminAnnouncements() {
   };
 
   const handleSubmit = () => {
-    if (!announcement.title || !announcement.message || announcement.target.length === 0) {
-      return alert("Please fill all fields and select at least one target group.");
+    if (
+      !announcement.title ||
+      !announcement.message ||
+      announcement.target.length === 0
+    ) {
+      return alert(
+        "Please fill all fields and select at least one target group."
+      );
     }
 
     const newAnnouncement = {
@@ -56,14 +62,18 @@ export default function AdminAnnouncements() {
           type="text"
           placeholder="Announcement Title"
           value={announcement.title}
-          onChange={(e) => setAnnouncement({ ...announcement, title: e.target.value })}
+          onChange={(e) =>
+            setAnnouncement({ ...announcement, title: e.target.value })
+          }
           className="w-full border rounded p-2 mb-4"
         />
 
         <textarea
           placeholder="Write your announcement message here..."
           value={announcement.message}
-          onChange={(e) => setAnnouncement({ ...announcement, message: e.target.value })}
+          onChange={(e) =>
+            setAnnouncement({ ...announcement, message: e.target.value })
+          }
           rows={4}
           className="w-full border rounded p-2 mb-4"
         />
@@ -105,7 +115,9 @@ export default function AdminAnnouncements() {
               className="bg-white border border-gray-200 p-4 rounded-lg shadow-sm"
             >
               <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-semibold text-gray-800">{ann.title}</h3>
+                <h3 className="text-lg font-semibold text-gray-800">
+                  {ann.title}
+                </h3>
                 <span className="text-xs text-gray-400">{ann.date}</span>
               </div>
               <p className="text-gray-700 text-sm mb-2">{ann.message}</p>
