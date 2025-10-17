@@ -25,6 +25,9 @@ import Requests from "./pages/students/Requests";
 //Faculty Dashboard Pages
 import FacultyDashboard from './pages/faculty/FacultyDashboard';
 
+//Department Chair Pages
+import ChairDashboard from './pages/departmentChair/ChairDashboard';
+
 function App() {
   return (
     <Router>
@@ -55,6 +58,11 @@ function App() {
 
         {/*Faculty Dashboard Pages */}
         <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
+
+        {/*ChairDepartment Dashboard Pages */}
+        <Route path="/chair/dashboard" element={<ChairDashboard />} />
+
+        
       </Routes>
     </Router>
   );
