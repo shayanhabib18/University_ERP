@@ -1,8 +1,23 @@
 import { useState } from "react";
 import FacultyManagement from "./FacultyManagement";
+import ChairApprovals from "./ChairApprovals";
+import ChairAnalytics from "./ChairAnalytics";
+import ChairTranscripts from "./ChairTranscripts";
+import ChairAnnouncements from "./ChairAnnouncements";
+import ChairSettings from "./ChairSettings";
+
 import {
-  Menu, X, Users, BookOpen, ClipboardList,
-  BarChart3, Megaphone, FileText, LogOut, Home, Settings
+  Menu,
+  X,
+  Users,
+  BookOpen,
+  ClipboardList,
+  BarChart3,
+  Megaphone,
+  FileText,
+  LogOut,
+  Home,
+  Settings,
 } from "lucide-react";
 
 export default function ChairDashboard() {
@@ -12,8 +27,7 @@ export default function ChairDashboard() {
   const sidebarLinks = [
     { name: "Dashboard", icon: <Home size={18} /> },
     { name: "Faculty Management", icon: <Users size={18} /> },
-    { name: "Course Management", icon: <BookOpen size={18} /> },
-    { name: "Approvals", icon: <ClipboardList size={18} /> },
+    { name: "Approvals", icon: <ClipboardList size={18} /> }, // ✅ Approvals tab
     { name: "Analytics", icon: <BarChart3 size={18} /> },
     { name: "Transcripts", icon: <FileText size={18} /> },
     { name: "Announcements", icon: <Megaphone size={18} /> },
@@ -49,14 +63,31 @@ export default function ChairDashboard() {
 
             {/* Stats Section */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <StatCard title="Faculty Members" value="12" icon={<Users size={26} />} color="from-blue-500 to-indigo-500" />
-                  <StatCard title="Active Students" value="280" icon={<Users size={26} />} color="from-teal-500 to-cyan-500" />
-              <StatCard title="Pending Approvals" value="4" icon={<ClipboardList size={26} />} color="from-orange-500 to-rose-500" />
+              <StatCard
+                title="Faculty Members"
+                value="12"
+                icon={<Users size={26} />}
+                color="from-blue-500 to-indigo-500"
+              />
+              <StatCard
+                title="Active Students"
+                value="280"
+                icon={<Users size={26} />}
+                color="from-teal-500 to-cyan-500"
+              />
+              <StatCard
+                title="Pending Approvals"
+                value="4"
+                icon={<ClipboardList size={26} />}
+                color="from-orange-500 to-rose-500"
+              />
             </div>
 
             {/* Quick Actions */}
             <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-              <h2 className="text-xl font-bold text-gray-800 mb-6">Quick Actions</h2>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">
+                Quick Actions
+              </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
                 {sidebarLinks.slice(1, -1).map((link, index) => (
                   <button
@@ -76,12 +107,22 @@ export default function ChairDashboard() {
             </div>
           </div>
         );
-        case "Faculty Management":
-          return <FacultyManagement />;
 
-        
+      case "Faculty Management":
+        return <FacultyManagement />;
 
-      default:
+      case "Approvals":
+        return <ChairApprovals />;
+
+      case "Analytics":
+        return <ChairAnalytics />;
+      case "Transcripts":
+        return <ChairTranscripts />;
+      case "Announcements":
+        return <ChairAnnouncements />;
+      case "Settings":
+        return <ChairSettings/>;
+        default:
         return <Placeholder title={activeTab} />;
     }
   };
@@ -98,7 +139,9 @@ export default function ChairDashboard() {
           <div className="bg-blue-600 p-2 rounded-lg shadow-md">
             <Users className="text-white" size={24} />
           </div>
-          <h2 className="text-xl font-bold tracking-wide">Department Chair Portal</h2>
+          <h2 className="text-xl font-bold tracking-wide">
+            Department Chair Portal
+          </h2>
         </div>
 
         <nav className="space-y-1">
