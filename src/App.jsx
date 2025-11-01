@@ -6,8 +6,7 @@ import AdminLogin from './pages/login/AdminLogin';
 import ChairmanLogin from './pages/login/ChairmanLogin';
 import StudentLogin from './pages/login/StudentLogin';
 import FacultyLogin from './pages/login/FacultyLogin';
-import VCLogin from './pages/login/VcLogin';
-import ChancellorLogin from './pages/login/ChancelorLogin';
+import ExecutiveLogin from './pages/login/ExecutiveLogin';
 
 // Admin Dashboard Pages
 import AdminDashboard from './pages/admin/AdminDashboard'; 
@@ -28,6 +27,9 @@ import FacultyDashboard from './pages/faculty/FacultyDashboard';
 //Department Chair Pages
 import ChairDashboard from './pages/departmentChair/ChairDashboard';
 
+// Executive Dashboard Pages
+import ExecutiveDashboard from './pages/executive/ExecutiveDashboard';
+
 function App() {
   return (
     <Router>
@@ -40,8 +42,7 @@ function App() {
         <Route path="/login/chairman" element={<ChairmanLogin />} />
         <Route path="/login/student" element={<StudentLogin />} />
         <Route path="/login/faculty" element={<FacultyLogin />} />
-        <Route path="/login/vc" element={<VCLogin />} />
-        <Route path="/login/chancellor" element={<ChancellorLogin />} />
+        <Route path ="/login/executive" element={<ExecutiveLogin />} />
 
         {/* Admin Dashboard Pages */}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
@@ -62,6 +63,8 @@ function App() {
         {/*ChairDepartment Dashboard Pages */}
         <Route path="/chair/dashboard" element={<ChairDashboard />} />
 
+        {/* Executive Dashboard Pages */}
+        <Route path="/executive/dashboard" element={<ExecutiveDashboard />} />
         
       </Routes>
     </Router>
