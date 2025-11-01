@@ -5,7 +5,8 @@ import {
   UserCog, 
   Users, 
   BarChart4, 
-  Award 
+  Award,
+  FileText
 } from 'lucide-react';
 
 const roles = [
@@ -39,8 +40,8 @@ const roles = [
   },
   {
     title: 'Executive Portal',
-    description: 'High-level access for Vice Chancellor and Chancellor to manage institutional analytics, governance, and strategy',
-    loginPath: '/login/executive', // merged path
+    description: 'High-level access for Vice Chancellor and Executive members to manage analytics, governance, and institutional strategy',
+    loginPath: '/login/executive',
     icon: (
       <div className="flex space-x-1">
         <Award className="w-6 h-6 text-red-500" />
@@ -48,12 +49,19 @@ const roles = [
     ),
     color: 'bg-indigo-100'
   },
+  {
+    title: 'Exam Department',
+    description: 'Manage examinations, results processing, scheduling, and coordination with departments',
+    loginPath: '/login/exam',
+    icon: <FileText className="w-8 h-8 text-orange-600" />,
+    color: 'bg-orange-100'
+  },
 ];
 
 export default function MainPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12 px-4 sm:px-6">
-      {/* Animated Header */}
+      {/* Header */}
       <div className="text-center mb-16 animate-fadeIn">
         <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-3">
           <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
@@ -65,7 +73,7 @@ export default function MainPage() {
         </p>
       </div>
 
-      {/* Role Cards Grid */}
+      {/* Role Cards */}
       <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 max-w-7xl mx-auto">
         {roles.map((role, index) => (
           <div

@@ -23,8 +23,8 @@ const StudentManagement = () => {
     studentPhone: "",
     parentPhone: "",
     academicDocs: [],
-    attendance: "90%", // example static value
-    grades: "A", // example static value
+    attendance: "90%",
+    grades: "A",
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -61,6 +61,11 @@ const StudentManagement = () => {
     setActiveOption("Add Student");
   };
 
+  const deleteStudent = (index) => {
+    const updatedStudents = students.filter((_, i) => i !== index);
+    setStudents(updatedStudents);
+  };
+
   const filteredStudents = students.filter((student) => {
     const q = searchQuery.toLowerCase();
     return (
@@ -70,277 +75,541 @@ const StudentManagement = () => {
     );
   });
 
-  const options = [
-    "Add Student",
-    "Update Student",
-    "Search Student",
-    "Generate Transcript",
-    "Generate Roll No Slips",
-  ];
+  const options = ["Add Student", "Update Student", "Search Student"];
+
+  // Function to generate avatar background color based on name
+  const getAvatarColor = (name) => {
+    const colors = [
+      "from-purple-500 to-pink-500",
+      "from-blue-500 to-cyan-500",
+      "from-green-500 to-emerald-500",
+      "from-orange-500 to-red-500",
+      "from-indigo-500 to-purple-500",
+    ];
+    const index = name.length % colors.length;
+    return colors[index];
+  };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8 text-blue-800 text-center">
-        Student Management
-      </h1>
-
-      {!selectedDept && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {departments.map((dept) => (
-            <div
-              key={dept}
-              className="border p-6 rounded-lg shadow-md bg-white flex flex-col justify-between items-center"
-            >
-              <h2 className="text-xl font-semibold mb-4 text-center">{dept}</h2>
-              <button
-                onClick={() => setSelectedDept(dept)}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              >
-                View
-              </button>
-            </div>
-          ))}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-4 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-bold text-gray-800 mb-3">
+            Student Management System
+          </h1>
+          <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+            Manage student records, academic information, and departmental data efficiently
+          </p>
         </div>
-      )}
 
-      {selectedDept && (
-        <div>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-semibold text-blue-800">
-              Department: {selectedDept}
-            </h2>
-            <button
-              onClick={() => {
-                setSelectedDept(null);
-                setActiveOption("");
-              }}
-              className="text-red-600 font-medium hover:underline"
-            >
-              ← Back
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            {options.map((opt) => (
-              <button
-                key={opt}
-                onClick={() => setActiveOption(opt)}
-                className="bg-gray-100 hover:bg-gray-200 border p-4 rounded-md shadow text-center font-medium"
+        {/* Department Selection */}
+        {!selectedDept && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {departments.map((dept, index) => (
+              <div
+                key={dept}
+                className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border border-gray-200 transform hover:-translate-y-1"
               >
-                {opt}
-              </button>
+                <div className="flex flex-col items-center text-center">
+                  <div className={`w-20 h-20 bg-gradient-to-r ${getAvatarColor(dept)} rounded-2xl flex items-center justify-center mb-4`}>
+                    <span className="text-white font-bold text-2xl">
+                      {dept.split(' ').map(word => word[0]).join('')}
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-semibold text-gray-800 mb-2">
+                    {dept}
+                  </h2>
+                  <p className="text-gray-500 text-sm mb-4">
+                    Manage student records in {dept}
+                  </p>
+                  <button
+                    onClick={() => setSelectedDept(dept)}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg w-full"
+                  >
+                    Access Department
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
+        )}
 
-          {/* --- Add / Update Form --- */}
-          {activeOption === "Add Student" && (
-            <form onSubmit={handleAddOrUpdateStudent} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  placeholder="Full Name"
-                  className="p-3 border rounded-md"
-                  required
-                />
-                <input
-                  name="fatherName"
-                  value={formData.fatherName}
-                  onChange={handleChange}
-                  placeholder="Father's Name"
-                  className="p-3 border rounded-md"
-                  required
-                />
-                <input
-                  name="dob"
-                  type="date"
-                  value={formData.dob}
-                  onChange={handleChange}
-                  className="p-3 border rounded-md"
-                  required
-                />
-                <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
-                  className="p-3 border rounded-md"
-                  required
-                >
-                  <option value="">Select Gender</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                </select>
-                <input
-                  name="rollNo"
-                  value={formData.rollNo}
-                  onChange={handleChange}
-                  placeholder="Roll No"
-                  className="p-3 border rounded-md"
-                  required
-                />
-                <input
-                  name="cnic"
-                  value={formData.cnic}
-                  onChange={handleChange}
-                  placeholder="CNIC"
-                  className="p-3 border rounded-md"
-                  required
-                />
-                <input
-                  name="permanentAddress"
-                  value={formData.permanentAddress}
-                  onChange={handleChange}
-                  placeholder="Permanent Address"
-                  className="p-3 border rounded-md"
-                />
-                <input
-                  name="currentAddress"
-                  value={formData.currentAddress}
-                  onChange={handleChange}
-                  placeholder="Current Address"
-                  className="p-3 border rounded-md"
-                />
-                <input
-                  name="universityEmail"
-                  value={formData.universityEmail}
-                  onChange={handleChange}
-                  placeholder="University Email"
-                  className="p-3 border rounded-md"
-                  required
-                />
-                <input
-                  name="personalEmail"
-                  value={formData.personalEmail}
-                  onChange={handleChange}
-                  placeholder="Personal Email"
-                  className="p-3 border rounded-md"
-                />
-                <input
-                  name="studentPhone"
-                  value={formData.studentPhone}
-                  onChange={handleChange}
-                  placeholder="Student Phone"
-                  className="p-3 border rounded-md"
-                />
-                <input
-                  name="parentPhone"
-                  value={formData.parentPhone}
-                  onChange={handleChange}
-                  placeholder="Parent Phone"
-                  className="p-3 border rounded-md"
-                />
-              </div>
-
+        {/* Department Details */}
+        {selectedDept && (
+          <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8">
+            {/* Header with Breadcrumb */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-4 border-b border-gray-200">
               <div>
-                <label className="font-medium block mb-1">
-                  Academic Documents
-                </label>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="w-full border rounded-md p-2"
-                />
+                <div className="flex items-center text-sm text-gray-500 mb-2">
+                  <button
+                    onClick={() => {
+                      setSelectedDept(null);
+                      setActiveOption("");
+                    }}
+                    className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                  >
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    All Departments
+                  </button>
+                  <span className="mx-2">/</span>
+                  <span>{selectedDept}</span>
+                </div>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
+                  {selectedDept}
+                </h2>
               </div>
+              <div className="mt-4 md:mt-0">
+                <span className="inline-block bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                  {students.length} Students
+                </span>
+              </div>
+            </div>
 
-              <button
-                type="submit"
-                className="mt-4 bg-green-600 text-white py-2 px-6 rounded hover:bg-green-700"
-              >
-                {editingIndex !== null ? "Update Student" : "Add Student"}
-              </button>
-            </form>
-          )}
+            {/* Options Navigation */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              {options.map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => setActiveOption(opt)}
+                  className={`p-4 rounded-xl border-2 transition-all duration-200 font-medium text-center ${
+                    activeOption === opt
+                      ? "border-green-500 bg-green-50 text-green-700 shadow-md"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-green-300 hover:shadow-md"
+                  }`}
+                >
+                  <div className="flex items-center justify-center space-x-2">
+                    {opt === "Add Student" && (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                    )}
+                    {opt === "Update Student" && (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    )}
+                    {opt === "Search Student" && (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    )}
+                    <span>{opt}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
 
-          {/* --- Update List --- */}
-          {activeOption === "Update Student" && (
-            <div>
-              {students.length === 0 ? (
-                <p>No students available.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {students.map((student, idx) => (
-                    <li
-                      key={idx}
-                      className="border p-4 rounded flex justify-between"
-                    >
-                      <span>
-                        {student.fullName} - {student.rollNo}
-                      </span>
-                      <button
-                        className="text-blue-600 hover:underline"
-                        onClick={() => startEditingStudent(idx)}
+            {/* Add / Update Student Form */}
+            {activeOption === "Add Student" && (
+              <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 border border-green-100">
+                <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                  <svg className="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  {editingIndex !== null ? "Update Student Record" : "Register New Student"}
+                </h3>
+                <form onSubmit={handleAddOrUpdateStudent} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Personal Information */}
+                    <div className="md:col-span-2">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Personal Information</h4>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Full Name *
+                      </label>
+                      <input
+                        name="fullName"
+                        value={formData.fullName}
+                        onChange={handleChange}
+                        placeholder="Enter student's full name"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Father's Name *
+                      </label>
+                      <input
+                        name="fatherName"
+                        value={formData.fatherName}
+                        onChange={handleChange}
+                        placeholder="Enter father's name"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Date of Birth *
+                      </label>
+                      <input
+                        name="dob"
+                        type="date"
+                        value={formData.dob}
+                        onChange={handleChange}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Gender *
+                      </label>
+                      <select
+                        name="gender"
+                        value={formData.gender}
+                        onChange={handleChange}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        required
                       >
-                        Edit
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
+                        <option value="">Select Gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
 
-          {/* --- Search Student --- */}
-          {activeOption === "Search Student" && (
-            <div className="mt-4">
-              <input
-                type="text"
-                placeholder="Search by Roll No, Email, or Name..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full md:w-2/3 p-3 border rounded-md mb-4"
-              />
+                    {/* Academic Information */}
+                    <div className="md:col-span-2 mt-4">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Academic Information</h4>
+                    </div>
 
-              {filteredStudents.length === 0 ? (
-                <p className="text-gray-500">No student found.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {filteredStudents.map((student, idx) => (
-                    <li key={idx} className="border p-3 rounded-md">
-                      <strong>{student.fullName}</strong> ({student.rollNo})
-                      <br />
-                      {student.universityEmail}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Roll Number *
+                      </label>
+                      <input
+                        name="rollNo"
+                        value={formData.rollNo}
+                        onChange={handleChange}
+                        placeholder="Enter roll number"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        required
+                      />
+                    </div>
 
-          {/* --- Generate Transcript --- */}
-          {activeOption === "Generate Transcript" && (
-            <div className="mt-6">
-              {students.length === 0 ? (
-                <p>No student data to show transcripts.</p>
-              ) : (
-                <div className="space-y-4">
-                  {students.map((s, i) => (
-                    <div
-                      key={i}
-                      className="border p-4 rounded bg-white shadow-sm"
-                    >
-                      <h3 className="font-bold text-lg text-blue-700">
-                        {s.fullName}
-                      </h3>
-                      <p>
-                        <strong>Roll No:</strong> {s.rollNo}
-                      </p>
-                      <p>
-                        <strong>Attendance:</strong> {s.attendance}
-                      </p>
-                      <p>
-                        <strong>Grades:</strong> {s.grades}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        CNIC/B-Form *
+                      </label>
+                      <input
+                        name="cnic"
+                        value={formData.cnic}
+                        onChange={handleChange}
+                        placeholder="Enter CNIC or B-Form number"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        required
+                      />
+                    </div>
+
+                    {/* Contact Information */}
+                    <div className="md:col-span-2 mt-4">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Contact Information</h4>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        University Email *
+                      </label>
+                      <input
+                        name="universityEmail"
+                        type="email"
+                        value={formData.universityEmail}
+                        onChange={handleChange}
+                        placeholder="student@university.edu"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Personal Email
+                      </label>
+                      <input
+                        name="personalEmail"
+                        type="email"
+                        value={formData.personalEmail}
+                        onChange={handleChange}
+                        placeholder="personal@email.com"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Student Phone
+                      </label>
+                      <input
+                        name="studentPhone"
+                        value={formData.studentPhone}
+                        onChange={handleChange}
+                        placeholder="+92 300 1234567"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Parent/Guardian Phone
+                      </label>
+                      <input
+                        name="parentPhone"
+                        value={formData.parentPhone}
+                        onChange={handleChange}
+                        placeholder="+92 300 1234567"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                      />
+                    </div>
+
+                    {/* Address Information */}
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Permanent Address
+                      </label>
+                      <input
+                        name="permanentAddress"
+                        value={formData.permanentAddress}
+                        onChange={handleChange}
+                        placeholder="Enter permanent address"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Current Address
+                      </label>
+                      <input
+                        name="currentAddress"
+                        value={formData.currentAddress}
+                        onChange={handleChange}
+                        placeholder="Enter current address (if different)"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Documents Upload */}
+                  <div className="border-t border-gray-200 pt-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Academic Documents
+                    </label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-green-400 transition-colors">
+                      <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,.pdf,.doc,.docx"
+                        onChange={handleFileChange}
+                        className="w-full opacity-0 absolute inset-0 cursor-pointer"
+                      />
+                      <p className="text-gray-600 font-medium">Upload Academic Documents</p>
+                      <p className="text-gray-500 text-sm mt-1">
+                        Transcripts, Certificates, CNIC, Photos (PDF, DOC, Images)
                       </p>
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="flex justify-end space-x-4 pt-6">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData(initialFormState);
+                        setEditingIndex(null);
+                      }}
+                      className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-gradient-to-r from-green-600 to-blue-600 text-white px-8 py-3 rounded-lg hover:from-green-700 hover:to-blue-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg flex items-center"
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {editingIndex !== null ? "Update Student" : "Register Student"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Update Student List */}
+            {activeOption === "Update Student" && (
+              <div className="bg-white rounded-xl border border-gray-200">
+                <div className="p-6 border-b border-gray-200">
+                  <h3 className="text-xl font-semibold text-gray-800 flex items-center">
+                    <svg className="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Manage Student Records
+                  </h3>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+                {students.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    <p className="text-gray-500 text-lg">No student records found.</p>
+                    <p className="text-gray-400 text-sm mt-2">
+                      Use the "Add Student" option to register new students.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-200">
+                    {students.map((student, idx) => (
+                      <div key={idx} className="p-6 hover:bg-gray-50 transition-colors">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between">
+                          <div className="flex items-start space-x-4">
+                            <div className={`w-12 h-12 bg-gradient-to-r ${getAvatarColor(student.fullName)} rounded-xl flex items-center justify-center text-white font-semibold text-lg`}>
+                              {student.fullName.charAt(0)}
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-gray-800 text-lg">{student.fullName}</h4>
+                              <p className="text-gray-600">{student.rollNo}</p>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+                                  {student.gender}
+                                </span>
+                                <span className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                                  Attendance: {student.attendance}
+                                </span>
+                                <span className="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs font-medium">
+                                  Grade: {student.grades}
+                                </span>
+                              </div>
+                              <div className="flex items-center text-sm text-gray-500 mt-2">
+                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                {student.universityEmail}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex space-x-3 mt-4 md:mt-0">
+                            <button
+                              onClick={() => startEditingStudent(idx)}
+                              className="flex items-center text-green-600 hover:text-green-800 transition-colors font-medium"
+                            >
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => deleteStudent(idx)}
+                              className="flex items-center text-red-600 hover:text-red-800 transition-colors font-medium"
+                            >
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Search Student */}
+            {activeOption === "Search Student" && (
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                  <svg className="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  Search Student Records
+                </h3>
+                <div className="relative mb-6">
+                  <input
+                    type="text"
+                    placeholder="Search by roll number, email, or name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full p-4 pl-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                  />
+                  <svg className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+
+                {filteredStudents.length === 0 ? (
+                  <div className="text-center py-8">
+                    <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-gray-500 text-lg">
+                      {searchQuery ? "No students found matching your search." : "No student records available."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {filteredStudents.map((student, idx) => (
+                      <div key={idx} className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow bg-white">
+                        <div className="flex items-start space-x-4">
+                          <div className={`w-14 h-14 bg-gradient-to-r ${getAvatarColor(student.fullName)} rounded-xl flex items-center justify-center text-white font-semibold text-xl`}>
+                            {student.fullName.charAt(0)}
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-gray-800 text-lg mb-1">{student.fullName}</h4>
+                            <p className="text-green-600 font-medium mb-2">{student.rollNo}</p>
+                            <div className="space-y-1 text-sm text-gray-600">
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                {student.universityEmail}
+                              </div>
+                              {student.studentPhone && (
+                                <div className="flex items-center">
+                                  <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                  </svg>
+                                  {student.studentPhone}
+                                </div>
+                              )}
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                {student.gender} • {student.dob}
+                              </div>
+                            </div>
+                            <div className="flex gap-2 mt-3">
+                              <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+                                {student.attendance} Attendance
+                              </span>
+                              <span className="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs font-medium">
+                                Grade: {student.grades}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import ExecutiveAnnouncements from "./ExecutiveAnnouncements";
 import ExecutiveDepartments from "./ExecutiveDepartments";
+import ExecutiveAnalytics from "./ExecutiveAnalytics";
 import {
   Menu,
   X,
@@ -8,7 +9,6 @@ import {
   BarChart3,
   Megaphone,
   FileText,
-  Settings,
   Home,
   LogOut,
   Users,
@@ -24,7 +24,6 @@ export default function ExecutiveDashboard() {
     { name: "Analytics", icon: <BarChart3 size={18} /> },
     { name: "Reports", icon: <FileText size={18} /> },
     { name: "Announcements", icon: <Megaphone size={18} /> },
-    { name: "Settings", icon: <Settings size={18} /> },
   ];
 
   const renderContent = () => {
@@ -88,7 +87,7 @@ export default function ExecutiveDashboard() {
                 Quick Actions
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
-                {sidebarLinks.slice(1, -1).map((link, index) => (
+                {sidebarLinks.slice(1).map((link, index) => (
                   <button
                     key={index}
                     onClick={() => setActiveTab(link.name)}
@@ -108,19 +107,16 @@ export default function ExecutiveDashboard() {
         );
 
       case "Departments":
-        return <ExecutiveDepartments />; 
+        return <ExecutiveDepartments />;
 
       case "Analytics":
-        // return <ExecutiveAnalytics />;
+        return <ExecutiveAnalytics />;
 
       case "Reports":
-        // return <ExecutiveReports />;
+        return <ExecutiveReports />;
 
       case "Announcements":
         return <ExecutiveAnnouncements />;
-
-      case "Settings":
-        return <ExecutiveSettings />;
 
       default:
         return <Placeholder title={activeTab} />;
@@ -139,9 +135,7 @@ export default function ExecutiveDashboard() {
           <div className="bg-blue-600 p-2 rounded-lg shadow-md">
             <Building2 className="text-white" size={24} />
           </div>
-          <h2 className="text-xl font-bold tracking-wide">
-            Executive Portal
-          </h2>
+          <h2 className="text-xl font-bold tracking-wide">Executive Portal</h2>
         </div>
 
         <nav className="space-y-1">
@@ -171,7 +165,7 @@ export default function ExecutiveDashboard() {
         </nav>
       </aside>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu Button */}
       <div className="md:hidden fixed top-4 left-4 z-50">
         <button
           onClick={() => setMenuOpen(!menuOpen)}
