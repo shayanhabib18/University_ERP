@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 
 export default function Profile() {
-  const details = {
+  const [isEditing, setIsEditing] = useState(false);
+  const [details, setDetails] = useState({
     registrationNo: "2022-BSSE-120",
     phone: "051-1234567",
     address: "House no 1 Street 2 B17",
@@ -10,6 +11,24 @@ export default function Profile() {
     email: "shayanhabib2003@gmail.com",
     session: "Fa-2022",
     degree: "BSSE",
+  });
+
+  const [requestStatus, setRequestStatus] = useState("");
+
+  const handleChange = (e) => {
+    setDetails({
+      ...details,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleRequestApproval = () => {
+    setIsEditing(false);
+    setRequestStatus("Your update request has been sent to admin for approval.");
+    console.log("Request sent to admin:", details);
+
+    // ✅ In future: call API like
+    // await axios.post("/api/request-profile-update", details);
   };
 
   return (
@@ -19,6 +38,18 @@ export default function Profile() {
         <h2 className="text-2xl font-bold text-indigo-700">
           🎓 Personal Details
         </h2>
+
+        {/* Edit / Request Admin Button */}
+        <button
+          onClick={() => (isEditing ? handleRequestApproval() : setIsEditing(true))}
+          className={`px-4 py-2 rounded-lg text-white font-medium shadow transition-all ${
+            isEditing
+              ? "bg-green-600 hover:bg-green-700"
+              : "bg-blue-600 hover:bg-blue-700"
+          }`}
+        >
+          {isEditing ? "Request Admin Approval" : "Edit / Request Admin"}
+        </button>
       </div>
 
       {/* Profile Picture */}
@@ -32,25 +63,10 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Static Details */}
+      {/* Student Details */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-700 text-sm sm:text-base">
         <div>
           <strong>Registration No:</strong> <span>{details.registrationNo}</span>
-        </div>
-        <div>
-          <strong>Phone:</strong> <span>{details.phone}</span>
-        </div>
-        <div>
-          <strong>Address:</strong> <span>{details.address}</span>
-        </div>
-        <div>
-          <strong>Mobile:</strong> <span>{details.mobile}</span>
-        </div>
-        <div>
-          <strong>City:</strong> <span>{details.city}</span>
-        </div>
-        <div>
-          <strong>Email:</strong> <span>{details.email}</span>
         </div>
         <div>
           <strong>Session:</strong> <span>{details.session}</span>
@@ -58,7 +74,37 @@ export default function Profile() {
         <div>
           <strong>Degree:</strong> <span>{details.degree}</span>
         </div>
+
+        {/* Editable fields */}
+        {["phone", "mobile", "address", "city", "email"].map((field) => (
+          <div key={field}>
+            <strong className="capitalize">
+              {field === "mobile"
+                ? "Mobile"
+                : field.charAt(0).toUpperCase() + field.slice(1)}
+              :
+            </strong>{" "}
+            {isEditing ? (
+              <input
+                type={field === "email" ? "email" : "text"}
+                name={field}
+                value={details[field]}
+                onChange={handleChange}
+                className="border border-gray-300 rounded-md px-2 py-1 w-full mt-1 text-gray-700 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              />
+            ) : (
+              <span>{details[field]}</span>
+            )}
+          </div>
+        ))}
       </div>
+
+      {/* Status Message */}
+      {requestStatus && (
+        <div className="mt-4 p-3 text-green-700 bg-green-100 rounded-lg text-sm">
+          ✅ {requestStatus}
+        </div>
+      )}
     </div>
   );
 }

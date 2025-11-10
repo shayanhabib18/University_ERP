@@ -4,8 +4,6 @@ import ChairApprovals from "./ChairApprovals";
 import ChairAnalytics from "./ChairAnalytics";
 import ChairTranscripts from "./ChairTranscripts";
 import ChairAnnouncements from "./ChairAnnouncements";
-import ChairSettings from "./ChairSettings";
-
 import {
   Menu,
   X,
@@ -17,7 +15,6 @@ import {
   FileText,
   LogOut,
   Home,
-  Settings,
 } from "lucide-react";
 
 export default function ChairDashboard() {
@@ -27,11 +24,10 @@ export default function ChairDashboard() {
   const sidebarLinks = [
     { name: "Dashboard", icon: <Home size={18} /> },
     { name: "Faculty Management", icon: <Users size={18} /> },
-    { name: "Approvals", icon: <ClipboardList size={18} /> }, // ✅ Approvals tab
+    { name: "Approvals", icon: <ClipboardList size={18} /> },
     { name: "Analytics", icon: <BarChart3 size={18} /> },
     { name: "Transcripts", icon: <FileText size={18} /> },
     { name: "Announcements", icon: <Megaphone size={18} /> },
-    { name: "Settings", icon: <Settings size={18} /> },
   ];
 
   const renderContent = () => {
@@ -81,6 +77,12 @@ export default function ChairDashboard() {
                 icon={<ClipboardList size={26} />}
                 color="from-orange-500 to-rose-500"
               />
+              <StatCard
+                title="Announcements"
+                value="6"
+                icon={<Megaphone size={26} />}
+                color="from-purple-500 to-pink-500"
+              />
             </div>
 
             {/* Quick Actions */}
@@ -89,7 +91,7 @@ export default function ChairDashboard() {
                 Quick Actions
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
-                {sidebarLinks.slice(1, -1).map((link, index) => (
+                {sidebarLinks.slice(1).map((link, index) => (
                   <button
                     key={index}
                     onClick={() => setActiveTab(link.name)}
@@ -116,13 +118,14 @@ export default function ChairDashboard() {
 
       case "Analytics":
         return <ChairAnalytics />;
+
       case "Transcripts":
         return <ChairTranscripts />;
+
       case "Announcements":
         return <ChairAnnouncements />;
-      case "Settings":
-        return <ChairSettings/>;
-        default:
+
+      default:
         return <Placeholder title={activeTab} />;
     }
   };
@@ -171,7 +174,7 @@ export default function ChairDashboard() {
         </nav>
       </aside>
 
-      {/* Mobile Menu Toggle */}
+      {/* Mobile Menu Button */}
       <div className="md:hidden fixed top-4 left-4 z-50">
         <button
           onClick={() => setMenuOpen(!menuOpen)}

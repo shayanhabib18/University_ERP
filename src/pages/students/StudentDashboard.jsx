@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { Menu, X, Bell, BookOpen, ClipboardList, FileText, Mail, User, LogOut, Home, BarChart2, Clock, CheckCircle } from "lucide-react";
+import { Menu, X, Bell, BookOpen, ClipboardList, FileText, Mail, User, LogOut, Home, BarChart2, CheckCircle } from "lucide-react";
 import Courses from "./Courses";
 import Notifications from "./Notifications";
 import AssignmentsQuizzes from "./AssignmentsQuizzes";
-// import Transcript from "./Transcripts";
 import Profile from "./Profile";
 import Requests from "./Requests";
 
@@ -12,7 +11,6 @@ const sidebarLinks = [
   { name: "My Profile", icon: <User size={18} /> },
   { name: "Assignments & Quizzes", icon: <ClipboardList size={18} /> },
   { name: "Courses / Enrollments", icon: <BookOpen size={18} /> },
-  // { name: "Generate Transcript", icon: <FileText size={18} /> },
   { name: "Requests / Messages", icon: <Mail size={18} /> },
   { name: "Notifications", icon: <Bell size={18} /> }
 ];
@@ -31,7 +29,10 @@ export default function StudentDashboard() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <h1 className="text-3xl font-bold text-gray-800">
-                  Welcome back, <span className="text-gradient bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Student</span>
+                  Welcome back,{" "}
+                  <span className="text-gradient bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    Student
+                  </span>
                 </h1>
                 <p className="text-gray-500 mt-1">Here's your academic summary</p>
               </div>
@@ -44,23 +45,8 @@ export default function StudentDashboard() {
               </button>
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Attendance Card */}
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl shadow-sm border border-blue-100">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-100 p-2 rounded-lg">
-                    <CheckCircle className="text-blue-600" size={20} />
-                  </div>
-                  <h3 className="text-gray-500 font-medium">Attendance</h3>
-                </div>
-                <p className="text-3xl font-bold text-gray-800 mt-4">92%</p>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-4">
-                  <div className="bg-gradient-to-r from-green-400 to-green-500 h-2 rounded-full" style={{ width: '92%' }}></div>
-                </div>
-                <p className="text-sm text-gray-500 mt-1">+2% from last month</p>
-              </div>
-
+            {/* Stats Cards (Attendance removed) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* CGPA Card */}
               <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl shadow-sm border border-indigo-100">
                 <div className="flex items-center gap-3">
@@ -72,7 +58,9 @@ export default function StudentDashboard() {
                 <p className="text-3xl font-bold text-gray-800 mt-4">3.8</p>
                 <div className="flex items-center mt-2">
                   <span className="text-sm text-gray-500 mr-2">Current:</span>
-                  <span className="text-sm font-medium bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">3.9 GPA</span>
+                  <span className="text-sm font-medium bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    3.9 GPA
+                  </span>
                 </div>
               </div>
 
@@ -82,14 +70,14 @@ export default function StudentDashboard() {
                   <div className="bg-emerald-100 p-2 rounded-lg">
                     <BookOpen className="text-emerald-600" size={20} />
                   </div>
-                  <h3 className="text-gray-500 font-medium">Active Courses</h3>
+                  <h3 className="text-gray-500 font-medium">Enrolled Courses</h3>
                 </div>
                 <p className="text-3xl font-bold text-gray-800 mt-4">5</p>
                 <p className="text-sm text-gray-500 mt-1">3 core, 2 electives</p>
               </div>
 
               {/* Notifications Card */}
-              <div 
+              <div
                 className="bg-gradient-to-br from-amber-50 to-amber-100 p-6 rounded-xl shadow-sm border border-amber-100 hover:shadow-md transition-all cursor-pointer"
                 onClick={() => setActiveTab("Notifications")}
               >
@@ -127,7 +115,9 @@ export default function StudentDashboard() {
                   </div>
                 </div>
                 {unreadNotifications > 2 && (
-                  <p className="text-blue-600 text-sm mt-3 text-right">+{unreadNotifications - 2} more</p>
+                  <p className="text-blue-600 text-sm mt-3 text-right">
+                    +{unreadNotifications - 2} more
+                  </p>
                 )}
               </div>
             </div>
@@ -137,7 +127,11 @@ export default function StudentDashboard() {
               <h2 className="text-xl font-semibold text-gray-800 mb-6">Quick Actions</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                 {sidebarLinks
-                  .filter(link => link.name !== "Dashboard Overview" && link.name !== "Notifications")
+                  .filter(
+                    (link) =>
+                      link.name !== "Dashboard Overview" &&
+                      link.name !== "Notifications"
+                  )
                   .map((link, index) => (
                     <button
                       key={index}
@@ -154,12 +148,11 @@ export default function StudentDashboard() {
             </div>
           </div>
         );
+
       case "My Profile":
         return <Profile />;
       case "Courses / Enrollments":
         return <Courses />;
-      // case "Generate Transcript":
-      //   return <Transcript />;
       case "Assignments & Quizzes":
         return <AssignmentsQuizzes />;
       case "Requests / Messages":
@@ -171,7 +164,7 @@ export default function StudentDashboard() {
           <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-100">
             <div className="flex items-center gap-3 mb-6">
               <div className="bg-blue-100 p-2 rounded-lg">
-                {sidebarLinks.find(link => link.name === activeTab)?.icon}
+                {sidebarLinks.find((link) => link.name === activeTab)?.icon}
               </div>
               <h1 className="text-2xl font-bold text-blue-700">{activeTab}</h1>
             </div>
@@ -206,12 +199,16 @@ export default function StudentDashboard() {
                 setMenuOpen(false);
               }}
               className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg transition ${
-                activeTab === link.name 
-                  ? "bg-white text-blue-700 shadow-md" 
+                activeTab === link.name
+                  ? "bg-white text-blue-700 shadow-md"
                   : "text-gray-300 hover:bg-gray-800 hover:text-white"
               }`}
             >
-              <span className={`${activeTab === link.name ? "text-blue-600" : "text-gray-400"}`}>
+              <span
+                className={`${
+                  activeTab === link.name ? "text-blue-600" : "text-gray-400"
+                }`}
+              >
                 {link.icon}
               </span>
               {link.name}

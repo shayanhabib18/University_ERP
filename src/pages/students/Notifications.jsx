@@ -4,35 +4,45 @@ import { Megaphone } from "lucide-react";
 const FacultyAnnouncements = () => {
   const [filter, setFilter] = useState("All");
 
+  // 📢 Updated announcement data for Student Portal
   const receivedAnnouncements = [
     {
       id: 1,
-      sender: "Vice Chancellor",
-      role: "VC",
-      message: "Final exam schedule has been released.",
-      date: "2025-06-24",
+      sender: "Admin",
+      role: "Admin",
+      message: "Online portal will be under maintenance this weekend.",
+      date: "2025-06-20",
     },
     {
       id: 2,
-      sender: "Chairman",
-      role: "Chairman",
-      message: "Department meeting on 28th June at 11 AM.",
+      sender: "Faculty Member",
+      role: "Faculty",
+      message: "Mid-term exams will start from 10th July.",
       date: "2025-06-25",
     },
     {
       id: 3,
-      sender: "",
-      role: "Co-ordinator",
-      message: "University will remain closed on Eid holidays.",
-      date: "2025-06-23",
+      sender: "Coordinator",
+      role: "Coordinator",
+      message: "Department orientation will be held on 1st July.",
+      date: "2025-06-27",
+    },
+    {
+      id: 4,
+      sender: "Faculty Member",
+      role: "Faculty",
+      message: "Final project submission deadline is extended to 15th July.",
+      date: "2025-06-28",
     },
   ];
 
-  const filterOptions = ["All", "VC", "Chairman", "Chancellor"];
+  // 🎯 Filters: Only Faculty, Coordinator, and Admin
+  const filterOptions = ["All", "Faculty", "Coordinator", "Admin"];
 
-  const filtered = filter === "All"
-    ? receivedAnnouncements
-    : receivedAnnouncements.filter((a) => a.role === filter);
+  const filtered =
+    filter === "All"
+      ? receivedAnnouncements
+      : receivedAnnouncements.filter((a) => a.role === filter);
 
   return (
     <div className="max-w-5xl mx-auto mt-10 p-6 bg-white shadow-md rounded-lg space-y-10">
@@ -57,7 +67,7 @@ const FacultyAnnouncements = () => {
         ))}
       </div>
 
-      {/* 🔔 VC/Chairman/Chancellor Announcements */}
+      {/* 🔔 Announcements Section */}
       <div>
         <h3 className="text-lg font-semibold text-gray-800 mb-3">
           Official Announcements
@@ -72,7 +82,9 @@ const FacultyAnnouncements = () => {
                 key={a.id}
                 className="border-l-4 pl-4 py-3 border-indigo-500 bg-gray-50 rounded"
               >
-                <p className="text-sm text-gray-500">{a.date} · {a.role}</p>
+                <p className="text-sm text-gray-500">
+                  {a.date} · {a.role}
+                </p>
                 <p className="font-medium text-gray-900">{a.message}</p>
                 <p className="text-xs text-gray-400 mt-1">~ {a.sender}</p>
               </div>
