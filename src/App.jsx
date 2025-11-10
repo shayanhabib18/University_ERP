@@ -7,6 +7,7 @@ import ChairmanLogin from './pages/login/ChairmanLogin';
 import StudentLogin from './pages/login/StudentLogin';
 import FacultyLogin from './pages/login/FacultyLogin';
 import ExecutiveLogin from './pages/login/ExecutiveLogin';
+import ExamLogin from './pages/login/ExamLogin';
 
 // Admin Dashboard Pages
 import AdminDashboard from './pages/admin/AdminDashboard'; 
@@ -43,6 +44,7 @@ function App() {
         <Route path="/login/student" element={<StudentLogin />} />
         <Route path="/login/faculty" element={<FacultyLogin />} />
         <Route path ="/login/executive" element={<ExecutiveLogin />} />
+        <Route path="/login/exam" element={<ExamLogin />} />
 
         {/* Admin Dashboard Pages */}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
