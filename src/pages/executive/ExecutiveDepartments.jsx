@@ -5,18 +5,27 @@ import {
   UserCheck,
   Eye,
   Edit3,
-  UserPlus,
   X,
+  Search,
+  TrendingUp,
+  BookOpen,
+  Mail,
+  Phone,
 } from "lucide-react";
 
-export default function DepartmentOverview() {
+export default function ExecutiveDepartments() {
   const [departments, setDepartments] = useState([
     {
       id: 1,
       name: "Computer Science",
       hod: "Dr. Ahmed Raza",
+      hodEmail: "ahmed.raza@university.edu",
+      hodPhone: "+92-300-1234567",
       students: 320,
-      faculty: 22,
+      faculty: 18,
+      courses: 45,
+      avgGPA: 3.6,
+      established: "2010",
       sections: {
         Cyber: {
           students: ["Ali", "Hassan", "Saad"],
@@ -36,8 +45,13 @@ export default function DepartmentOverview() {
       id: 2,
       name: "Electrical Engineering",
       hod: "Dr. Sara Khan",
+      hodEmail: "sara.khan@university.edu",
+      hodPhone: "+92-300-1234568",
       students: 270,
-      faculty: 18,
+      faculty: 15,
+      courses: 38,
+      avgGPA: 3.4,
+      established: "2008",
       sections: {
         Electronics: {
           students: ["Fahad", "Asma"],
@@ -49,27 +63,33 @@ export default function DepartmentOverview() {
         },
       },
     },
+    {
+      id: 3,
+      name: "Business Administration",
+      hod: "Dr. Muhammad Ali",
+      hodEmail: "muhammad.ali@university.edu",
+      hodPhone: "+92-300-1234569",
+      students: 450,
+      faculty: 25,
+      courses: 52,
+      avgGPA: 3.5,
+      established: "2012",
+      sections: {
+        Finance: {
+          students: ["Ahmad", "Fatima", "Usman"],
+          faculty: ["Dr. Hassan", "Prof. Ayesha"],
+        },
+        Marketing: {
+          students: ["Zara", "Bilal"],
+          faculty: ["Dr. Sana"],
+        },
+      },
+    },
   ]);
 
   const [selectedDept, setSelectedDept] = useState(null);
   const [editing, setEditing] = useState(null);
-  const [newHod, setNewHod] = useState("");
-
-  // ✅ Assign/Change HOD
-  const handleAssignHod = (id) => {
-    if (!newHod.trim()) {
-      alert("Please enter a name for the new HOD.");
-      return;
-    }
-
-    setDepartments((prev) =>
-      prev.map((dept) =>
-        dept.id === id ? { ...dept, hod: newHod } : dept
-      )
-    );
-    setNewHod("");
-    alert("HOD updated successfully!");
-  };
+  const [searchTerm, setSearchTerm] = useState("");
 
   // ✅ Save Edited Department
   const handleSaveEdit = () => {
@@ -77,202 +97,333 @@ export default function DepartmentOverview() {
       prev.map((d) => (d.id === editing.id ? editing : d))
     );
     setEditing(null);
-    alert("Department details updated!");
+    alert("Department details updated successfully!");
   };
 
+  // Filter departments based on search
+  const filteredDepartments = departments.filter((dept) =>
+    dept.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    dept.hod.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <h1 className="text-3xl font-bold mb-6 text-blue-700 flex items-center">
-        <Building2 className="mr-3" /> Department Overview
-      </h1>
+    <div className="p-6 md:p-8 bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
+      {/* Header Section */}
+      <div className="mb-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2 flex items-center gap-3">
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-3 rounded-xl shadow-lg">
+                <Building2 className="text-white" size={28} />
+              </div>
+              Department Overview
+            </h1>
+            <p className="text-gray-600 text-sm md:text-base">
+              Manage and monitor all academic departments
+            </p>
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative mb-6">
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            type="text"
+            placeholder="Search departments or HOD names..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
+          />
+        </div>
+      </div>
 
       {/* Department Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {departments.map((dept) => (
+        {filteredDepartments.map((dept) => (
           <div
             key={dept.id}
-            className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300"
+            className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 group"
           >
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">
-              {dept.name}
-            </h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Head:{" "}
-              <span className="font-medium text-gray-700">{dept.hod}</span>
-            </p>
-
-            <div className="flex justify-between mb-3">
-              <div className="flex items-center space-x-2">
-                <Users className="text-blue-600" />
-                <span className="text-gray-700 font-medium">
-                  {dept.students} Students
-                </span>
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-gray-800 mb-3 group-hover:text-blue-600 transition">
+                  {dept.name}
+                </h2>
               </div>
-              <div className="flex items-center space-x-2">
-                <UserCheck className="text-green-600" />
-                <span className="text-gray-700 font-medium">
-                  {dept.faculty} Faculty
-                </span>
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-2 rounded-lg">
+                <Building2 className="text-blue-600" size={20} />
               </div>
             </div>
 
-            <div className="flex justify-between mt-4">
+            <div className="mb-4 pb-4 border-b border-gray-200">
+              <p className="text-sm text-gray-500 mb-1">Head of Department</p>
+              <p className="font-semibold text-gray-800">{dept.hod}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <Users className="text-blue-600" size={16} />
+                  <span className="text-xs text-gray-600">Students</span>
+                </div>
+                <p className="text-lg font-bold text-gray-800">{dept.students}</p>
+              </div>
+              <div className="bg-green-50 p-3 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <UserCheck className="text-green-600" size={16} />
+                  <span className="text-xs text-gray-600">Faculty</span>
+                </div>
+                <p className="text-lg font-bold text-gray-800">{dept.faculty}</p>
+              </div>
+            </div>
+
+            <div className="mt-4">
               <button
                 onClick={() => setSelectedDept(dept)}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2.5 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg"
               >
-                <Eye size={16} className="inline mr-1" /> View
-              </button>
-              <button
-                onClick={() => setEditing({ ...dept })}
-                className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 transition"
-              >
-                <Edit3 size={16} className="inline mr-1" /> Edit
+                <Eye size={16} />
+                View Details
               </button>
             </div>
           </div>
         ))}
       </div>
 
+      {filteredDepartments.length === 0 && (
+        <div className="text-center py-12 bg-white rounded-2xl shadow-lg">
+          <Building2 className="mx-auto text-gray-400 mb-4" size={48} />
+          <p className="text-gray-600 text-lg">No departments found matching your search.</p>
+        </div>
+      )}
+
       {/* VIEW MODAL */}
       {selectedDept && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-6 z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl p-6 relative overflow-y-auto max-h-[90vh]">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 md:p-6 z-50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl p-6 md:p-8 relative overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in duration-200">
             <button
               onClick={() => setSelectedDept(null)}
-              className="absolute top-3 right-3 text-gray-500 hover:text-red-600"
+              className="absolute top-4 right-4 text-gray-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-all"
             >
-              <X size={22} />
+              <X size={24} />
             </button>
 
-            <h2 className="text-2xl font-bold mb-2 text-blue-700 flex items-center">
-              <Building2 className="mr-2" /> {selectedDept.name}
-            </h2>
-            <p className="text-gray-600 mb-4">Head: {selectedDept.hod}</p>
-
-            {/* Sections */}
-            <div className="border-t pt-3">
-              <h3 className="text-lg font-semibold mb-2">Sections Overview</h3>
-              {Object.keys(selectedDept.sections).map((section) => (
-                <div
-                  key={section}
-                  className="mb-4 bg-gray-50 p-4 rounded-lg border"
-                >
-                  <h4 className="text-md font-semibold text-blue-700 mb-2">
-                    {section} Section
-                  </h4>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <h5 className="font-medium text-gray-700 mb-1">
-                        Students:
-                      </h5>
-                      <ul className="list-disc ml-5 text-gray-600 text-sm">
-                        {selectedDept.sections[section].students.map(
-                          (student, i) => (
-                            <li key={i}>{student}</li>
-                          )
-                        )}
-                      </ul>
-                    </div>
-                    <div>
-                      <h5 className="font-medium text-gray-700 mb-1">
-                        Faculty:
-                      </h5>
-                      <ul className="list-disc ml-5 text-gray-600 text-sm">
-                        {selectedDept.sections[section].faculty.map(
-                          (fac, i) => (
-                            <li key={i}>{fac}</li>
-                          )
-                        )}
-                      </ul>
-                    </div>
-                  </div>
+            <div className="mb-6 pb-6 border-b border-gray-200">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-4 rounded-xl shadow-lg">
+                  <Building2 className="text-white" size={32} />
                 </div>
-              ))}
-            </div>
+                <div className="flex-1">
+                  <h2 className="text-3xl font-bold text-gray-800 mb-2">
+                    {selectedDept.name}
+                  </h2>
+                </div>
+              </div>
 
-            {/* Assign HOD */}
-            <div className="mt-4 border-t pt-3">
-              <h3 className="text-lg font-semibold mb-2 flex items-center">
-                <UserPlus className="mr-2 text-green-600" /> Assign / Change HOD
-              </h3>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter new HOD name"
-                  value={newHod}
-                  onChange={(e) => setNewHod(e.target.value)}
-                  className="border p-2 rounded w-full"
-                />
-                <button
-                  onClick={() => handleAssignHod(selectedDept.id)}
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
-                >
-                  Save
-                </button>
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl">
+                <h3 className="text-sm font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+                  Head of Department
+                </h3>
+                <p className="text-xl font-bold text-gray-800 mb-2">{selectedDept.hod}</p>
+                <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                  {selectedDept.hodEmail && (
+                    <div className="flex items-center gap-2">
+                      <Mail size={16} />
+                      <span>{selectedDept.hodEmail}</span>
+                    </div>
+                  )}
+                  {selectedDept.hodPhone && (
+                    <div className="flex items-center gap-2">
+                      <Phone size={16} />
+                      <span>{selectedDept.hodPhone}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Department Statistics */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="text-blue-600" size={20} />
+                  <span className="text-sm text-gray-600">Students</span>
+                </div>
+                <p className="text-2xl font-bold text-gray-800">{selectedDept.students}</p>
+              </div>
+              <div className="bg-green-50 p-4 rounded-xl border border-green-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <UserCheck className="text-green-600" size={20} />
+                  <span className="text-sm text-gray-600">Faculty</span>
+                </div>
+                <p className="text-2xl font-bold text-gray-800">{selectedDept.faculty}</p>
+              </div>
+            </div>
+
+            {/* Sections */}
+            <div className="mb-6">
+              <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <BookOpen className="text-blue-600" size={24} />
+                Sections Overview
+              </h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                {Object.keys(selectedDept.sections).map((section) => (
+                  <div
+                    key={section}
+                    className="bg-gradient-to-br from-gray-50 to-blue-50 p-5 rounded-xl border border-gray-200 hover:shadow-lg transition-all"
+                  >
+                    <h4 className="text-lg font-bold text-blue-700 mb-4 pb-2 border-b border-blue-200">
+                      {section} Section
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <h5 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                          <Users className="text-blue-600" size={16} />
+                          Students ({selectedDept.sections[section].students.length})
+                        </h5>
+                        <ul className="space-y-1">
+                          {selectedDept.sections[section].students.map(
+                            (student, i) => (
+                              <li key={i} className="text-sm text-gray-600 bg-white px-3 py-1.5 rounded-md">
+                                {student}
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                          <UserCheck className="text-green-600" size={16} />
+                          Faculty ({selectedDept.sections[section].faculty.length})
+                        </h5>
+                        <ul className="space-y-1">
+                          {selectedDept.sections[section].faculty.map(
+                            (fac, i) => (
+                              <li key={i} className="text-sm text-gray-600 bg-white px-3 py-1.5 rounded-md">
+                                {fac}
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         </div>
       )}
 
       {/* EDIT MODAL */}
       {editing && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-6 z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 relative">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 md:p-6 z-50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 md:p-8 relative animate-in fade-in zoom-in duration-200">
             <button
               onClick={() => setEditing(null)}
-              className="absolute top-3 right-3 text-gray-500 hover:text-red-600"
+              className="absolute top-4 right-4 text-gray-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-all"
             >
-              <X size={22} />
+              <X size={24} />
             </button>
-            <h2 className="text-2xl font-bold mb-4 text-yellow-600">
-              Edit Department
-            </h2>
+            
+            <div className="mb-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-gradient-to-br from-amber-500 to-orange-500 p-3 rounded-xl">
+                  <Edit3 className="text-white" size={24} />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Edit Department
+                </h2>
+              </div>
+              <p className="text-gray-600 text-sm">Update department information</p>
+            </div>
 
-            <input
-              type="text"
-              className="border p-2 rounded w-full mb-3"
-              value={editing.name}
-              onChange={(e) =>
-                setEditing({ ...editing, name: e.target.value })
-              }
-            />
-            <input
-              type="text"
-              className="border p-2 rounded w-full mb-3"
-              value={editing.hod}
-              onChange={(e) => setEditing({ ...editing, hod: e.target.value })}
-            />
-            <input
-              type="number"
-              className="border p-2 rounded w-full mb-3"
-              value={editing.students}
-              onChange={(e) =>
-                setEditing({ ...editing, students: e.target.value })
-              }
-            />
-            <input
-              type="number"
-              className="border p-2 rounded w-full mb-3"
-              value={editing.faculty}
-              onChange={(e) =>
-                setEditing({ ...editing, faculty: e.target.value })
-              }
-            />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Department Name
+                </label>
+                <input
+                  type="text"
+                  className="w-full border border-gray-300 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  value={editing.name}
+                  onChange={(e) =>
+                    setEditing({ ...editing, name: e.target.value })
+                  }
+                />
+              </div>
 
-            <div className="flex justify-end space-x-2">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Head of Department
+                </label>
+                <input
+                  type="text"
+                  className="w-full border border-gray-300 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  value={editing.hod}
+                  onChange={(e) => setEditing({ ...editing, hod: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Total Students
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full border border-gray-300 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    value={editing.students}
+                    onChange={(e) =>
+                      setEditing({ ...editing, students: parseInt(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Faculty Members
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full border border-gray-300 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    value={editing.faculty}
+                    onChange={(e) =>
+                      setEditing({ ...editing, faculty: parseInt(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+              </div>
+
+              {editing.courses !== undefined && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Total Courses
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full border border-gray-300 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    value={editing.courses}
+                    onChange={(e) =>
+                      setEditing({ ...editing, courses: parseInt(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
               <button
                 onClick={() => setEditing(null)}
-                className="bg-gray-300 px-4 py-2 rounded"
+                className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all font-semibold"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveEdit}
-                className="bg-yellow-600 text-white px-4 py-2 rounded"
+                className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:from-amber-600 hover:to-orange-600 transition-all shadow-md hover:shadow-lg font-semibold"
               >
-                Save
+                Save Changes
               </button>
             </div>
           </div>
