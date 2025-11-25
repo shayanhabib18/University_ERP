@@ -1,5 +1,7 @@
 import { useState } from "react";
 import CoordinatorSearch from "./CoordinatorSearch";
+import CoordinatorFeedback from "./CoordinatorFeedback";
+import CoordinatorAnnouncements from "./CoordinatorAnnouncements";
 import {
   Menu,
   X,
@@ -31,9 +33,9 @@ export default function CoordinatorDashboard() {
       case "Search":
         return < CoordinatorSearch />;
       case "Feedback":
-        return <Placeholder title="Faculty Feedback" />;
+        return <CoordinatorFeedback />;
       case "Announcements":
-        return <Placeholder title="Announcements" />;
+        return <CoordinatorAnnouncements />;
       default:
         return <Placeholder title={activeTab} />;
     }
