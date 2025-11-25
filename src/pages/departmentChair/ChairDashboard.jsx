@@ -52,8 +52,7 @@ export default function ChairDashboard() {
                 onClick={() => (window.location.href = "/login/chairman")}
                 className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-4 py-2 rounded-lg shadow-md transition-all hover:scale-105"
               >
-                <LogOut size={18} />
-                Logout
+                <LogOut size={18} /> Logout
               </button>
             </div>
 
@@ -87,9 +86,7 @@ export default function ChairDashboard() {
 
             {/* Quick Actions */}
             <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-              <h2 className="text-xl font-bold text-gray-800 mb-6">
-                Quick Actions
-              </h2>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Quick Actions</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
                 {sidebarLinks.slice(1).map((link, index) => (
                   <button
@@ -109,22 +106,16 @@ export default function ChairDashboard() {
             </div>
           </div>
         );
-
       case "Faculty Management":
         return <FacultyManagement />;
-
       case "Approvals":
         return <ChairApprovals />;
-
       case "Analytics":
         return <ChairAnalytics />;
-
       case "Transcripts":
         return <ChairTranscripts />;
-
       case "Announcements":
         return <ChairAnnouncements />;
-
       default:
         return <Placeholder title={activeTab} />;
     }
@@ -142,9 +133,7 @@ export default function ChairDashboard() {
           <div className="bg-blue-600 p-2 rounded-lg shadow-md">
             <Users className="text-white" size={24} />
           </div>
-          <h2 className="text-xl font-bold tracking-wide">
-            Department Chair Portal
-          </h2>
+          <h2 className="text-xl font-bold tracking-wide">Department Chair Portal</h2>
         </div>
 
         <nav className="space-y-1">
@@ -162,9 +151,7 @@ export default function ChairDashboard() {
               }`}
             >
               <span
-                className={`${
-                  activeTab === link.name ? "text-indigo-600" : "text-gray-400"
-                }`}
+                className={`${activeTab === link.name ? "text-indigo-600" : "text-gray-400"}`}
               >
                 {link.icon}
               </span>
@@ -193,7 +180,6 @@ export default function ChairDashboard() {
 }
 
 /* ======================= Helper Components ======================= */
-
 function StatCard({ title, value, icon, color }) {
   return (
     <div

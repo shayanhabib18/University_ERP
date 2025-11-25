@@ -45,9 +45,9 @@ const roles = [
     color: "from-rose-50 to-rose-100",
   },
   {
-    title: "Exam Department",
-    description: "Handle exams, results, and academic reports.",
-    loginPath: "/login/exam",
+    title: "Coordinator Portal",
+    description: "Manage students, course allocations, and departmental tasks.",
+    loginPath: "/login/coordinator",
     icon: <FileText className="w-7 h-7 text-orange-600" />,
     color: "from-orange-50 to-orange-100",
   },
@@ -56,6 +56,7 @@ const roles = [
 export default function MainPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/20 to-indigo-50 flex flex-col">
+      
       {/* Header */}
       <header className="text-center py-12">
         <h1 className="text-4xl sm:text-5xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-700 bg-clip-text text-transparent tracking-tight drop-shadow-sm">
@@ -121,6 +122,7 @@ export default function MainPage() {
         </span>{" "}
         — All rights reserved.
       </footer>
+
     </div>
   );
 }
