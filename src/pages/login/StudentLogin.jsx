@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 export default function StudentLogin() {
   const [identifier, setIdentifier] = useState(""); // Roll number or email
@@ -76,6 +76,16 @@ export default function StudentLogin() {
             >
               Forgot password?
             </button>
+          </div>
+
+          {/* ✅ Signup Link added BELOW forgot password */}
+          <div className="text-center mt-2">
+            <p className="text-sm text-gray-600">
+              Don&apos;t have an account?{" "}
+              <Link to="/signup/student" className="text-blue-600 font-semibold hover:underline">
+                Sign up
+              </Link>
+            </p>
           </div>
         </form>
       </div>

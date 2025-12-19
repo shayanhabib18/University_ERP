@@ -17,7 +17,7 @@ export default function ExecutiveAnnouncements() {
   const [announcements, setAnnouncements] = useState([]);
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
-  const [visibility, setVisibility] = useState("all");
+  const [visibility, setVisibility] = useState("coordinator");
 
   // Temporary local data (replace with Firestore later)
   useEffect(() => {
@@ -45,7 +45,7 @@ export default function ExecutiveAnnouncements() {
 
     setTitle("");
     setMessage("");
-    setVisibility("all");
+    setVisibility("coordinator");
   };
 
   const handleDelete = (id) => {
@@ -76,14 +76,12 @@ export default function ExecutiveAnnouncements() {
 
   const getVisibilityIcon = (visibility) => {
     switch (visibility) {
-      case "all":
-        return <Users className="text-blue-600" size={16} />;
-      case "faculty":
+      case "coordinator":
         return <UserCog className="text-purple-600" size={16} />;
-      case "students":
-        return <GraduationCap className="text-green-600" size={16} />;
-      case "chairs":
+      case "chairperson":
         return <Users className="text-orange-600" size={16} />;
+      case "admin":
+        return <Users className="text-red-600" size={16} />;
       default:
         return <Eye className="text-gray-600" size={16} />;
     }
@@ -91,14 +89,12 @@ export default function ExecutiveAnnouncements() {
 
   const getVisibilityBadgeColor = (visibility) => {
     switch (visibility) {
-      case "all":
-        return "bg-blue-100 text-blue-700 border-blue-200";
-      case "faculty":
+      case "coordinator":
         return "bg-purple-100 text-purple-700 border-purple-200";
-      case "students":
-        return "bg-green-100 text-green-700 border-green-200";
-      case "chairs":
+      case "chairperson":
         return "bg-orange-100 text-orange-700 border-orange-200";
+      case "admin":
+        return "bg-red-100 text-red-700 border-red-200";
       default:
         return "bg-gray-100 text-gray-700 border-gray-200";
     }
@@ -170,10 +166,9 @@ export default function ExecutiveAnnouncements() {
               onChange={(e) => setVisibility(e.target.value)}
               className="w-full p-4 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
             >
-              <option value="all">All Users</option>
-              <option value="faculty">Faculty Only</option>
-              <option value="students">Students Only</option>
-              <option value="chairs">Chairpersons Only</option>
+              <option value="coordinator">Coordinator Only</option>
+              <option value="chairperson">Chairperson Only</option>
+              <option value="admin">Admin Only</option>
             </select>
           </div>
 

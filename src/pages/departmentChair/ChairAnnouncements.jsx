@@ -134,6 +134,7 @@ export default function ChairAnnouncements() {
               <option value="">Select Audience</option>
               <option value="Faculty">Faculty</option>
               <option value="Students">Students</option>
+              <option value="Coordinator">Coordinator</option>
               <option value="Both">Both</option>
             </select>
           </div>

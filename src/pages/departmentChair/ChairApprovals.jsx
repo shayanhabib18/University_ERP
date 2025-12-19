@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle, XCircle, ClipboardList, User, Users, Building2, Search } from "lucide-react";
+import { CheckCircle, XCircle, ClipboardList, User, Users, Building2, Search, UserCheck } from "lucide-react";
 
 export default function Approvals() {
   const [activeTab, setActiveTab] = useState("faculty");
@@ -19,8 +19,7 @@ export default function Approvals() {
       {/* Tabs */}
       <div className="flex gap-4 mb-6 border-b border-gray-200">
         {[
-          { id: "faculty", label: "Faculty Requests", icon: <User size={16} /> },
-          { id: "student", label: "Student Requests", icon: <Users size={16} /> },
+          { id: "coordinator", label: "Coordinator Requests", icon: <UserCheck size={16} /> },
           { id: "department", label: "Department Requests", icon: <Building2 size={16} /> },
         ].map((tab) => (
           <button
@@ -39,30 +38,29 @@ export default function Approvals() {
       </div>
 
       {/* Render active tab */}
-      {activeTab === "faculty" && <FacultyApprovals />}
-      {activeTab === "student" && <StudentApprovals />}
+      {activeTab === "coordinator" && <CoordinatorApprovals />}
       {activeTab === "department" && <DepartmentApprovals />}
     </div>
   );
 }
 
-function FacultyApprovals() {
+function CoordinatorApprovals() {
   const [searchTerm, setSearchTerm] = useState("");
   const [requests, setRequests] = useState([
     {
       id: 1,
-      name: "Dr. Ahmed Ali",
-      type: "Leave Request",
-      details: "Medical Leave (3 days)",
-      date: "2025-10-15",
+      name: "Coordinator - Academic",
+      type: "Course Schedule Change",
+      details: "Request to shift course timing to afternoon",
+      date: "2025-10-17",
       status: "Pending",
     },
     {
       id: 2,
-      name: "Dr. Hamza Yousaf",
-      type: "Course Swap",
-      details: "Swap with Dr. Sarah - BBA 302",
-      date: "2025-10-14",
+      name: "Coordinator - Admissions",
+      type: "Admission Approval",
+      details: "Approval for transfer student admission",
+      date: "2025-10-15",
       status: "Pending",
     },
   ]);
@@ -79,7 +77,7 @@ function FacultyApprovals() {
 
   return (
     <div>
-      <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search faculty requests..." />
+      <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search coordinator requests..." />
 
       <RequestTable
         data={filtered}
@@ -87,41 +85,6 @@ function FacultyApprovals() {
         onReject={(id) => handleAction(id, "Rejected")}
       />
     </div>
-  );
-}
-
-function StudentApprovals() {
-  const [requests, setRequests] = useState([
-    {
-      id: 1,
-      name: "Ali Raza",
-      type: "Course Add Request",
-      details: "Add: FIN-402 (Financial Analytics)",
-      date: "2025-10-16",
-      status: "Pending",
-    },
-    {
-      id: 2,
-      name: "Zainab Tariq",
-      type: "Grade Review",
-      details: "Request grade change in MKT-301",
-      date: "2025-10-13",
-      status: "Pending",
-    },
-  ]);
-
-  const handleAction = (id, newStatus) => {
-    setRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
-    );
-  };
-
-  return (
-    <RequestTable
-      data={requests}
-      onApprove={(id) => handleAction(id, "Approved")}
-      onReject={(id) => handleAction(id, "Rejected")}
-    />
   );
 }
 

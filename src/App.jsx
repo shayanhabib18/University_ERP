@@ -9,9 +9,10 @@ import ChairmanLogin from './pages/login/ChairmanLogin';
 import StudentLogin from './pages/login/StudentLogin';
 import FacultyLogin from './pages/login/FacultyLogin';
 import ExecutiveLogin from './pages/login/ExecutiveLogin';
-import ExamLogin from './pages/login/ExamLogin';
 import CoordinatorLogin from './pages/login/CoordinatorLogin';
 
+// ✅ Signup Page
+import StudentSignup from "./pages/students/StudentSignup";
 // Admin Dashboard Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
 import DepartmentManagement from './pages/admin/DepartmentManagement';
@@ -51,8 +52,10 @@ function App() {
         <Route path="/login/student" element={<StudentLogin />} />
         <Route path="/login/faculty" element={<FacultyLogin />} />
         <Route path="/login/executive" element={<ExecutiveLogin />} />
-        <Route path="/login/exam" element={<ExamLogin />} />
         <Route path="/login/coordinator" element={<CoordinatorLogin />} />
+
+        {/* ✅ Student Signup */}
+        <Route path="/signup/student" element={<StudentSignup />} />
 
         {/* Admin Dashboard */}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
@@ -77,8 +80,8 @@ function App() {
         <Route path="/executive/dashboard" element={<ExecutiveDashboard />} />
 
         {/* Coordinator Dashboard */}
-       <Route path="/coordinator/dashboard" element={<CoordinatorDashboard />} />
-
+        <Route path="/coordinator/dashboard" element={<CoordinatorDashboard />} />
+       
       </Routes>
     </Router>
   );
