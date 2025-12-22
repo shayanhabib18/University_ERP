@@ -5,7 +5,10 @@ const departments = ["Electrical Engineering", "Software Engineering", "BBA"];
 const FacultyManagement = () => {
   const [selectedDept, setSelectedDept] = useState(null);
   const [activeOption, setActiveOption] = useState("");
-  const [facultyList, setFacultyList] = useState([]);
+  const [facultyList, setFacultyList] = useState(() => {
+    const stored = localStorage.getItem("facultyList");
+    return stored ? JSON.parse(stored) : [];
+  });
   const [editingIndex, setEditingIndex] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -20,6 +23,14 @@ const FacultyManagement = () => {
     cnic: "",
     address: "",
     documents: [],
+
+    // Additional fields for consistency
+    status: "ACTIVE",
+    department: "",
+    experience: "",
+    // 🔐 AUTH FIELDS (frontend invisible)
+    role: "FACULTY",
+    mustChangePassword: true,
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -43,11 +54,14 @@ const FacultyManagement = () => {
     e.preventDefault();
     if (editingIndex !== null) {
       const updated = [...facultyList];
-      updated[editingIndex] = formData;
+      updated[editingIndex] = { ...formData, department: selectedDept };
       setFacultyList(updated);
+      localStorage.setItem("facultyList", JSON.stringify(updated));
       setEditingIndex(null);
     } else {
-      setFacultyList([...facultyList, formData]);
+      const newList = [...facultyList, { ...formData, department: selectedDept }];
+      setFacultyList(newList);
+      localStorage.setItem("facultyList", JSON.stringify(newList));
     }
     setFormData(initialFormState);
     setActiveOption("");
@@ -62,8 +76,11 @@ const FacultyManagement = () => {
 
   // Delete Faculty
   const deleteFaculty = (index) => {
-    const updatedFaculty = facultyList.filter((_, i) => i !== index);
-    setFacultyList(updatedFaculty);
+    if (window.confirm("Are you sure you want to delete this faculty member?")) {
+      const newList = facultyList.filter((_, i) => i !== index);
+      setFacultyList(newList);
+      localStorage.setItem("facultyList", JSON.stringify(newList));
+    }
   };
 
   // Search Filter
@@ -72,15 +89,38 @@ const FacultyManagement = () => {
     return (
       f.name.toLowerCase().includes(q) ||
       f.email.toLowerCase().includes(q) ||
-      f.designation.toLowerCase().includes(q)
+      f.designation.toLowerCase().includes(q) ||
+      f.qualification.toLowerCase().includes(q)
     );
   });
 
-  // Options
   const options = ["Add Faculty", "Update Faculty", "Search Faculty"];
 
+  // Function to generate avatar background color based on name
+  const getAvatarColor = (name) => {
+    const colors = [
+      "from-purple-500 to-pink-500",
+      "from-blue-500 to-cyan-500",
+      "from-green-500 to-emerald-500",
+      "from-orange-500 to-red-500",
+      "from-indigo-500 to-purple-500",
+    ];
+    const index = name.length % colors.length;
+    return colors[index];
+  };
+
+  // Function to get department color
+  const getDepartmentColor = (dept) => {
+    const colors = {
+      "Electrical Engineering": "from-orange-500 to-amber-500",
+      "Software Engineering": "from-blue-500 to-indigo-500",
+      "BBA": "from-emerald-500 to-green-500",
+    };
+    return colors[dept] || "from-gray-500 to-gray-600";
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-10">
@@ -88,22 +128,22 @@ const FacultyManagement = () => {
             Faculty Management System
           </h1>
           <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-            Manage faculty members across different departments with ease
+            Manage faculty members, academic information, and departmental assignments efficiently
           </p>
         </div>
 
-        {/* Department Cards */}
+        {/* Department Selection */}
         {!selectedDept && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {departments.map((dept, index) => (
               <div
                 key={dept}
-                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border border-gray-200 transform hover:-translate-y-1"
+                className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border border-gray-200 transform hover:-translate-y-1"
               >
                 <div className="flex flex-col items-center text-center">
-                  <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mb-4">
-                    <span className="text-white font-bold text-lg">
-                      {dept.charAt(0)}
+                  <div className={`w-20 h-20 bg-gradient-to-r ${getDepartmentColor(dept)} rounded-2xl flex items-center justify-center mb-4`}>
+                    <span className="text-white font-bold text-2xl">
+                      {dept.split(' ').map(word => word[0]).join('')}
                     </span>
                   </div>
                   <h2 className="text-xl font-semibold text-gray-800 mb-2">
@@ -114,9 +154,9 @@ const FacultyManagement = () => {
                   </p>
                   <button
                     onClick={() => setSelectedDept(dept)}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg w-full"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg w-full"
                   >
-                    View Department
+                    Access Department
                   </button>
                 </div>
               </div>
@@ -138,18 +178,8 @@ const FacultyManagement = () => {
                     }}
                     className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
                   >
-                    <svg
-                      className="w-4 h-4 mr-1"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 19l-7-7 7-7"
-                      />
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
                     All Departments
                   </button>
@@ -162,7 +192,7 @@ const FacultyManagement = () => {
               </div>
               <div className="mt-4 md:mt-0">
                 <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {facultyList.length} Faculty Members
+                  {facultyList.filter(f => f.department === selectedDept).length} Faculty Members
                 </span>
               </div>
             </div>
@@ -181,48 +211,18 @@ const FacultyManagement = () => {
                 >
                   <div className="flex items-center justify-center space-x-2">
                     {opt === "Add Faculty" && (
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                        />
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                       </svg>
                     )}
                     {opt === "Update Faculty" && (
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                        />
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                     )}
                     {opt === "Search Faculty" && (
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                        />
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                     )}
                     <span>{opt}</span>
@@ -233,27 +233,36 @@ const FacultyManagement = () => {
 
             {/* Add / Update Faculty Form */}
             {activeOption === "Add Faculty" && (
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
                 <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
-                  <svg
-                    className="w-6 h-6 mr-2 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                    />
+                  <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
-                  {editingIndex !== null
-                    ? "Update Faculty Member"
-                    : "Add New Faculty Member"}
+                  {editingIndex !== null ? "Update Faculty Member" : "Register New Faculty Member"}
                 </h3>
+                
+                {/* Auth Info Banner */}
+                <div className="mb-6 bg-gradient-to-r from-blue-500 to-indigo-500 text-white p-4 rounded-xl">
+                  <div className="flex items-start">
+                    <svg className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className="font-semibold">Login credentials will be automatically generated</p>
+                      <p className="text-blue-100 text-sm mt-1">
+                        Faculty will receive email credentials and be required to change password on first login
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <form onSubmit={handleAddOrUpdateFaculty} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Personal Information */}
+                    <div className="md:col-span-2">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Personal Information</h4>
+                    </div>
+                    
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Full Name *
@@ -262,24 +271,33 @@ const FacultyManagement = () => {
                         name="name"
                         value={formData.name}
                         onChange={handleChange}
-                        placeholder="Enter full name"
+                        placeholder="Enter faculty member's full name"
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                         required
                       />
                     </div>
+                    
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Designation *
                       </label>
-                      <input
+                      <select
                         name="designation"
                         value={formData.designation}
                         onChange={handleChange}
-                        placeholder="e.g., Assistant Professor"
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                         required
-                      />
+                      >
+                        <option value="">Select Designation</option>
+                        <option value="Professor">Professor</option>
+                        <option value="Associate Professor">Associate Professor</option>
+                        <option value="Assistant Professor">Assistant Professor</option>
+                        <option value="Lecturer">Lecturer</option>
+                        <option value="Senior Lecturer">Senior Lecturer</option>
+                        <option value="Visiting Faculty">Visiting Faculty</option>
+                      </select>
                     </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Qualification *
@@ -288,11 +306,12 @@ const FacultyManagement = () => {
                         name="qualification"
                         value={formData.qualification}
                         onChange={handleChange}
-                        placeholder="e.g., PhD in Computer Science"
+                        placeholder="PhD, MS, BS, etc."
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                         required
                       />
                     </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Specialization
@@ -301,13 +320,19 @@ const FacultyManagement = () => {
                         name="specialization"
                         value={formData.specialization}
                         onChange={handleChange}
-                        placeholder="Area of expertise"
+                        placeholder="Research areas, subjects"
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                       />
                     </div>
+
+                    {/* Contact Information */}
+                    <div className="md:col-span-2 mt-4">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Contact Information</h4>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Email Address *
+                        Email (Username) *
                       </label>
                       <input
                         name="email"
@@ -319,18 +344,35 @@ const FacultyManagement = () => {
                         required
                       />
                     </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Phone Number
+                        Phone Number *
                       </label>
                       <input
                         name="phone"
                         value={formData.phone}
                         onChange={handleChange}
-                        placeholder="+1 (555) 123-4567"
+                        placeholder="+92 300 1234567"
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                        required
                       />
                     </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        CNIC *
+                      </label>
+                      <input
+                        name="cnic"
+                        value={formData.cnic}
+                        onChange={handleChange}
+                        placeholder="XXXXX-XXXXXXX-X"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                        required
+                      />
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Joining Date
@@ -343,52 +385,74 @@ const FacultyManagement = () => {
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                       />
                     </div>
+
+                    {/* Professional Information */}
+                    <div className="md:col-span-2 mt-4">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Professional Information</h4>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        CNIC
+                        Experience (Years)
                       </label>
                       <input
-                        name="cnic"
-                        value={formData.cnic}
+                        name="experience"
+                        type="number"
+                        value={formData.experience}
                         onChange={handleChange}
-                        placeholder="National ID number"
+                        placeholder="Years of experience"
+                        min="0"
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                       />
                     </div>
+
+                    {/* Address Information */}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Address
                       </label>
-                      <input
+                      <textarea
                         name="address"
                         value={formData.address}
                         onChange={handleChange}
-                        placeholder="Complete residential address"
+                        placeholder="Enter complete address"
+                        rows="3"
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                       />
                     </div>
                   </div>
 
+                  {/* Documents Upload */}
                   <div className="border-t border-gray-200 pt-6">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Upload Faculty Documents
+                      Supporting Documents
                     </label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                    <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-blue-400 transition-colors">
+                      <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
                       <input
                         type="file"
                         multiple
                         accept="image/*,.pdf,.doc,.docx"
                         onChange={handleFileChange}
-                        className="w-full"
+                        className="w-full h-full opacity-0 absolute top-0 left-0 cursor-pointer" style={{ zIndex: 2 }}
                       />
-                      <p className="text-gray-500 text-sm mt-2">
-                        Upload CV, degrees, certificates, etc. (PDF, DOC,
-                        Images)
+                      <p className="text-gray-600 font-medium">Upload Supporting Documents</p>
+                      <p className="text-gray-500 text-sm mt-1">
+                        CV, Certificates, Degrees, CNIC, Photos (PDF, DOC, Images)
                       </p>
                     </div>
+                    {formData.documents.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-sm text-gray-600">
+                          {formData.documents.length} file(s) selected
+                        </p>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex justify-end space-x-4 pt-4">
+                  <div className="flex justify-end space-x-4 pt-6">
                     <button
                       type="button"
                       onClick={() => {
@@ -403,20 +467,10 @@ const FacultyManagement = () => {
                       type="submit"
                       className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg flex items-center"
                     >
-                      <svg
-                        className="w-5 h-5 mr-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      {editingIndex !== null ? "Update Faculty" : "Add Faculty"}
+                      {editingIndex !== null ? "Update Faculty" : "Register Faculty"}
                     </button>
                   </div>
                 </form>
@@ -428,86 +482,52 @@ const FacultyManagement = () => {
               <div className="bg-white rounded-xl border border-gray-200">
                 <div className="p-6 border-b border-gray-200">
                   <h3 className="text-xl font-semibold text-gray-800 flex items-center">
-                    <svg
-                      className="w-6 h-6 mr-2 text-blue-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                      />
+                    <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                     Manage Faculty Members
                   </h3>
                 </div>
                 {facultyList.length === 0 ? (
                   <div className="p-8 text-center">
-                    <svg
-                      className="w-16 h-16 mx-auto text-gray-300 mb-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
-                      />
+                    <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
-                    <p className="text-gray-500 text-lg">
-                      No faculty members added yet.
-                    </p>
+                    <p className="text-gray-500 text-lg">No faculty members found.</p>
                     <p className="text-gray-400 text-sm mt-2">
-                      Use the "Add Faculty" option to add new faculty members.
+                      Use the "Add Faculty" option to register new faculty members.
                     </p>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-200">
-                    {facultyList.map((f, idx) => (
-                      <div
-                        key={idx}
-                        className="p-6 hover:bg-gray-50 transition-colors"
-                      >
+                    {facultyList.map((faculty, idx) => (
+                      <div key={idx} className="p-6 hover:bg-gray-50 transition-colors">
                         <div className="flex flex-col md:flex-row md:items-center justify-between">
                           <div className="flex items-start space-x-4">
-                            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
-                              {f.name.charAt(0)}
+                            <div className={`w-12 h-12 bg-gradient-to-r ${getAvatarColor(faculty.name)} rounded-xl flex items-center justify-center text-white font-semibold text-lg`}>
+                              {faculty.name.charAt(0)}
                             </div>
                             <div>
-                              <h4 className="font-semibold text-gray-800 text-lg">
-                                {f.name}
-                              </h4>
-                              <p className="text-gray-600">{f.designation}</p>
+                              <h4 className="font-semibold text-gray-800 text-lg">{faculty.name}</h4>
+                              <p className="text-gray-600">{faculty.designation}</p>
                               <div className="flex flex-wrap gap-2 mt-2">
                                 <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
-                                  {f.qualification}
+                                  {faculty.qualification}
                                 </span>
-                                {f.specialization && (
-                                  <span className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
-                                    {f.specialization}
+                                <span className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                                  {faculty.status || "ACTIVE"}
+                                </span>
+                                {faculty.experience && (
+                                  <span className="inline-block bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-medium">
+                                    {faculty.experience} years
                                   </span>
                                 )}
                               </div>
                               <div className="flex items-center text-sm text-gray-500 mt-2">
-                                <svg
-                                  className="w-4 h-4 mr-1"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                                  />
+                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                 </svg>
-                                {f.email}
+                                {faculty.email}
                               </div>
                             </div>
                           </div>
@@ -516,18 +536,8 @@ const FacultyManagement = () => {
                               onClick={() => startEditingFaculty(idx)}
                               className="flex items-center text-blue-600 hover:text-blue-800 transition-colors font-medium"
                             >
-                              <svg
-                                className="w-4 h-4 mr-1"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                />
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                               </svg>
                               Edit
                             </button>
@@ -535,18 +545,8 @@ const FacultyManagement = () => {
                               onClick={() => deleteFaculty(idx)}
                               className="flex items-center text-red-600 hover:text-red-800 transition-colors font-medium"
                             >
-                              <svg
-                                className="w-4 h-4 mr-1"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                />
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
                               Delete
                             </button>
@@ -563,135 +563,74 @@ const FacultyManagement = () => {
             {activeOption === "Search Faculty" && (
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
-                  <svg
-                    className="w-6 h-6 mr-2 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
+                  <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                   Search Faculty Members
                 </h3>
                 <div className="relative mb-6">
                   <input
                     type="text"
-                    placeholder="Search by name, email, or designation..."
+                    placeholder="Search by name, email, designation, or qualification..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full p-4 pl-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
-                  <svg
-                    className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
+                  <svg className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
 
                 {filteredFaculty.length === 0 ? (
                   <div className="text-center py-8">
-                    <svg
-                      className="w-16 h-16 mx-auto text-gray-300 mb-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
+                    <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <p className="text-gray-500 text-lg">
-                      {searchQuery
-                        ? "No faculty members found matching your search."
-                        : "No faculty members available."}
+                      {searchQuery ? "No faculty found matching your search." : "No faculty records available."}
                     </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {filteredFaculty.map((f, idx) => (
-                      <div
-                        key={idx}
-                        className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow bg-white"
-                      >
+                    {filteredFaculty.map((faculty, idx) => (
+                      <div key={idx} className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow bg-white">
                         <div className="flex items-start space-x-4">
-                          <div className="w-14 h-14 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-xl">
-                            {f.name.charAt(0)}
+                          <div className={`w-14 h-14 bg-gradient-to-r ${getAvatarColor(faculty.name)} rounded-xl flex items-center justify-center text-white font-semibold text-xl`}>
+                            {faculty.name.charAt(0)}
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-semibold text-gray-800 text-lg mb-1">
-                              {f.name}
-                            </h4>
-                            <p className="text-blue-600 font-medium mb-2">
-                              {f.designation}
-                            </p>
+                            <h4 className="font-semibold text-gray-800 text-lg mb-1">{faculty.name}</h4>
+                            <p className="text-blue-600 font-medium mb-2">{faculty.designation}</p>
                             <div className="space-y-1 text-sm text-gray-600">
                               <div className="flex items-center">
-                                <svg
-                                  className="w-4 h-4 mr-2 text-gray-400"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                                  />
+                                <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                 </svg>
-                                {f.email}
+                                {faculty.email}
                               </div>
-                              {f.phone && (
+                              {faculty.phone && (
                                 <div className="flex items-center">
-                                  <svg
-                                    className="w-4 h-4 mr-2 text-gray-400"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                                    />
+                                  <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                   </svg>
-                                  {f.phone}
+                                  {faculty.phone}
                                 </div>
                               )}
-                              {f.qualification && (
-                                <div className="flex items-center">
-                                  <svg
-                                    className="w-4 h-4 mr-2 text-gray-400"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M12 14l9-5-9-5-9 5 9 5z"
-                                    />
-                                  </svg>
-                                  {f.qualification}
-                                </div>
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                                </svg>
+                                {faculty.qualification} • {faculty.specialization || "General"}
+                              </div>
+                            </div>
+                            <div className="flex gap-2 mt-3">
+                              <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+                                {faculty.joiningDate || "Not specified"}
+                              </span>
+                              {faculty.experience && (
+                                <span className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                                  {faculty.experience} years exp
+                                </span>
                               )}
                             </div>
                           </div>
