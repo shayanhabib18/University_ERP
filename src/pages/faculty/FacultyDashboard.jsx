@@ -18,6 +18,7 @@ import Courses from "./Courses";
 import AiQuizAssignmentForm from "./AiQuizAssignmentForm";
 import FacultyAnnouncements from "./FacultyAnnouncements";
 import FacultyProfile from "./FacultyProfile";
+import FacultyRequests from "./FacultyRequests";
 
 // Sidebar navigation links
 const sidebarLinks = [
@@ -25,6 +26,7 @@ const sidebarLinks = [
   { name: "My Courses", icon: <BookOpen size={18} /> },
   { name: "Assignments & Quiz", icon: <ClipboardList size={18} /> },
   { name: "Announcements", icon: <Megaphone size={18} /> },
+  { name: "Requests", icon: <ClipboardList size={18} /> },
   { name: "Profile", icon: <User size={18} /> },
 ];
 
@@ -42,6 +44,8 @@ export default function FacultyDashboard() {
         return <AiQuizAssignmentForm />;
       case "Announcements":
         return <FacultyAnnouncements />;
+      case "Requests":
+        return <FacultyRequests />;
       case "Profile":
         return <FacultyProfile />;
       default:
@@ -250,6 +254,12 @@ function DashboardContent({ setActiveTab }) {
             label="Announcements"
             onClick={() => setActiveTab("Announcements")}
             gradient="from-green-500 to-emerald-500"
+          />
+          <QuickAction
+            icon={<ClipboardList size={22} />}
+            label="Requests"
+            onClick={() => setActiveTab("Requests")}
+            gradient="from-teal-500 to-cyan-500"
           />
           {/* ✅ Fixed Profile Quick Action */}
           <QuickAction

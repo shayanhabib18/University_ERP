@@ -28,6 +28,7 @@ import Requests from './pages/students/Requests';
 
 // Faculty Dashboard
 import FacultyDashboard from './pages/faculty/FacultyDashboard';
+import FacultyRequests from './pages/faculty/FacultyRequests';
 
 // Chair Dashboard
 import ChairDashboard from './pages/departmentChair/ChairDashboard';
@@ -72,6 +73,7 @@ function App() {
 
         {/* Faculty Dashboard */}
         <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
+        <Route path="/faculty/requests" element={<FacultyRequests />} />
 
         {/* Chair Dashboard */}
         <Route path="/chair/dashboard" element={<ChairDashboard />} />

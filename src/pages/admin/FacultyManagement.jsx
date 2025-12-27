@@ -94,7 +94,7 @@ const FacultyManagement = () => {
     );
   });
 
-  const options = ["Add Faculty", "Update Faculty", "Search Faculty"];
+  const options = ["Add Faculty", "Update Faculty", "Search Faculty", "Delete Faculty"];
 
   // Function to generate avatar background color based on name
   const getAvatarColor = (name) => {
@@ -198,7 +198,7 @@ const FacultyManagement = () => {
             </div>
 
             {/* Options Navigation */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
               {options.map((opt) => (
                 <button
                   key={opt}
@@ -223,6 +223,11 @@ const FacultyManagement = () => {
                     {opt === "Search Faculty" && (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    )}
+                    {opt === "Delete Faculty" && (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     )}
                     <span>{opt}</span>
@@ -551,6 +556,70 @@ const FacultyManagement = () => {
                               Delete
                             </button>
                           </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Delete Faculty */}
+            {activeOption === "Delete Faculty" && (
+              <div className="bg-white rounded-xl border border-red-200">
+                <div className="p-6 border-b border-red-200 bg-red-50">
+                  <h3 className="text-xl font-semibold text-gray-800 flex items-center">
+                    <svg className="w-6 h-6 mr-2 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Faculty Members
+                  </h3>
+                  <p className="text-sm text-red-600 mt-2">Warning: This action is permanent and cannot be undone.</p>
+                </div>
+                {facultyList.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    <p className="text-gray-500 text-lg">No faculty members found.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-200">
+                    {facultyList.map((faculty, idx) => (
+                      <div key={idx} className="p-6 hover:bg-red-50 transition-colors">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between">
+                          <div className="flex items-start space-x-4">
+                            <div className={`w-12 h-12 bg-gradient-to-r ${getAvatarColor(faculty.name)} rounded-xl flex items-center justify-center text-white font-semibold text-lg`}>
+                              {faculty.name.charAt(0)}
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-gray-800 text-lg">{faculty.name}</h4>
+                              <p className="text-gray-600">{faculty.designation}</p>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+                                  {faculty.qualification}
+                                </span>
+                                <span className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                                  {faculty.department}
+                                </span>
+                              </div>
+                              <div className="flex items-center text-sm text-gray-500 mt-2">
+                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                {faculty.email}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => deleteFaculty(idx)}
+                            className="mt-4 md:mt-0 flex items-center bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors font-medium shadow-md hover:shadow-lg"
+                          >
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Delete Faculty
+                          </button>
                         </div>
                       </div>
                     ))}

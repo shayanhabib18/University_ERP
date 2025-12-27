@@ -38,6 +38,8 @@ export default function HandleRequests() {
     },
   ]);
 
+  const [viewingStudent, setViewingStudent] = useState(null);
+
   // General Requests Resolve
   const handleResolve = (id) => {
     setRequests((prev) =>
@@ -54,6 +56,18 @@ export default function HandleRequests() {
         student.id === id ? { ...student, status: newStatus } : student
       )
     );
+  };
+
+  // Delete Student Request
+  const deleteStudentRequest = (id) => {
+    setStudentRequests((prev) =>
+      prev.filter((student) => student.id !== id)
+    );
+  };
+
+  // View Student Details
+  const handleViewStudent = (student) => {
+    setViewingStudent(student);
   };
 
   return (
@@ -122,59 +136,155 @@ export default function HandleRequests() {
 
       {/* Student Signup Requests Tab */}
       {activeTab === "students" && (
-        <div className="space-y-4">
-          {studentRequests.map((student) => (
-            <div
-              key={student.id}
-              className="border p-4 rounded-lg shadow-sm"
-            >
-              <p className="font-semibold text-lg">{student.name}</p>
-              <p className="text-sm text-gray-600">
-                {student.email} • {student.city}
-              </p>
-              <p className="text-sm mt-1">
-                Degree:{" "}
-                <span className="font-medium">{student.degree}</span>
-              </p>
-              <p className="text-sm mt-2">
-                Status:{" "}
-                <span
-                  className={`font-medium ${
-                    student.status === "Approved"
-                      ? "text-green-600"
-                      : student.status === "Declined"
-                      ? "text-red-600"
-                      : "text-orange-600"
-                  }`}
-                >
-                  {student.status}
-                </span>
-              </p>
-
-              {student.status === "Pending" && (
-                <div className="flex gap-3 mt-4">
-                  <button
-                    onClick={() =>
-                      updateStudentStatus(student.id, "Approved")
-                    }
-                    className="bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700"
+        <>
+          <div className="space-y-4">
+            {studentRequests.map((student) => (
+              <div
+                key={student.id}
+                className="border p-4 rounded-lg shadow-sm"
+              >
+                <p className="font-semibold text-lg">{student.name}</p>
+                <p className="text-sm text-gray-600">
+                  {student.email} • {student.city}
+                </p>
+                <p className="text-sm mt-1">
+                  Degree:{" "}
+                  <span className="font-medium">{student.degree}</span>
+                </p>
+                <p className="text-sm mt-2">
+                  Status:{" "}
+                  <span
+                    className={`font-medium ${
+                      student.status === "Approved"
+                        ? "text-green-600"
+                        : student.status === "Declined"
+                        ? "text-red-600"
+                        : "text-orange-600"
+                    }`}
                   >
-                    Approve
-                  </button>
+                    {student.status}
+                  </span>
+                </p>
 
+                {student.status === "Pending" && (
+                  <div className="flex gap-3 mt-4">
+                    <button
+                      onClick={() => handleViewStudent(student)}
+                      className="bg-blue-600 text-white px-4 py-1 rounded hover:bg-blue-700 transition"
+                    >
+                      View
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        updateStudentStatus(student.id, "Approved")
+                      }
+                      className="bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700 transition"
+                    >
+                      Approve
+                    </button>
+
+                    <button
+                      onClick={() => deleteStudentRequest(student.id)}
+                      className="bg-red-600 text-white px-4 py-1 rounded hover:bg-red-700 transition"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+
+                {student.status !== "Pending" && (
+                  <div className="flex gap-3 mt-4">
+                    <button
+                      onClick={() => handleViewStudent(student)}
+                      className="bg-blue-600 text-white px-4 py-1 rounded hover:bg-blue-700 transition"
+                    >
+                      View
+                    </button>
+
+                    <button
+                      onClick={() => deleteStudentRequest(student.id)}
+                      className="bg-red-600 text-white px-4 py-1 rounded hover:bg-red-700 transition"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* View Student Modal */}
+          {viewingStudent && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    Student Details
+                  </h2>
                   <button
-                    onClick={() =>
-                      updateStudentStatus(student.id, "Declined")
-                    }
-                    className="bg-red-600 text-white px-4 py-1 rounded hover:bg-red-700"
+                    onClick={() => setViewingStudent(null)}
+                    className="text-gray-500 hover:text-gray-700 text-2xl"
                   >
-                    Decline
+                    ×
                   </button>
                 </div>
-              )}
+
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-600">Name</p>
+                    <p className="font-semibold text-gray-800">
+                      {viewingStudent.name}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600">Email</p>
+                    <p className="font-semibold text-gray-800">
+                      {viewingStudent.email}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600">Degree</p>
+                    <p className="font-semibold text-gray-800">
+                      {viewingStudent.degree}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600">City</p>
+                    <p className="font-semibold text-gray-800">
+                      {viewingStudent.city}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600">Status</p>
+                    <p
+                      className={`font-semibold ${
+                        viewingStudent.status === "Approved"
+                          ? "text-green-600"
+                          : viewingStudent.status === "Declined"
+                          ? "text-red-600"
+                          : "text-orange-600"
+                      }`}
+                    >
+                      {viewingStudent.status}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setViewingStudent(null)}
+                  className="w-full mt-6 bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition"
+                >
+                  Close
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );

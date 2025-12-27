@@ -27,19 +27,21 @@ const DepartmentManagement = () => {
               name: "Introduction to Programming",
               code: "CS101",
               preReq: "None",
+              crhr: 3,
             },
             {
               id: 2,
               name: "Discrete Mathematics",
               code: "MATH101",
               preReq: "None",
+              crhr: 4,
             },
           ],
         },
         {
           number: 2,
           courses: [
-            { id: 3, name: "Data Structures", code: "CS201", preReq: "CS101" },
+            { id: 3, name: "Data Structures", code: "CS201", preReq: "CS101", crhr: 3 },
           ],
         },
       ],
@@ -58,6 +60,7 @@ const DepartmentManagement = () => {
               name: "Principles of Management",
               code: "BBA101",
               preReq: "None",
+              crhr: 3,
             },
           ],
         },
@@ -78,6 +81,7 @@ const DepartmentManagement = () => {
     name: "",
     code: "",
     preReq: "None",
+    crhr: "",
   });
 
   // Department functions
@@ -138,7 +142,8 @@ const DepartmentManagement = () => {
     if (
       !newCourse.semester ||
       !newCourse.name.trim() ||
-      !newCourse.code.trim()
+      !newCourse.code.trim() ||
+      !newCourse.crhr
     ) {
       alert("Please fill in all required course fields.");
       return;
@@ -163,6 +168,7 @@ const DepartmentManagement = () => {
                       name: newCourse.name.trim(),
                       code: newCourse.code.trim(),
                       preReq: newCourse.preReq.trim() || "None",
+                      crhr: parseInt(newCourse.crhr, 10),
                     },
                   ],
                 };
@@ -179,6 +185,7 @@ const DepartmentManagement = () => {
                     name: newCourse.name.trim(),
                     code: newCourse.code.trim(),
                     preReq: newCourse.preReq.trim() || "None",
+                    crhr: parseInt(newCourse.crhr, 10),
                   },
                 ],
               },
@@ -201,6 +208,7 @@ const DepartmentManagement = () => {
       name: "",
       code: "",
       preReq: "None",
+      crhr: "",
     });
     setShowAddCourseModal(false);
   };
@@ -416,6 +424,7 @@ const DepartmentManagement = () => {
                       <tr>
                         <th className="px-4 py-2">Course Name</th>
                         <th className="px-4 py-2">Course Code</th>
+                        <th className="px-4 py-2">CRHR</th>
                         <th className="px-4 py-2">Pre-requisite</th>
                         <th className="px-4 py-2">Actions</th>
                       </tr>
@@ -428,6 +437,7 @@ const DepartmentManagement = () => {
                         >
                           <td className="px-4 py-2">{course.name}</td>
                           <td className="px-4 py-2">{course.code}</td>
+                          <td className="px-4 py-2">{course.crhr}</td>
                           <td className="px-4 py-2">{course.preReq}</td>
                           <td className="px-4 py-2 flex gap-3">
                             <button
@@ -437,6 +447,7 @@ const DepartmentManagement = () => {
                                 setEditingCourse({
                                   ...course,
                                   semesterNumber: semester.number,
+                                  crhr: course.crhr,
                                 })
                               }
                             >
@@ -594,6 +605,18 @@ const DepartmentManagement = () => {
               className="border border-gray-300 rounded px-3 py-2 w-full mb-4 focus:outline-indigo-600"
             />
 
+            <input
+              type="number"
+              min={1}
+              max={6}
+              placeholder="Credit Hours (CRHR)"
+              value={newCourse.crhr}
+              onChange={(e) =>
+                setNewCourse({ ...newCourse, crhr: e.target.value })
+              }
+              className="border border-gray-300 rounded px-3 py-2 w-full mb-4 focus:outline-indigo-600"
+            />
+
             <div className="flex justify-end gap-4">
               <button
                 onClick={() => setShowAddCourseModal(false)}
@@ -644,6 +667,18 @@ const DepartmentManagement = () => {
               value={editingCourse.preReq}
               onChange={(e) =>
                 setEditingCourse({ ...editingCourse, preReq: e.target.value })
+              }
+              className="border border-gray-300 rounded px-3 py-2 w-full mb-4 focus:outline-indigo-600"
+            />
+
+            <input
+              type="number"
+              min={1}
+              max={6}
+              placeholder="Credit Hours (CRHR)"
+              value={editingCourse.crhr || ""}
+              onChange={(e) =>
+                setEditingCourse({ ...editingCourse, crhr: e.target.value })
               }
               className="border border-gray-300 rounded px-3 py-2 w-full mb-4 focus:outline-indigo-600"
             />
