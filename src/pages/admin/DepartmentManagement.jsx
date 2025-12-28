@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Eye,
   Edit,
@@ -9,66 +9,11 @@ import {
   Save,
   X,
 } from "lucide-react";
+import { departmentAPI, semesterAPI, courseAPI } from "../../services/api";
 
 const DepartmentManagement = () => {
-  // Sample initial data
-  const initialDepartments = [
-    {
-      id: 1,
-      name: "Computer Science",
-      code: "CS",
-      students: 120,
-      semesters: [
-        {
-          number: 1,
-          courses: [
-            {
-              id: 1,
-              name: "Introduction to Programming",
-              code: "CS101",
-              preReq: "None",
-              crhr: 3,
-            },
-            {
-              id: 2,
-              name: "Discrete Mathematics",
-              code: "MATH101",
-              preReq: "None",
-              crhr: 4,
-            },
-          ],
-        },
-        {
-          number: 2,
-          courses: [
-            { id: 3, name: "Data Structures", code: "CS201", preReq: "CS101", crhr: 3 },
-          ],
-        },
-      ],
-    },
-    {
-      id: 2,
-      name: "Business Administration",
-      code: "BBA",
-      students: 85,
-      semesters: [
-        {
-          number: 1,
-          courses: [
-            {
-              id: 4,
-              name: "Principles of Management",
-              code: "BBA101",
-              preReq: "None",
-              crhr: 3,
-            },
-          ],
-        },
-      ],
-    },
-  ];
-
-  const [departments, setDepartments] = useState(initialDepartments);
+  const [departments, setDepartments] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedDept, setSelectedDept] = useState(null);
   const [expandedSemesters, setExpandedSemesters] = useState({});
   const [showAddDeptModal, setShowAddDeptModal] = useState(false);
@@ -80,34 +25,81 @@ const DepartmentManagement = () => {
     semester: "",
     name: "",
     code: "",
-    preReq: "None",
-    crhr: "",
+    credit_hours: "",
   });
 
+  // Load departments from backend
+  useEffect(() => {
+    loadDepartments();
+  }, []);
+
+  const loadDepartments = async () => {
+    try {
+      setLoading(true);
+      const data = await departmentAPI.getAll();
+      setDepartments(data);
+    } catch (error) {
+      console.error("Failed to load departments:", error);
+      alert("Failed to load departments from server");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Department functions
-  const handleAddDepartment = () => {
+  const handleAddDepartment = async () => {
     if (!newDepartment.name.trim() || !newDepartment.code.trim()) {
       alert("Please enter both Department Name and Code.");
       return;
     }
 
-    const newDept = {
-      id: departments.length ? departments[departments.length - 1].id + 1 : 1,
-      name: newDepartment.name.trim(),
-      code: newDepartment.code.toUpperCase().trim(),
-      students: 0,
-      semesters: [],
-    };
-    setDepartments([...departments, newDept]);
-    setNewDepartment({ name: "", code: "" });
-    setShowAddDeptModal(false);
+    try {
+      await departmentAPI.create({
+        name: newDepartment.name.trim(),
+        code: newDepartment.code.toUpperCase().trim(),
+      });
+      await loadDepartments();
+      setNewDepartment({ name: "", code: "" });
+      setShowAddDeptModal(false);
+      alert("Department added successfully!");
+    } catch (error) {
+      console.error("Failed to add department:", error);
+      alert("Failed to add department");
+    }
   };
 
-  const handleDeleteDepartment = (id) => {
+  const handleUpdateDepartment = async () => {
+    if (!editingDept.name.trim() || !editingDept.code.trim()) {
+      alert("Please enter both Department Name and Code.");
+      return;
+    }
+
+    try {
+      await departmentAPI.update(editingDept.id, {
+        name: editingDept.name.trim(),
+        code: editingDept.code.toUpperCase().trim(),
+      });
+      await loadDepartments();
+      setEditingDept(null);
+      alert("Department updated successfully!");
+    } catch (error) {
+      console.error("Failed to update department:", error);
+      alert("Failed to update department");
+    }
+  };
+
+  const handleDeleteDepartment = async (id) => {
     if (window.confirm("Are you sure you want to delete this department?")) {
-      setDepartments(departments.filter((dept) => dept.id !== id));
-      if (selectedDept && selectedDept.id === id) {
-        setSelectedDept(null);
+      try {
+        await departmentAPI.delete(id);
+        await loadDepartments();
+        if (selectedDept?.id === id) {
+          setSelectedDept(null);
+        }
+        alert("Department deleted successfully!");
+      } catch (error) {
+        console.error("Failed to delete department:", error);
+        alert("Failed to delete department");
       }
     }
   };
@@ -116,108 +108,165 @@ const DepartmentManagement = () => {
     setEditingDept({ ...dept });
   };
 
-  const handleSaveDepartment = () => {
-    if (!editingDept.name.trim() || !editingDept.code.trim()) {
-      alert("Department name and code cannot be empty");
-      return;
-    }
-
-    const updatedDepartments = departments.map((dept) =>
-      dept.id === editingDept.id ? editingDept : dept
-    );
-
-    setDepartments(updatedDepartments);
-    if (selectedDept && selectedDept.id === editingDept.id) {
-      setSelectedDept(editingDept);
-    }
-    setEditingDept(null);
+  const handleSaveDepartment = async () => {
+    await handleUpdateDepartment();
   };
 
   const handleCancelEdit = () => {
     setEditingDept(null);
   };
 
-  // Course functions
-  const handleAddCourse = () => {
-    if (
-      !newCourse.semester ||
-      !newCourse.name.trim() ||
-      !newCourse.code.trim() ||
-      !newCourse.crhr
-    ) {
+  // Course and Semester functions
+  const handleAddCourse = async () => {
+    if (!newCourse.semester || !newCourse.name.trim() || !newCourse.code.trim() || !newCourse.credit_hours) {
       alert("Please fill in all required course fields.");
       return;
     }
 
-    const updatedDepartments = departments.map((dept) => {
-      if (dept.id === selectedDept.id) {
-        const semesterNum = parseInt(newCourse.semester, 10);
-        const semesterExists = dept.semesters.some(
-          (s) => s.number === semesterNum
-        );
+    try {
+      // First, check if semester exists, if not create it
+      const semesterNum = parseInt(newCourse.semester, 10);
 
-        const updatedSemesters = semesterExists
-          ? dept.semesters.map((sem) => {
-              if (sem.number === semesterNum) {
-                return {
-                  ...sem,
-                  courses: [
-                    ...sem.courses,
-                    {
-                      id: Date.now(),
-                      name: newCourse.name.trim(),
-                      code: newCourse.code.trim(),
-                      preReq: newCourse.preReq.trim() || "None",
-                      crhr: parseInt(newCourse.crhr, 10),
-                    },
-                  ],
-                };
-              }
-              return sem;
-            })
-          : [
-              ...dept.semesters,
-              {
-                number: semesterNum,
-                courses: [
-                  {
-                    id: Date.now(),
-                    name: newCourse.name.trim(),
-                    code: newCourse.code.trim(),
-                    preReq: newCourse.preReq.trim() || "None",
-                    crhr: parseInt(newCourse.crhr, 10),
-                  },
-                ],
-              },
-            ];
-
-        return {
-          ...dept,
-          semesters: updatedSemesters.sort((a, b) => a.number - b.number),
-        };
+      if (Number.isNaN(semesterNum)) {
+        alert("Semester must be a valid number.");
+        return;
       }
-      return dept;
-    });
 
-    setDepartments(updatedDepartments);
-    setSelectedDept(
-      updatedDepartments.find((dept) => dept.id === selectedDept.id)
-    );
-    setNewCourse({
-      semester: "",
-      name: "",
-      code: "",
-      preReq: "None",
-      crhr: "",
-    });
-    setShowAddCourseModal(false);
+      let semestersList = await semesterAPI.getByDepartment(selectedDept.id);
+      semestersList = semestersList || [];
+      
+      let semesterId;
+      const existingSemester = semestersList.find(
+        (s) => Number(s.number) === semesterNum
+      );
+      
+      if (!existingSemester) {
+        // Create new semester
+        const newSemester = await semesterAPI.create({
+          department_id: selectedDept.id,
+          number: semesterNum
+        });
+        semesterId = newSemester.id;
+      } else {
+        semesterId = existingSemester.id;
+      }
+
+      // Now add the course to the semester
+      await courseAPI.create({
+        semester_id: semesterId,
+        name: newCourse.name.trim(),
+        code: newCourse.code.trim(),
+        credit_hours: parseInt(newCourse.credit_hours, 10),
+        crhr: parseInt(newCourse.credit_hours, 10), // ensure backend mapping
+      });
+
+      // Reload department details
+      await loadDepartmentDetails(selectedDept.id);
+      
+      setNewCourse({ semester: "", name: "", code: "", credit_hours: "" });
+      setShowAddCourseModal(false);
+      alert("Course added successfully!");
+    } catch (error) {
+      console.error("Failed to add course:", error);
+      alert("Failed to add course");
+    }
   };
 
-  // View toggle functions
-  const toggleSemester = (semesterNumber) => {
+  const handleDeleteCourse = async (courseId) => {
+    if (!courseId || !selectedDept?.id) return;
+    if (!window.confirm("Delete this course?")) return;
+    try {
+      await courseAPI.delete(courseId);
+      await loadDepartmentDetails(selectedDept.id);
+      alert("Course deleted successfully!");
+    } catch (error) {
+      console.error("Failed to delete course:", error);
+      alert(error.message || "Failed to delete course");
+    }
+  };
+
+  const handleUpdateCourse = async () => {
+    if (!editingCourse) return;
+    const creditValue = parseInt(editingCourse.crhr || editingCourse.credit_hours, 10);
+    if (
+      !editingCourse.name?.trim() ||
+      !editingCourse.code?.trim() ||
+      Number.isNaN(creditValue)
+    ) {
+      alert("Please fill all required course fields.");
+      return;
+    }
+
+    try {
+      await courseAPI.update(editingCourse.id, {
+        name: editingCourse.name.trim(),
+        code: editingCourse.code.trim(),
+        crhr: creditValue,
+        credit_hours: creditValue,
+        pre_req: editingCourse.preReq || editingCourse.pre_req || null,
+        semester_id:
+          editingCourse.semester_id || editingCourse.semesterId || selectedDept.semesters.find((s) => s.number === editingCourse.semesterNumber)?.id,
+      });
+
+      await loadDepartmentDetails(selectedDept.id);
+      setEditingCourse(null);
+      alert("Course updated successfully!");
+    } catch (error) {
+      console.error("Failed to update course:", error);
+      alert(error.message || "Failed to update course");
+    }
+  };
+
+  // Load department with semesters and courses
+  const loadDepartmentDetails = async (deptId) => {
+    try {
+      const semesters = await semesterAPI.getByDepartment(deptId);
+      
+      // Load courses for each semester
+      const semestersWithCourses = await Promise.all(
+        semesters.map(async (sem) => {
+          const courses = await courseAPI.getBySemester(sem.id);
+          return {
+            ...sem,
+            courses: (courses || []).map((c) => ({
+              ...c,
+              credit_hours: c.credit_hours ?? c.crhr, // normalize for UI
+            })),
+          };
+        })
+      );
+
+      // Update selected department
+      const dept = departments.find(d => d.id === deptId);
+      setSelectedDept({
+        ...dept,
+        students: dept.students || 0,
+        semesters: semestersWithCourses.sort((a, b) => a.number - b.number)
+      });
+    } catch (error) {
+      console.error("Failed to load department details:", error);
+      alert("Failed to load department details");
+    }
+  };
+
+  // Update handleViewDepartment to load details
+  const handleViewDepartmentWithDetails = async (dept) => {
+    // Set initial state with empty semesters to show the view immediately
+    setSelectedDept({
+      ...dept,
+      students: dept.students || 0,
+      semesters: []
+    });
+    setExpandedSemesters({});
+    // Then load the actual details
+    await loadDepartmentDetails(dept.id);
+  };
+
+  // Toggle semester expansion
+  const toggleSemester = (semId) => {
     setExpandedSemesters((prev) => ({
       ...prev,
-      [semesterNumber]: !prev[semesterNumber],
+      [semId]: !prev[semId],
     }));
   };
 
@@ -225,6 +274,14 @@ const DepartmentManagement = () => {
     setSelectedDept(dept);
     setExpandedSemesters({});
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-xl text-gray-600">Loading departments...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white p-6 rounded-xl shadow max-w-7xl mx-auto">
@@ -331,7 +388,7 @@ const DepartmentManagement = () => {
                       ) : (
                         <>
                           <button
-                            onClick={() => handleViewDepartment(dept)}
+                            onClick={() => handleViewDepartmentWithDetails(dept)}
                             className="text-indigo-600 hover:text-indigo-900 mr-3"
                             title="View Department"
                           >
@@ -384,20 +441,20 @@ const DepartmentManagement = () => {
               <h3 className="text-sm font-medium text-gray-500">
                 Total Students
               </h3>
-              <p className="text-2xl font-semibold">{selectedDept.students}</p>
+              <p className="text-2xl font-semibold">{selectedDept?.students || 0}</p>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="text-sm font-medium text-gray-500">
                 Total Semesters
               </h3>
               <p className="text-2xl font-semibold">
-                {selectedDept.semesters.length}
+                {selectedDept?.semesters?.length || 0}
               </p>
             </div>
           </div>
 
-          {selectedDept.semesters.length === 0 ? (
-            <p className="text-gray-500 text-center">No semesters added yet.</p>
+          {!selectedDept?.semesters || selectedDept.semesters.length === 0 ? (
+            <p className="text-gray-500 text-center">No semesters added yet. Click "Add Course" to create your first course and semester.</p>
           ) : (
             selectedDept.semesters.map((semester) => (
               <div
@@ -437,8 +494,8 @@ const DepartmentManagement = () => {
                         >
                           <td className="px-4 py-2">{course.name}</td>
                           <td className="px-4 py-2">{course.code}</td>
-                          <td className="px-4 py-2">{course.crhr}</td>
-                          <td className="px-4 py-2">{course.preReq}</td>
+                          <td className="px-4 py-2">{course.credit_hours}</td>
+                          <td className="px-4 py-2">{course.pre_req || "None"}</td>
                           <td className="px-4 py-2 flex gap-3">
                             <button
                               className="text-gray-600 hover:text-gray-900"
@@ -447,7 +504,8 @@ const DepartmentManagement = () => {
                                 setEditingCourse({
                                   ...course,
                                   semesterNumber: semester.number,
-                                  crhr: course.crhr,
+                                  semester_id: course.semester_id || semester.id,
+                                  crhr: course.credit_hours ?? course.crhr,
                                 })
                               }
                             >
@@ -456,41 +514,7 @@ const DepartmentManagement = () => {
                             <button
                               className="text-red-600 hover:text-red-900"
                               title="Delete Course"
-                              onClick={() => {
-                                if (window.confirm("Delete this course?")) {
-                                  const updatedDepartments = departments.map(
-                                    (dept) => {
-                                      if (dept.id === selectedDept.id) {
-                                        return {
-                                          ...dept,
-                                          semesters: dept.semesters.map(
-                                            (sem) => {
-                                              if (
-                                                sem.number === semester.number
-                                              ) {
-                                                return {
-                                                  ...sem,
-                                                  courses: sem.courses.filter(
-                                                    (c) => c.id !== course.id
-                                                  ),
-                                                };
-                                              }
-                                              return sem;
-                                            }
-                                          ),
-                                        };
-                                      }
-                                      return dept;
-                                    }
-                                  );
-                                  setDepartments(updatedDepartments);
-                                  setSelectedDept(
-                                    updatedDepartments.find(
-                                      (dept) => dept.id === selectedDept.id
-                                    )
-                                  );
-                                }
-                              }}
+                              onClick={() => handleDeleteCourse(course.id)}
                             >
                               <Trash2 size={16} />
                             </button>
@@ -596,23 +620,13 @@ const DepartmentManagement = () => {
             />
 
             <input
-              type="text"
-              placeholder="Pre-requisite Course Code (optional)"
-              value={newCourse.preReq}
-              onChange={(e) =>
-                setNewCourse({ ...newCourse, preReq: e.target.value })
-              }
-              className="border border-gray-300 rounded px-3 py-2 w-full mb-4 focus:outline-indigo-600"
-            />
-
-            <input
               type="number"
               min={1}
               max={6}
               placeholder="Credit Hours (CRHR)"
-              value={newCourse.crhr}
+              value={newCourse.credit_hours}
               onChange={(e) =>
-                setNewCourse({ ...newCourse, crhr: e.target.value })
+                setNewCourse({ ...newCourse, credit_hours: e.target.value })
               }
               className="border border-gray-300 rounded px-3 py-2 w-full mb-4 focus:outline-indigo-600"
             />
@@ -691,34 +705,7 @@ const DepartmentManagement = () => {
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  const updatedDepartments = departments.map((dept) => {
-                    if (dept.id === selectedDept.id) {
-                      return {
-                        ...dept,
-                        semesters: dept.semesters.map((sem) => {
-                          if (sem.number === editingCourse.semesterNumber) {
-                            return {
-                              ...sem,
-                              courses: sem.courses.map((c) =>
-                                c.id === editingCourse.id ? editingCourse : c
-                              ),
-                            };
-                          }
-                          return sem;
-                        }),
-                      };
-                    }
-                    return dept;
-                  });
-                  setDepartments(updatedDepartments);
-                  setSelectedDept(
-                    updatedDepartments.find(
-                      (dept) => dept.id === selectedDept.id
-                    )
-                  );
-                  setEditingCourse(null);
-                }}
+                onClick={handleUpdateCourse}
                 className="px-4 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700"
               >
                 Save

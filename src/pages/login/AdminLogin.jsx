@@ -7,19 +7,34 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Hardcoded admin credentials
+    console.log('admin login')
+
+    // Send to your Node.js server
+    // const response = await fetch("http://localhost:4000/login/admin", {
+    //   method: "POST",
+    //   headers: { "Content-Type": "application/json" },
+    //   body: JSON.stringify({ email, password }),
+    // });
+    // const data = await response.json();
+    // console.log(data);
+
+    // // Hardcoded admin credentials
     const ADMIN_CREDENTIALS = {
       email: "admin@university.edu",
-      password: "admin123"
+      password: "admin123",
     };
 
-    if (email === ADMIN_CREDENTIALS.email && password === ADMIN_CREDENTIALS.password) {
+    if (
+      email === ADMIN_CREDENTIALS.email &&
+      password === ADMIN_CREDENTIALS.password
+    ) {
       navigate("/admin/dashboard"); // Redirect to dashboard
     } else {
-      alert(`Invalid credentials. Use:\nEmail: ${ADMIN_CREDENTIALS.email}\nPassword: ${ADMIN_CREDENTIALS.password}`);
+      alert(
+        `Invalid credentials. Use:\nEmail: ${ADMIN_CREDENTIALS.email}\nPassword: ${ADMIN_CREDENTIALS.password}`
+      );
     }
   };
 
@@ -31,7 +46,12 @@ export default function AdminLogin() {
         </h2>
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label htmlFor="email" className="block text-gray-700 text-sm font-medium">Email</label>
+            <label
+              htmlFor="email"
+              className="block text-gray-700 text-sm font-medium"
+            >
+              Email
+            </label>
             <input
               type="email"
               id="email"
@@ -43,7 +63,12 @@ export default function AdminLogin() {
             />
           </div>
           <div className="mb-6">
-            <label htmlFor="password" className="block text-gray-700 text-sm font-medium">Password</label>
+            <label
+              htmlFor="password"
+              className="block text-gray-700 text-sm font-medium"
+            >
+              Password
+            </label>
             <input
               type="password"
               id="password"

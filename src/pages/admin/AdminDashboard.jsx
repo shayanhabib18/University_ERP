@@ -18,6 +18,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import DepartmentManagement from "./DepartmentManagement";
 import FacultyManagement from "./FacultyManagement";
+import FacultyRoleManagement from "./FacultyRoleManagement";
 import StudentManagement from "./StudentManagement";
 import HandleRequests from "./HandleRequests";
 import AdminAnnouncements from "./AdminAnnouncement";
@@ -26,6 +27,7 @@ const sidebarLinks = [
   "Overview",
   "Add Departments & Courses",
   "Faculty Management",
+  "Faculty Role Management",
   "Student Management",
   "Requests",
   "Announcements",
@@ -195,6 +197,9 @@ export default function AdminDashboard() {
 
       case "Faculty Management":
         return <FacultyManagement />;
+
+      case "Faculty Role Management":
+        return <FacultyRoleManagement />;
 
       case "Student Management":
         return <StudentManagement />;
