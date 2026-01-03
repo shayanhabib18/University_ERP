@@ -1,99 +1,50 @@
-import { useState } from "react";
-import { Megaphone } from "lucide-react";
+import AnnouncementsBoard from "../../components/AnnouncementsBoard";
 
-const FacultyAnnouncements = () => {
-  const [filter, setFilter] = useState("All");
+const initialAnnouncements = [
+  {
+    id: 1,
+    title: "Portal Maintenance",
+    message: "The online portal will be under maintenance this weekend.",
+    senderName: "Admin",
+    senderRole: "admin",
+    date: "2025-06-20T08:00:00Z",
+    recipients: ["student"],
+  },
+  {
+    id: 2,
+    title: "Midterm Schedule",
+    message: "Mid-term exams will start from 10th July.",
+    senderName: "Faculty Member",
+    senderRole: "faculty",
+    date: "2025-06-25T09:00:00Z",
+    recipients: ["student"],
+  },
+  {
+    id: 3,
+    title: "Orientation",
+    message: "Department orientation will be held on 1st July.",
+    senderName: "Coordinator",
+    senderRole: "coordinator",
+    date: "2025-06-27T10:00:00Z",
+    recipients: ["student"],
+  },
+];
 
-  // 📢 Updated announcement data for Student Portal
-  const receivedAnnouncements = [
-    {
-      id: 1,
-      sender: "Admin",
-      role: "Admin",
-      message: "Online portal will be under maintenance this weekend.",
-      date: "2025-06-20",
-    },
-    {
-      id: 2,
-      sender: "Faculty Member",
-      role: "Faculty",
-      message: "Mid-term exams will start from 10th July.",
-      date: "2025-06-25",
-    },
-    {
-      id: 3,
-      sender: "Coordinator",
-      role: "Coordinator",
-      message: "Department orientation will be held on 1st July.",
-      date: "2025-06-27",
-    },
-    {
-      id: 4,
-      sender: "Faculty Member",
-      role: "Faculty",
-      message: "Final project submission deadline is extended to 15th July.",
-      date: "2025-06-28",
-    },
-  ];
-
-  // 🎯 Filters: Only Faculty, Coordinator, and Admin
-  const filterOptions = ["All", "Faculty", "Coordinator", "Admin"];
-
-  const filtered =
-    filter === "All"
-      ? receivedAnnouncements
-      : receivedAnnouncements.filter((a) => a.role === filter);
-
+const StudentAnnouncements = () => {
   return (
-    <div className="max-w-5xl mx-auto mt-10 p-6 bg-white shadow-md rounded-lg space-y-10">
-      <h2 className="text-2xl font-bold flex items-center gap-2 text-indigo-700">
-        <Megaphone /> Announcements
-      </h2>
-
-      {/* 🔍 Filter Buttons */}
-      <div className="flex gap-3 flex-wrap mb-6">
-        {filterOptions.map((type) => (
-          <button
-            key={type}
-            onClick={() => setFilter(type)}
-            className={`px-5 py-1.5 rounded-full text-sm font-semibold transition ${
-              filter === type
-                ? "bg-indigo-600 text-white shadow"
-                : "bg-gray-200 text-gray-800 hover:bg-gray-300"
-            }`}
-          >
-            {type}
-          </button>
-        ))}
-      </div>
-
-      {/* 🔔 Announcements Section */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">
-          Official Announcements
-        </h3>
-
-        {filtered.length === 0 ? (
-          <p className="text-sm text-gray-500">No announcements found.</p>
-        ) : (
-          <div className="space-y-4">
-            {filtered.map((a) => (
-              <div
-                key={a.id}
-                className="border-l-4 pl-4 py-3 border-indigo-500 bg-gray-50 rounded"
-              >
-                <p className="text-sm text-gray-500">
-                  {a.date} · {a.role}
-                </p>
-                <p className="font-medium text-gray-900">{a.message}</p>
-                <p className="text-xs text-gray-400 mt-1">~ {a.sender}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+    <AnnouncementsBoard
+      title="Student Announcements"
+      description="View announcements shared by faculty, chair, and coordinator."
+      currentRole="student"
+      senderRole="student"
+      senderName="Student"
+      allowedRecipients={[]}
+      canCreate={false}
+      storageKey="announcements:student"
+      initialAnnouncements={initialAnnouncements}
+      visibleRoles={["student"]}
+    />
   );
 };
 
-export default FacultyAnnouncements;
+export default StudentAnnouncements;
