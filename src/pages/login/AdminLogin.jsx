@@ -87,11 +87,13 @@ export default function AdminLogin() {
           </button>
         </form>
         <div className="mt-4 text-center">
-          <p className="text-sm text-gray-600">
-            <Link to="#" className="text-blue-600 hover:text-blue-700">
-              Forgot Password?
-            </Link>
-          </p>
+          <button
+            type="button"
+            className="text-sm text-blue-600 hover:underline focus:outline-none"
+            onClick={() => navigate("/forgot-password")}
+          >
+            Forgot Password?
+          </button>
         </div>
       </div>
     </div>

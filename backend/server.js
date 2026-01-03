@@ -8,6 +8,8 @@ import departmentRoutes from "./routes/departmentRoutes.js";
 import semesterRoutes from "./routes/semesterRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
 import loginRoutes from "./routes/LoginRoutes.js"; // added login routes
+import facultyRoutes from "./routes/facultyRoutes.js";
+import studentRoutes from "./routes/studentRoutes.js"; // student management routes
 
 dotenv.config();
 
@@ -23,6 +25,8 @@ app.use("/departments", departmentRoutes);
 app.use("/semesters", semesterRoutes);
 app.use("/courses", courseRoutes);
 app.use("/auth", loginRoutes); // login/auth routes prefixed with /auth
+app.use("/faculties", facultyRoutes);
+app.use("/students", studentRoutes); // student management routes
 
 // Default route (optional)
 app.get("/", (req, res) => {

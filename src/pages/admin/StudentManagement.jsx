@@ -1,15 +1,21 @@
-import React, { useState } from "react";
-
-const departments = ["Electrical Engineering", "Software Engineering", "BBA"];
+import React, { useEffect, useState } from "react";
+import { departmentAPI, studentAPI } from "../../services/api";
 
 const StudentManagement = () => {
   const [selectedDept, setSelectedDept] = useState(null);
+  const [departments, setDepartments] = useState([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(true);
+  const [departmentsError, setDepartmentsError] = useState("");
   const [activeOption, setActiveOption] = useState("");
   const [students, setStudents] = useState([]);
-  const [editingIndex, setEditingIndex] = useState(null);
+  const [editingStudentId, setEditingStudentId] = useState(null);
+  const [autoRoll, setAutoRoll] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAcademicRecordsModal, setShowAcademicRecordsModal] = useState(false);
   const [selectedStudentForRecords, setSelectedStudentForRecords] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const initialFormState = {
     fullName: "",
@@ -20,18 +26,97 @@ const StudentManagement = () => {
     cnic: "",
     permanentAddress: "",
     currentAddress: "",
-    universityEmail: "",
     personalEmail: "",
     studentPhone: "",
     parentPhone: "",
     joiningSession: "",
     joiningDate: "",
     academicDocs: [],
+    department: "",
     attendance: "",
     grades: "",
   };
 
   const [formData, setFormData] = useState(initialFormState);
+
+  const getDeptName = (dept) =>
+    (dept && (dept.name || dept.department_name || dept.title || dept.code)) || "";
+
+  const selectedDeptName = getDeptName(selectedDept);
+
+  // Derive next roll number based on department code/name and existing students
+  useEffect(() => {
+    if (!selectedDept) {
+      setAutoRoll("");
+      return;
+    }
+
+    const prefixSource = selectedDept.code || selectedDept.name || "DEP";
+    const prefix = (prefixSource || "DEP").toString().trim();
+
+    let maxNum = 0;
+    students
+      .map((s) => s.roll_number)
+      .filter(Boolean)
+      .forEach((rn) => {
+        if (!rn.toUpperCase().startsWith(prefix.toUpperCase())) return;
+        const parts = rn.split("-");
+        const maybeNum = parseInt(parts[parts.length - 1], 10);
+        if (!Number.isNaN(maybeNum) && maybeNum > maxNum) {
+          maxNum = maybeNum;
+        }
+      });
+
+    const nextNum = maxNum + 1;
+    const nextRoll = `${prefix}-${String(nextNum).padStart(2, "0")}`;
+    setAutoRoll(nextRoll);
+  }, [selectedDept, students]);
+
+  // Keep form roll number in sync for create mode (auto-filled); allow manual edit when editing
+  useEffect(() => {
+    if (!editingStudentId) {
+      setFormData((prev) => ({ ...prev, rollNo: autoRoll || "" }));
+    }
+  }, [autoRoll, editingStudentId]);
+
+  const loadDepartments = async () => {
+    try {
+      setDepartmentsLoading(true);
+      setDepartmentsError("");
+      const data = await departmentAPI.getAll();
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setDepartmentsError(err?.message || "Failed to load departments");
+      setDepartments([]);
+    } finally {
+      setDepartmentsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDepartments();
+  }, []);
+
+  const loadStudents = async () => {
+    if (!selectedDept) return;
+    try {
+      setLoading(true);
+      setError("");
+      const data = await studentAPI.getByDepartment(selectedDept.id);
+      setStudents(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err?.message || "Failed to load students");
+      setStudents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedDept) {
+      loadStudents();
+    }
+  }, [selectedDept]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -45,29 +130,89 @@ const StudentManagement = () => {
     }));
   };
 
-  const handleAddOrUpdateStudent = (e) => {
+  const handleAddOrUpdateStudent = async (e) => {
     e.preventDefault();
-    if (editingIndex !== null) {
-      const updatedStudents = [...students];
-      updatedStudents[editingIndex] = formData;
-      setStudents(updatedStudents);
-      setEditingIndex(null);
-    } else {
-      setStudents([...students, formData]);
+    setError("");
+    setSuccess("");
+    setLoading(true);
+
+    try {
+      const studentData = {
+        full_name: formData.fullName,
+        father_name: formData.fatherName,
+        date_of_birth: formData.dob,
+        gender: formData.gender,
+        roll_number: formData.rollNo,
+        cnic: formData.cnic,
+        permanent_address: formData.permanentAddress,
+        current_address: formData.currentAddress,
+        personal_email: formData.personalEmail,
+        student_phone: formData.studentPhone,
+        parent_phone: formData.parentPhone,
+        joining_session: formData.joiningSession,
+        joining_date: formData.joiningDate,
+        department_id: selectedDept.id,
+      };
+
+      if (editingStudentId) {
+        await studentAPI.update(editingStudentId, studentData);
+        setSuccess("Student updated successfully!");
+        setEditingStudentId(null);
+      } else {
+        await studentAPI.create(studentData);
+        setSuccess("Student added successfully!");
+      }
+
+      await loadStudents();
+      setFormData(initialFormState);
+      setTimeout(() => {
+        setSuccess("");
+        setActiveOption("");
+      }, 1500);
+    } catch (err) {
+      setError(err?.message || "Failed to save student");
+    } finally {
+      setLoading(false);
     }
-    setFormData(initialFormState);
-    setActiveOption("");
   };
 
-  const startEditingStudent = (index) => {
-    setFormData(students[index]);
-    setEditingIndex(index);
+  const startEditingStudent = (student) => {
+    setFormData({
+      fullName: student.full_name || "",
+      fatherName: student.father_name || "",
+      dob: student.date_of_birth || "",
+      gender: student.gender || "",
+      rollNo: student.roll_number || "",
+      cnic: student.cnic || "",
+      permanentAddress: student.permanent_address || "",
+      currentAddress: student.current_address || "",
+      personalEmail: student.personal_email || "",
+      studentPhone: student.student_phone || "",
+      parentPhone: student.parent_phone || "",
+      joiningSession: student.joining_session || "",
+      joiningDate: student.joining_date || "",
+      academicDocs: [],
+      department: "",
+      attendance: "",
+      grades: "",
+    });
+    setEditingStudentId(student.id);
     setActiveOption("Add Student");
   };
 
-  const deleteStudent = (index) => {
-    const updatedStudents = students.filter((_, i) => i !== index);
-    setStudents(updatedStudents);
+  const deleteStudent = async (studentId) => {
+    if (!window.confirm("Are you sure you want to delete this student?")) return;
+    
+    setLoading(true);
+    try {
+      await studentAPI.delete(studentId);
+      setSuccess("Student deleted successfully!");
+      await loadStudents();
+    } catch (err) {
+      setError(err?.message || "Failed to delete student");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const viewAcademicRecords = (student) => {
@@ -86,7 +231,7 @@ Student Name: ${student.fullName}
 Father's Name: ${student.fatherName}
 Roll Number: ${student.rollNo}
 CNIC: ${student.cnic}
-Department: ${selectedDept}
+Department: ${selectedDeptName}
 Date of Birth: ${student.dob}
 
 ───────────────────────────────────────────────────────────────
@@ -100,7 +245,6 @@ Attendance: ${student.attendance}
                       CONTACT INFORMATION
 ───────────────────────────────────────────────────────────────
 
-University Email: ${student.universityEmail}
 Personal Email: ${student.personalEmail || 'N/A'}
 Student Phone: ${student.studentPhone || 'N/A'}
 Parent/Guardian Phone: ${student.parentPhone || 'N/A'}
@@ -126,14 +270,17 @@ This is an official document from the University ERP System
     URL.revokeObjectURL(url);
   };
 
+  const studentsInDept = students;
+
   const filteredStudents = students.filter((student) => {
     const q = searchQuery.toLowerCase();
     return (
-      student.rollNo.toLowerCase().includes(q) ||
-      student.universityEmail.toLowerCase().includes(q) ||
-      student.fullName.toLowerCase().includes(q)
+      student.roll_number.toLowerCase().includes(q) ||
+      student.full_name.toLowerCase().includes(q)
     );
   });
+
+  const studentsForDisplay = students;
 
   const options = ["Add Student", "Update Student", "Search Student", "Delete Student", "Show Prev Academic History"];
 
@@ -166,32 +313,50 @@ This is an official document from the University ERP System
         {/* Department Selection */}
         {!selectedDept && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {departments.map((dept, index) => (
-              <div
-                key={dept}
-                className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border border-gray-200 transform hover:-translate-y-1"
-              >
-                <div className="flex flex-col items-center text-center">
-                  <div className={`w-20 h-20 bg-gradient-to-r ${getAvatarColor(dept)} rounded-2xl flex items-center justify-center mb-4`}>
-                    <span className="text-white font-bold text-2xl">
-                      {dept.split(' ').map(word => word[0]).join('')}
-                    </span>
-                  </div>
-                  <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                    {dept}
-                  </h2>
-                  <p className="text-gray-500 text-sm mb-4">
-                    Manage student records in {dept}
-                  </p>
-                  <button
-                    onClick={() => setSelectedDept(dept)}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg w-full"
-                  >
-                    Access Department
-                  </button>
-                </div>
+            {departmentsLoading && (
+              <div className="md:col-span-3 text-center text-gray-600">Loading departments...</div>
+            )}
+            {!departmentsLoading && departmentsError && (
+              <div className="md:col-span-3 text-center">
+                <p className="text-red-600 font-medium mb-2">{departmentsError}</p>
+                <button
+                  onClick={loadDepartments}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Retry
+                </button>
               </div>
-            ))}
+            )}
+            {!departmentsLoading && !departmentsError && departments.map((dept) => {
+              const deptName = getDeptName(dept);
+              if (!deptName) return null;
+              return (
+                <div
+                  key={dept.id || dept.code || deptName}
+                  className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border border-gray-200 transform hover:-translate-y-1"
+                >
+                  <div className="flex flex-col items-center text-center">
+                    <div className={`w-20 h-20 bg-gradient-to-r ${getAvatarColor(deptName)} rounded-2xl flex items-center justify-center mb-4`}>
+                      <span className="text-white font-bold text-2xl">
+                        {deptName.split(" ").map((word) => word[0]).join("")}
+                      </span>
+                    </div>
+                    <h2 className="text-xl font-semibold text-gray-800 mb-2">
+                      {deptName}
+                    </h2>
+                    <p className="text-gray-500 text-sm mb-4">
+                      Manage student records in {deptName}
+                    </p>
+                    <button
+                      onClick={() => setSelectedDept(dept)}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg w-full"
+                    >
+                      Access Department
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -215,15 +380,15 @@ This is an official document from the University ERP System
                     All Departments
                   </button>
                   <span className="mx-2">/</span>
-                  <span>{selectedDept}</span>
+                  <span>{selectedDeptName}</span>
                 </div>
                 <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
-                  {selectedDept}
+                  {selectedDeptName}
                 </h2>
               </div>
               <div className="mt-4 md:mt-0">
                 <span className="inline-block bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {students.length} Students
+                  {studentsInDept.length} Students
                 </span>
               </div>
             </div>
@@ -279,8 +444,21 @@ This is an official document from the University ERP System
                   <svg className="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
-                  {editingIndex !== null ? "Update Student Record" : "Register New Student"}
+                  {editingStudentId ? "Update Student Record" : "Register New Student"}
                 </h3>
+                
+                {error && (
+                  <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                    {error}
+                  </div>
+                )}
+                
+                {success && (
+                  <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+                    ✓ {success}
+                  </div>
+                )}
+
                 <form onSubmit={handleAddOrUpdateStudent} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Personal Information */}
@@ -369,6 +547,25 @@ This is an official document from the University ERP System
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Roll Number (auto)
+                      </label>
+                      <input
+                        name="rollNo"
+                        value={formData.rollNo}
+                        onChange={handleChange}
+                        placeholder="Auto-generated e.g. SE-01"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        disabled={!editingStudentId}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        {selectedDept
+                          ? `Next will be ${autoRoll || "calculating..."} for ${selectedDeptName}`
+                          : "Select a department to auto-generate"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Joining Session *
                       </label>
                       <select
@@ -401,21 +598,6 @@ This is an official document from the University ERP System
                     {/* Contact Information */}
                     <div className="md:col-span-2 mt-4">
                       <h4 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Contact Information</h4>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        University Email *
-                      </label>
-                      <input
-                        name="universityEmail"
-                        type="email"
-                        value={formData.universityEmail}
-                        onChange={handleChange}
-                        placeholder="student@university.edu"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
-                        required
-                      />
                     </div>
 
                     <div>
@@ -514,20 +696,22 @@ This is an official document from the University ERP System
                       type="button"
                       onClick={() => {
                         setFormData(initialFormState);
-                        setEditingIndex(null);
+                        setEditingStudentId(null);
                       }}
                       className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
+                      disabled={loading}
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="bg-gradient-to-r from-green-600 to-blue-600 text-white px-8 py-3 rounded-lg hover:from-green-700 hover:to-blue-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg flex items-center"
+                      disabled={loading}
+                      className="bg-gradient-to-r from-green-600 to-blue-600 text-white px-8 py-3 rounded-lg hover:from-green-700 hover:to-blue-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg flex items-center disabled:opacity-60"
                     >
                       <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      {editingIndex !== null ? "Update Student" : "Register Student"}
+                      {loading ? "Saving..." : editingStudentId ? "Update Student" : "Register Student"}
                     </button>
                   </div>
                 </form>
@@ -545,7 +729,20 @@ This is an official document from the University ERP System
                     Manage Student Records
                   </h3>
                 </div>
-                {students.length === 0 ? (
+                
+                {loading && (
+                  <div className="p-8 text-center">
+                    <p className="text-gray-600">Loading students...</p>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="m-6 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                    {error}
+                  </div>
+                )}
+
+                {!loading && studentsInDept.length === 0 ? (
                   <div className="p-8 text-center">
                     <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -557,38 +754,21 @@ This is an official document from the University ERP System
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-200">
-                    {students.map((student, idx) => (
-                      <div key={idx} className="p-6 hover:bg-gray-50 transition-colors">
+                    {studentsForDisplay.map((student) => (
+                      <div key={student.id} className="p-6 hover:bg-gray-50 transition-colors">
                         <div className="flex flex-col md:flex-row md:items-center justify-between">
                           <div className="flex items-start space-x-4">
-                            <div className={`w-12 h-12 bg-gradient-to-r ${getAvatarColor(student.fullName)} rounded-xl flex items-center justify-center text-white font-semibold text-lg`}>
-                              {student.fullName.charAt(0)}
+                            <div className={`w-12 h-12 bg-gradient-to-r ${getAvatarColor(student.full_name)} rounded-xl flex items-center justify-center text-white font-semibold text-lg`}>
+                              {student.full_name.charAt(0)}
                             </div>
                             <div>
-                              <h4 className="font-semibold text-gray-800 text-lg">{student.fullName}</h4>
-                              <p className="text-gray-600">{student.rollNo}</p>
-                              <div className="flex flex-wrap gap-2 mt-2">
-                                <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
-                                  {student.gender}
-                                </span>
-                                <span className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
-                                  Attendance: {student.attendance}
-                                </span>
-                                <span className="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs font-medium">
-                                  Grade: {student.grades}
-                                </span>
-                              </div>
-                              <div className="flex items-center text-sm text-gray-500 mt-2">
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                </svg>
-                                {student.universityEmail}
-                              </div>
+                              <h4 className="font-semibold text-gray-800 text-lg">{student.full_name}</h4>
+                              <p className="text-gray-600">{student.roll_number}</p>
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
                             <button
-                              onClick={() => startEditingStudent(idx)}
+                              onClick={() => startEditingStudent(student)}
                               className="flex items-center text-green-600 hover:text-green-800 transition-colors font-medium px-3 py-1 rounded-lg hover:bg-green-50"
                             >
                               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -597,30 +777,9 @@ This is an official document from the University ERP System
                               Edit
                             </button>
                             <button
-                              onClick={() => viewAcademicRecords(student)}
-                              className="flex items-center text-blue-600 hover:text-blue-800 transition-colors font-medium px-3 py-1 rounded-lg hover:bg-blue-50"
-                            >
-                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              Records
-                            </button>
-                            <button
-                              onClick={() => generateTranscript(student)}
-                              className="flex items-center text-purple-600 hover:text-purple-800 transition-colors font-medium px-3 py-1 rounded-lg hover:bg-purple-50"
-                            >
-                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                              </svg>
-                              Transcript
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Are you sure you want to delete ${student.fullName}? This action cannot be undone.`)) {
-                                  deleteStudent(idx);
-                                }
-                              }}
+                              onClick={() => deleteStudent(student.id)}
                               className="flex items-center text-red-600 hover:text-red-800 transition-colors font-medium px-3 py-1 rounded-lg hover:bg-red-50"
+                              disabled={loading}
                             >
                               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -648,7 +807,12 @@ This is an official document from the University ERP System
                   </h3>
                   <p className="text-sm text-red-600 mt-2">Warning: This action is permanent and cannot be undone.</p>
                 </div>
-                {students.length === 0 ? (
+                {loading && (
+                  <div className="p-8 text-center">
+                    <p className="text-gray-600">Loading students...</p>
+                  </div>
+                )}
+                {!loading && studentsInDept.length === 0 ? (
                   <div className="p-8 text-center">
                     <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -657,31 +821,22 @@ This is an official document from the University ERP System
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-200">
-                    {students.map((student, idx) => (
-                      <div key={idx} className="p-6 hover:bg-red-50 transition-colors">
+                    {studentsForDisplay.map((student) => (
+                      <div key={student.id} className="p-6 hover:bg-red-50 transition-colors">
                         <div className="flex flex-col md:flex-row md:items-center justify-between">
                           <div className="flex items-start space-x-4">
-                            <div className={`w-12 h-12 bg-gradient-to-r ${getAvatarColor(student.fullName)} rounded-xl flex items-center justify-center text-white font-semibold text-lg`}>
-                              {student.fullName.charAt(0)}
+                            <div className={`w-12 h-12 bg-gradient-to-r ${getAvatarColor(student.full_name)} rounded-xl flex items-center justify-center text-white font-semibold text-lg`}>
+                              {student.full_name.charAt(0)}
                             </div>
                             <div>
-                              <h4 className="font-semibold text-gray-800 text-lg">{student.fullName}</h4>
-                              <p className="text-gray-600">{student.rollNo}</p>
-                              <div className="flex items-center text-sm text-gray-500 mt-2">
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                </svg>
-                                {student.universityEmail}
-                              </div>
+                              <h4 className="font-semibold text-gray-800 text-lg">{student.full_name}</h4>
+                              <p className="text-gray-600">{student.roll_number}</p>
                             </div>
                           </div>
                           <button
-                            onClick={() => {
-                              if (window.confirm(`Are you sure you want to permanently delete ${student.fullName} (${student.rollNo})? This action cannot be undone.`)) {
-                                deleteStudent(idx);
-                              }
-                            }}
-                            className="mt-4 md:mt-0 flex items-center bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors font-medium shadow-md hover:shadow-lg"
+                            onClick={() => deleteStudent(student.id)}
+                            disabled={loading}
+                            className="mt-4 md:mt-0 flex items-center bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors font-medium shadow-md hover:shadow-lg disabled:opacity-60"
                           >
                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -745,7 +900,7 @@ This is an official document from the University ERP System
                                 <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                 </svg>
-                                {student.universityEmail}
+                                {student.rollNo}
                               </div>
                               {student.studentPhone && (
                                 <div className="flex items-center">
@@ -837,7 +992,7 @@ This is an official document from the University ERP System
                     Student Academic History
                   </h3>
                 </div>
-                {students.length === 0 ? (
+                {studentsInDept.length === 0 ? (
                   <div className="p-8 text-center">
                     <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -849,7 +1004,7 @@ This is an official document from the University ERP System
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-200">
-                    {students.map((student, idx) => (
+                    {studentsForDisplay.map(({ student, idx }) => (
                       <div key={idx} className="p-6 hover:bg-gray-50 transition-colors">
                         <div className="flex flex-col md:flex-row md:items-center justify-between">
                           <div className="flex items-start space-x-4">
@@ -878,7 +1033,7 @@ This is an official document from the University ERP System
                                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                 </svg>
-                                {student.universityEmail}
+                                {student.rollNo}
                               </div>
                             </div>
                           </div>
@@ -979,7 +1134,7 @@ This is an official document from the University ERP System
                     </div>
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-600 mb-1">Department</p>
-                      <p className="font-semibold text-gray-800">{selectedDept}</p>
+                      <p className="font-semibold text-gray-800">{selectedDeptName}</p>
                     </div>
                   </div>
                 </div>
@@ -1037,10 +1192,6 @@ This is an official document from the University ERP System
                     Contact Information
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-600 mb-1">University Email</p>
-                      <p className="font-semibold text-gray-800">{selectedStudentForRecords.universityEmail}</p>
-                    </div>
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-600 mb-1">Personal Email</p>
                       <p className="font-semibold text-gray-800">{selectedStudentForRecords.personalEmail || 'N/A'}</p>

@@ -10,6 +10,7 @@ import StudentLogin from './pages/login/StudentLogin';
 import FacultyLogin from './pages/login/FacultyLogin';
 import ExecutiveLogin from './pages/login/ExecutiveLogin';
 import CoordinatorLogin from './pages/login/CoordinatorLogin';
+import ForgotPassword from './pages/login/ForgotPassword';
 
 // ✅ Signup Page
 import StudentSignup from "./pages/students/StudentSignup";
@@ -54,6 +55,9 @@ function App() {
         <Route path="/login/faculty" element={<FacultyLogin />} />
         <Route path="/login/executive" element={<ExecutiveLogin />} />
         <Route path="/login/coordinator" element={<CoordinatorLogin />} />
+        
+        {/* Forgot Password */}
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* ✅ Student Signup */}
         <Route path="/signup/student" element={<StudentSignup />} />

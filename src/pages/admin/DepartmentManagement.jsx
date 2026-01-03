@@ -9,7 +9,7 @@ import {
   Save,
   X,
 } from "lucide-react";
-import { departmentAPI, semesterAPI, courseAPI } from "../../services/api";
+import { departmentAPI, semesterAPI, courseAPI, studentAPI } from "../../services/api";
 
 const DepartmentManagement = () => {
   const [departments, setDepartments] = useState([]);
@@ -26,6 +26,7 @@ const DepartmentManagement = () => {
     name: "",
     code: "",
     credit_hours: "",
+    preReq: "",
   });
 
   // Load departments from backend
@@ -37,7 +38,23 @@ const DepartmentManagement = () => {
     try {
       setLoading(true);
       const data = await departmentAPI.getAll();
-      setDepartments(data);
+      const list = Array.isArray(data) ? data : [];
+
+      // Fetch student counts per department
+      const counts = await Promise.all(
+        list.map(async (dept) => {
+          try {
+            const students = await studentAPI.getByDepartment(dept.id);
+            return Array.isArray(students) ? students.length : 0;
+          } catch (err) {
+            console.error("Failed to load students for department", dept.id, err);
+            return 0;
+          }
+        })
+      );
+
+      const withCounts = list.map((dept, idx) => ({ ...dept, students: counts[idx] }));
+      setDepartments(withCounts);
     } catch (error) {
       console.error("Failed to load departments:", error);
       alert("Failed to load departments from server");
@@ -158,12 +175,13 @@ const DepartmentManagement = () => {
         code: newCourse.code.trim(),
         credit_hours: parseInt(newCourse.credit_hours, 10),
         crhr: parseInt(newCourse.credit_hours, 10), // ensure backend mapping
+        pre_req: newCourse.preReq?.trim() || null,
       });
 
       // Reload department details
       await loadDepartmentDetails(selectedDept.id);
       
-      setNewCourse({ semester: "", name: "", code: "", credit_hours: "" });
+      setNewCourse({ semester: "", name: "", code: "", credit_hours: "", preReq: "" });
       setShowAddCourseModal(false);
       alert("Course added successfully!");
     } catch (error) {
@@ -220,11 +238,14 @@ const DepartmentManagement = () => {
   // Load department with semesters and courses
   const loadDepartmentDetails = async (deptId) => {
     try {
-      const semesters = await semesterAPI.getByDepartment(deptId);
-      
+      const [semesters, studentsInDept] = await Promise.all([
+        semesterAPI.getByDepartment(deptId),
+        studentAPI.getByDepartment(deptId).catch(() => []),
+      ]);
+
       // Load courses for each semester
       const semestersWithCourses = await Promise.all(
-        semesters.map(async (sem) => {
+        (semesters || []).map(async (sem) => {
           const courses = await courseAPI.getBySemester(sem.id);
           return {
             ...sem,
@@ -236,12 +257,12 @@ const DepartmentManagement = () => {
         })
       );
 
-      // Update selected department
-      const dept = departments.find(d => d.id === deptId);
+      // Update selected department with fresh counts
+      const dept = departments.find((d) => d.id === deptId) || {};
       setSelectedDept({
         ...dept,
-        students: dept.students || 0,
-        semesters: semestersWithCourses.sort((a, b) => a.number - b.number)
+        students: Array.isArray(studentsInDept) ? studentsInDept.length : 0,
+        semesters: semestersWithCourses.sort((a, b) => a.number - b.number),
       });
     } catch (error) {
       console.error("Failed to load department details:", error);
@@ -317,10 +338,13 @@ const DepartmentManagement = () => {
                     Code
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Students
+                    Department Chair
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Assign/Change HOD
                   </th>
                 </tr>
               </thead>
@@ -365,7 +389,7 @@ const DepartmentManagement = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {dept.students}
+                      {dept.chair || dept.chairName || dept.hod || dept.hodName || dept.department_chair || "Not assigned"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {editingDept?.id === dept.id ? (
@@ -410,6 +434,15 @@ const DepartmentManagement = () => {
                           </button>
                         </>
                       )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <button
+                        className="text-indigo-600 hover:text-indigo-900"
+                        onClick={() => alert("Assign/Change HOD coming soon")}
+                        title="Assign or change HOD"
+                      >
+                        Assign/Change HOD
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -595,6 +628,16 @@ const DepartmentManagement = () => {
               value={newCourse.semester}
               onChange={(e) =>
                 setNewCourse({ ...newCourse, semester: e.target.value })
+              }
+              className="border border-gray-300 rounded px-3 py-2 w-full mb-4 focus:outline-indigo-600"
+            />
+
+            <input
+              type="text"
+              placeholder="Pre-requisite Course Code (optional)"
+              value={newCourse.preReq}
+              onChange={(e) =>
+                setNewCourse({ ...newCourse, preReq: e.target.value })
               }
               className="border border-gray-300 rounded px-3 py-2 w-full mb-4 focus:outline-indigo-600"
             />

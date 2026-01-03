@@ -69,7 +69,7 @@ export default function FacultyLogin() {
             <button
               type="button"
               className="text-sm text-blue-600 hover:underline focus:outline-none"
-              onClick={() => alert("Please contact admin to reset your password.")}
+              onClick={() => navigate("/forgot-password")}
             >
               Forgot password?
             </button>

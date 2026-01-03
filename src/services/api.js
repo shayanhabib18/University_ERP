@@ -93,8 +93,55 @@ export const courseAPI = {
     }),
 };
 
+// Faculty API
+export const facultyAPI = {
+  getAll: () => apiCall("/faculties"),
+  getByDepartment: (departmentId) =>
+    apiCall(`/faculties/department/${departmentId}`),
+  create: (data) =>
+    apiCall("/faculties", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (id, data) =>
+    apiCall(`/faculties/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  delete: (id) =>
+    apiCall(`/faculties/${id}`, {
+      method: "DELETE",
+    }),
+};
+
+// Student API (aligned with new Supabase schema)
+export const studentAPI = {
+  getAll: () => apiCall("/students"),
+  getByDepartment: (departmentId) =>
+    apiCall(`/students/department/${departmentId}`),
+  search: (query) =>
+    apiCall(`/students/search?q=${encodeURIComponent(query)}`),
+  getOne: (id) => apiCall(`/students/${id}`),
+  create: (data) =>
+    apiCall("/students", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (id, data) =>
+    apiCall(`/students/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  delete: (id) =>
+    apiCall(`/students/${id}`, {
+      method: "DELETE",
+    }),
+};
+
 export default {
   departments: departmentAPI,
   semesters: semesterAPI,
   courses: courseAPI,
+  faculties: facultyAPI,
+  students: studentAPI,
 };

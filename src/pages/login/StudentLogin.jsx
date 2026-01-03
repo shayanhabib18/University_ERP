@@ -72,7 +72,7 @@ export default function StudentLogin() {
             <button
               type="button"
               className="text-sm text-blue-600 hover:underline focus:outline-none"
-              onClick={() => alert("Please contact your department admin to reset password.")}
+              onClick={() => navigate("/forgot-password")}
             >
               Forgot password?
             </button>

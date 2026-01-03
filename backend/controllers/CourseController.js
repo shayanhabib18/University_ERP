@@ -30,15 +30,15 @@ export const getCoursesBySemester = async (req, res) => {
 // Add a course
 export const addCourse = async (req, res) => {
   try {
-    const { semester_id, code, name, credit_hours, crhr } = req.body;
-    // Some clients send credit_hours, others crhr; map to crhr column
-    const crhrValue = crhr ?? credit_hours;
-    if (crhrValue == null) {
-      return res.status(400).json({ error: "credit_hours (crhr) is required" });
+    const { semester_id, code, name, credit_hours, crhr, pre_req } = req.body;
+    // Normalize to credit_hours column
+    const creditHours = crhr ?? credit_hours;
+    if (creditHours == null) {
+      return res.status(400).json({ error: "credit_hours is required" });
     }
     const { data, error } = await supabase
       .from("courses")
-      .insert([{ semester_id, code, name, crhr: crhrValue }])
+      .insert([{ semester_id, code, name, credit_hours: creditHours, pre_req }])
       .select();
     if (error) return res.status(500).json({ error: error.message });
     res.json(data[0]);
@@ -52,11 +52,11 @@ export const addCourse = async (req, res) => {
 export const updateCourse = async (req, res) => {
   try {
     const { id } = req.params;
-    const { semester_id, code, name, credit_hours, crhr } = req.body;
-    const crhrValue = crhr ?? credit_hours;
+    const { semester_id, code, name, credit_hours, crhr, pre_req } = req.body;
+    const creditHours = crhr ?? credit_hours;
     const { data, error } = await supabase
       .from("courses")
-      .update({ semester_id, code, name, crhr: crhrValue })
+      .update({ semester_id, code, name, credit_hours: creditHours, pre_req })
       .eq("id", id)
       .select();
     if (error) return res.status(500).json({ error: error.message });

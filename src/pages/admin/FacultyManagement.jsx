@@ -1,14 +1,15 @@
-import React, { useState } from "react";
-
-const departments = ["Electrical Engineering", "Software Engineering", "BBA"];
+import React, { useEffect, useState } from "react";
+import { departmentAPI, facultyAPI } from "../../services/api";
 
 const FacultyManagement = () => {
   const [selectedDept, setSelectedDept] = useState(null);
+  const [departments, setDepartments] = useState([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(true);
+  const [departmentsError, setDepartmentsError] = useState("");
   const [activeOption, setActiveOption] = useState("");
-  const [facultyList, setFacultyList] = useState(() => {
-    const stored = localStorage.getItem("facultyList");
-    return stored ? JSON.parse(stored) : [];
-  });
+  const [facultyList, setFacultyList] = useState([]);
+  const [facultyLoading, setFacultyLoading] = useState(false);
+  const [facultyError, setFacultyError] = useState("");
   const [editingIndex, setEditingIndex] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -35,6 +36,51 @@ const FacultyManagement = () => {
 
   const [formData, setFormData] = useState(initialFormState);
 
+  const getDeptName = (dept) =>
+    (dept && (dept.name || dept.department_name || dept.title || dept.code)) || "";
+
+  const selectedDeptName = getDeptName(selectedDept);
+
+  const loadDepartments = async () => {
+    try {
+      setDepartmentsLoading(true);
+      setDepartmentsError("");
+      const data = await departmentAPI.getAll();
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setDepartmentsError(err?.message || "Failed to load departments");
+      setDepartments([]);
+    } finally {
+      setDepartmentsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDepartments();
+  }, []);
+
+  useEffect(() => {
+    if (selectedDept?.id) {
+      loadFaculty(selectedDept.id);
+    } else {
+      setFacultyList([]);
+    }
+  }, [selectedDept]);
+
+  const loadFaculty = async (departmentId) => {
+    try {
+      setFacultyLoading(true);
+      setFacultyError("");
+      const data = await facultyAPI.getByDepartment(departmentId);
+      setFacultyList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setFacultyError(err?.message || "Failed to load faculty");
+      setFacultyList([]);
+    } finally {
+      setFacultyLoading(false);
+    }
+  };
+
   // Handle input change
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -49,48 +95,99 @@ const FacultyManagement = () => {
     }));
   };
 
-  // Add or Update Faculty
-  const handleAddOrUpdateFaculty = (e) => {
+  const toPayload = (data) => ({
+    name: data.name?.trim(),
+    designation: data.designation?.trim(),
+    qualification: data.qualification?.trim(),
+    specialization: data.specialization || null,
+    email: data.email?.trim(),
+    phone: data.phone?.trim(),
+    cnic: data.cnic?.trim(),
+    address: data.address || null,
+    experience:
+      data.experience === "" || data.experience === null || data.experience === undefined
+        ? null
+        : Number(data.experience),
+    joining_date: data.joiningDate || null,
+    department_id: selectedDept?.id,
+    status: data.status || "ACTIVE",
+    role: data.role || "FACULTY",
+    must_change_password: data.mustChangePassword ?? true,
+  });
+
+  const handleAddOrUpdateFaculty = async (e) => {
     e.preventDefault();
-    if (editingIndex !== null) {
-      const updated = [...facultyList];
-      updated[editingIndex] = { ...formData, department: selectedDept };
-      setFacultyList(updated);
-      localStorage.setItem("facultyList", JSON.stringify(updated));
-      setEditingIndex(null);
-    } else {
-      const newList = [...facultyList, { ...formData, department: selectedDept }];
-      setFacultyList(newList);
-      localStorage.setItem("facultyList", JSON.stringify(newList));
+    if (!selectedDept?.id) {
+      alert("Please select a department first.");
+      return;
     }
-    setFormData(initialFormState);
-    setActiveOption("");
+
+    try {
+      const payload = toPayload(formData);
+      if (editingIndex !== null) {
+        const target = facultyList[editingIndex];
+        await facultyAPI.update(target.id, payload);
+      } else {
+        await facultyAPI.create(payload);
+      }
+      await loadFaculty(selectedDept.id);
+      setEditingIndex(null);
+      setFormData(initialFormState);
+      setActiveOption("");
+    } catch (err) {
+      alert(err?.message || "Failed to save faculty");
+    }
   };
 
   // Edit Faculty
   const startEditingFaculty = (index) => {
-    setFormData(facultyList[index]);
+    const f = facultyList[index];
+    setFormData({
+      name: f.name || "",
+      designation: f.designation || "",
+      qualification: f.qualification || "",
+      specialization: f.specialization || "",
+      email: f.email || "",
+      phone: f.phone || "",
+      joiningDate: f.joining_date || "",
+      cnic: f.cnic || "",
+      address: f.address || "",
+      documents: [],
+      status: f.status || "ACTIVE",
+      department: selectedDeptName,
+      experience: f.experience ?? "",
+      role: f.role || "FACULTY",
+      mustChangePassword: f.must_change_password ?? true,
+    });
     setEditingIndex(index);
     setActiveOption("Add Faculty");
   };
 
   // Delete Faculty
-  const deleteFaculty = (index) => {
-    if (window.confirm("Are you sure you want to delete this faculty member?")) {
-      const newList = facultyList.filter((_, i) => i !== index);
-      setFacultyList(newList);
-      localStorage.setItem("facultyList", JSON.stringify(newList));
+  const deleteFaculty = async (index) => {
+    const target = facultyList[index];
+    if (!target?.id) return;
+    if (!window.confirm("Are you sure you want to delete this faculty member?")) return;
+    try {
+      await facultyAPI.delete(target.id);
+      await loadFaculty(selectedDept.id);
+    } catch (err) {
+      alert(err?.message || "Failed to delete faculty");
     }
   };
 
   // Search Filter
   const filteredFaculty = facultyList.filter((f) => {
     const q = searchQuery.toLowerCase();
+    const name = (f.name || "").toLowerCase();
+    const email = (f.email || "").toLowerCase();
+    const designation = (f.designation || "").toLowerCase();
+    const qualification = (f.qualification || "").toLowerCase();
     return (
-      f.name.toLowerCase().includes(q) ||
-      f.email.toLowerCase().includes(q) ||
-      f.designation.toLowerCase().includes(q) ||
-      f.qualification.toLowerCase().includes(q)
+      name.includes(q) ||
+      email.includes(q) ||
+      designation.includes(q) ||
+      qualification.includes(q)
     );
   });
 
@@ -135,22 +232,39 @@ const FacultyManagement = () => {
         {/* Department Selection */}
         {!selectedDept && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {departments.map((dept, index) => (
+            {departmentsLoading && (
+              <div className="md:col-span-3 text-center text-gray-600">Loading departments...</div>
+            )}
+            {!departmentsLoading && departmentsError && (
+              <div className="md:col-span-3 text-center">
+                <p className="text-red-600 font-medium mb-2">{departmentsError}</p>
+                <button
+                  onClick={loadDepartments}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {!departmentsLoading && !departmentsError && departments.map((dept) => {
+              const deptName = getDeptName(dept);
+              if (!deptName) return null;
+              return (
               <div
-                key={dept}
+                key={dept.id || dept.code || deptName}
                 className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border border-gray-200 transform hover:-translate-y-1"
               >
                 <div className="flex flex-col items-center text-center">
-                  <div className={`w-20 h-20 bg-gradient-to-r ${getDepartmentColor(dept)} rounded-2xl flex items-center justify-center mb-4`}>
+                  <div className={`w-20 h-20 bg-gradient-to-r ${getDepartmentColor(deptName)} rounded-2xl flex items-center justify-center mb-4`}>
                     <span className="text-white font-bold text-2xl">
-                      {dept.split(' ').map(word => word[0]).join('')}
+                      {deptName.split(" ").map((word) => word[0]).join("")}
                     </span>
                   </div>
                   <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                    {dept}
+                    {deptName}
                   </h2>
                   <p className="text-gray-500 text-sm mb-4">
-                    Manage faculty members in {dept}
+                    Manage faculty members in {deptName}
                   </p>
                   <button
                     onClick={() => setSelectedDept(dept)}
@@ -160,7 +274,8 @@ const FacultyManagement = () => {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -184,18 +299,25 @@ const FacultyManagement = () => {
                     All Departments
                   </button>
                   <span className="mx-2">/</span>
-                  <span>{selectedDept}</span>
+                  <span>{selectedDeptName}</span>
                 </div>
                 <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
-                  {selectedDept}
+                  {selectedDeptName}
                 </h2>
               </div>
               <div className="mt-4 md:mt-0">
                 <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {facultyList.filter(f => f.department === selectedDept).length} Faculty Members
+                  {facultyList.length} Faculty Members
                 </span>
               </div>
             </div>
+
+            {facultyError && (
+              <div className="mb-4 text-red-600">{facultyError}</div>
+            )}
+            {facultyLoading && !facultyError && (
+              <div className="mb-4 text-gray-600">Loading faculty...</div>
+            )}
 
             {/* Options Navigation */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -600,7 +722,7 @@ const FacultyManagement = () => {
                                   {faculty.qualification}
                                 </span>
                                 <span className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
-                                  {faculty.department}
+                                  {selectedDeptName || "Department"}
                                 </span>
                               </div>
                               <div className="flex items-center text-sm text-gray-500 mt-2">

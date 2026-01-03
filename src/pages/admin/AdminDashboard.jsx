@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Menu,
   X,
@@ -22,6 +22,7 @@ import FacultyRoleManagement from "./FacultyRoleManagement";
 import StudentManagement from "./StudentManagement";
 import HandleRequests from "./HandleRequests";
 import AdminAnnouncements from "./AdminAnnouncement";
+import { departmentAPI, courseAPI, facultyAPI, studentAPI } from "../../services/api";
 
 const sidebarLinks = [
   "Overview",
@@ -36,7 +37,35 @@ const sidebarLinks = [
 export default function AdminDashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Overview");
+  const [counts, setCounts] = useState({ students: 0, faculties: 0, courses: 0, departments: 0 });
+  const [loadingCounts, setLoadingCounts] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const loadCounts = async () => {
+      try {
+        setLoadingCounts(true);
+        const [students, faculties, courses, departments] = await Promise.all([
+          studentAPI.getAll(),
+          facultyAPI.getAll(),
+          courseAPI.getAll(),
+          departmentAPI.getAll(),
+        ]);
+        setCounts({
+          students: Array.isArray(students) ? students.length : 0,
+          faculties: Array.isArray(faculties) ? faculties.length : 0,
+          courses: Array.isArray(courses) ? courses.length : 0,
+          departments: Array.isArray(departments) ? departments.length : 0,
+        });
+      } catch (err) {
+        console.error("Failed to load overview counts", err);
+      } finally {
+        setLoadingCounts(false);
+      }
+    };
+
+    loadCounts();
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -74,9 +103,11 @@ export default function AdminDashboard() {
                     <h3 className="text-gray-500 text-sm font-medium">
                       Total Students
                     </h3>
-                    <p className="text-2xl font-bold text-gray-800 mt-1">512</p>
+                    <p className="text-2xl font-bold text-gray-800 mt-1">
+                      {loadingCounts ? "..." : counts.students}
+                    </p>
                     <p className="text-xs text-indigo-600 mt-2">
-                      +12 this Semester
+                      {loadingCounts ? "" : "Live total from records"}
                     </p>
                   </div>
                 </div>
@@ -91,8 +122,10 @@ export default function AdminDashboard() {
                     <h3 className="text-gray-500 text-sm font-medium">
                       Total Faculty
                     </h3>
-                    <p className="text-2xl font-bold text-gray-800 mt-1">45</p>
-                    <p className="text-xs text-blue-600 mt-2">3 new hires</p>
+                    <p className="text-2xl font-bold text-gray-800 mt-1">
+                      {loadingCounts ? "..." : counts.faculties}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-2">{loadingCounts ? "" : "Live total from records"}</p>
                   </div>
                 </div>
               </div>
@@ -106,9 +139,11 @@ export default function AdminDashboard() {
                     <h3 className="text-gray-500 text-sm font-medium">
                       Courses
                     </h3>
-                    <p className="text-2xl font-bold text-gray-800 mt-1">67</p>
+                    <p className="text-2xl font-bold text-gray-800 mt-1">
+                      {loadingCounts ? "..." : counts.courses}
+                    </p>
                     <p className="text-xs text-emerald-600 mt-2">
-                      5 new this semester
+                      {loadingCounts ? "" : "Live total from records"}
                     </p>
                   </div>
                 </div>
