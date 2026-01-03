@@ -1,30 +1,13 @@
-import AnnouncementsBoard from "../../components/AnnouncementsBoard";
-
-const initialAnnouncements = [
-  {
-    id: 1,
-    title: "New Academic Policies",
-    message: "Updated academic policies are now in effect. Please review and share with your teams.",
-    senderName: "Executive Office",
-    senderRole: "executive",
-    date: "2025-11-05T09:00:00Z",
-    recipients: ["admin", "chair", "coordinator"],
-    important: true,
-  },
-];
+import AnnouncementsList from "../../components/AnnouncementsList";
 
 export default function ExecutiveAnnouncements() {
   return (
-    <AnnouncementsBoard
-      title="Executive Announcements"
-      description="Create and view executive communications to admins, chairs, and coordinators."
-      currentRole="executive"
-      senderRole="executive"
-      senderName="Executive"
-      allowedRecipients={["admin", "chair", "coordinator"]}
-      storageKey="announcements:executive"
-      initialAnnouncements={initialAnnouncements}
-      visibleRoles={["executive", "admin", "chair", "coordinator"]}
-    />
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-800">Executive Announcements</h1>
+        <p className="text-gray-600 mt-1">Send to students, dept chair, faculty, coordinator. Receive from coordinator and dept chair.</p>
+      </div>
+      <AnnouncementsList role="executive" canSend={true} allowedRecipients={["student", "dept_chair", "faculty", "coordinator"]} />
+    </div>
   );
 }

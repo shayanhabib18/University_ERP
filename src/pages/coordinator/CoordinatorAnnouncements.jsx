@@ -1,28 +1,13 @@
-import AnnouncementsBoard from "../../components/AnnouncementsBoard";
-
-const initialAnnouncements = [
-  {
-    id: 1,
-    title: "Semester Kickoff",
-    message: "Welcome back! Please review the academic calendar for this term.",
-    senderName: "Coordinator",
-    senderRole: "coordinator",
-    date: "2025-11-15T08:00:00Z",
-    recipients: ["faculty", "student", "chair", "admin", "executive", "coordinator"],
-  },
-];
+import AnnouncementsList from "../../components/AnnouncementsList";
 
 export default function CoordinatorAnnouncements() {
   return (
-    <AnnouncementsBoard
-      title="Coordinator Announcements"
-      description="Broadcast updates to all roles across the institution."
-      currentRole="coordinator"
-      senderRole="coordinator"
-      senderName="Coordinator"
-      allowedRecipients={["admin", "executive", "chair", "faculty", "coordinator", "student"]}
-      storageKey="announcements:coordinator"
-      initialAnnouncements={initialAnnouncements}
-    />
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-800">Coordinator Announcements</h1>
+        <p className="text-gray-600 mt-1">Send to students, faculty, executive, dept chair. Receive from admin, faculty, executive, dept chair.</p>
+      </div>
+      <AnnouncementsList role="coordinator" canSend={true} allowedRecipients={["student", "faculty", "executive", "dept_chair"]} />
+    </div>
   );
 }

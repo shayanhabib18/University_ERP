@@ -10,6 +10,7 @@ import courseRoutes from "./routes/courseRoutes.js";
 import loginRoutes from "./routes/LoginRoutes.js"; // added login routes
 import facultyRoutes from "./routes/facultyRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js"; // student management routes
+import announcementRoutes from "./routes/announcementRoutes.js"; // announcement routes
 
 dotenv.config();
 
@@ -27,6 +28,7 @@ app.use("/courses", courseRoutes);
 app.use("/auth", loginRoutes); // login/auth routes prefixed with /auth
 app.use("/faculties", facultyRoutes);
 app.use("/students", studentRoutes); // student management routes
+app.use("/announcements", announcementRoutes); // announcement routes
 
 // Default route (optional)
 app.get("/", (req, res) => {

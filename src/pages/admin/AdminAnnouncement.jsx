@@ -1,29 +1,13 @@
-import AnnouncementsBoard from "../../components/AnnouncementsBoard";
-
-const initialAnnouncements = [
-  {
-    id: 1,
-    title: "Coordinator Briefing",
-    message: "Quarterly briefing scheduled for coordinators next Monday at 10 AM.",
-    senderName: "Administrator",
-    senderRole: "admin",
-    date: "2025-12-01T10:00:00Z",
-    recipients: ["coordinator"],
-    important: true,
-  },
-];
+import AnnouncementsList from "../../components/AnnouncementsList";
 
 export default function AdminAnnouncements() {
   return (
-    <AnnouncementsBoard
-      title="Admin Announcements"
-      description="Send updates to coordinators and review recent posts."
-      currentRole="admin"
-      senderRole="admin"
-      senderName="Administrator"
-      allowedRecipients={["coordinator"]}
-      storageKey="announcements:admin"
-      initialAnnouncements={initialAnnouncements}
-    />
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-800">Admin Announcements</h1>
+        <p className="text-gray-600 mt-1">Send updates to coordinators only.</p>
+      </div>
+      <AnnouncementsList role="admin" canSend={true} allowedRecipients={["coordinator"]} />
+    </div>
   );
 }
