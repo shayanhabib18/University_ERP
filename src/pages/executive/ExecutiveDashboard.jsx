@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ExecutiveAnnouncements from "./ExecutiveAnnouncements";
 import ExecutiveDepartments from "./ExecutiveDepartments";
 import ExecutiveReports from "./ExecutiveReports";
+import { getAnnouncementsByRole } from "../../services/announcementAPI";
 import {
   Menu,
   X,
@@ -15,9 +16,26 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+// Helper function to calculate time ago
+const getTimeAgo = (dateString) => {
+  const now = new Date();
+  const past = new Date(dateString);
+  const diffMs = now - past;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+  return past.toLocaleDateString();
+};
+
 export default function ExecutiveDashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
+  const [recentAnnouncements, setRecentAnnouncements] = useState([]);
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
 
   const sidebarLinks = [
     { name: "Dashboard", icon: <Home size={18} /> },
@@ -25,6 +43,31 @@ export default function ExecutiveDashboard() {
     { name: "Reports", icon: <FileText size={18} /> },
     { name: "Announcements", icon: <Megaphone size={18} /> },
   ];
+
+  // Fetch announcements for executive
+  useEffect(() => {
+    const fetchAnnouncements = async () => {
+      try {
+        setLoadingAnnouncements(true);
+        const result = await getAnnouncementsByRole("executive");
+        const announcements = result.data || [];
+        
+        // Sort by date and get the most recent 3
+        const sorted = announcements.sort((a, b) => 
+          new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        
+        setRecentAnnouncements(sorted.slice(0, 3));
+      } catch (error) {
+        console.error("Failed to fetch announcements:", error);
+        setRecentAnnouncements([]);
+      } finally {
+        setLoadingAnnouncements(false);
+      }
+    };
+
+    fetchAnnouncements();
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -113,30 +156,50 @@ export default function ExecutiveDashboard() {
                 <h3 className="text-xl font-bold text-gray-800">Recent Updates</h3>
               </div>
               <div className="space-y-3">
-                <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-gray-800">New Department Report</p>
-                    <p className="text-xs text-gray-600">Computer Science department report submitted</p>
-                    <p className="text-xs text-gray-500 mt-1">2 hours ago</p>
+                {loadingAnnouncements ? (
+                  <div className="flex items-center justify-center py-8">
+                    <p className="text-gray-500">Loading announcements...</p>
                   </div>
-                </div>
-                <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg border-l-4 border-green-500">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-gray-800">Faculty Performance Review</p>
-                    <p className="text-xs text-gray-600">Quarterly review completed for all departments</p>
-                    <p className="text-xs text-gray-500 mt-1">5 hours ago</p>
+                ) : recentAnnouncements.length === 0 ? (
+                  <div className="flex items-center justify-center py-8">
+                    <p className="text-gray-500">No recent announcements</p>
                   </div>
-                </div>
-                <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg border-l-4 border-purple-500">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-gray-800">Student Achievement Report</p>
-                    <p className="text-xs text-gray-600">Annual student performance metrics updated</p>
-                    <p className="text-xs text-gray-500 mt-1">1 day ago</p>
-                  </div>
-                </div>
+                ) : (
+                  recentAnnouncements.map((announcement, index) => {
+                    const colors = [
+                      { bg: "bg-blue-50", border: "border-blue-500", dot: "bg-blue-500" },
+                      { bg: "bg-green-50", border: "border-green-500", dot: "bg-green-500" },
+                      { bg: "bg-purple-50", border: "border-purple-500", dot: "bg-purple-500" },
+                    ];
+                    const color = colors[index % colors.length];
+                    
+                    // Calculate time ago
+                    const timeAgo = getTimeAgo(announcement.createdAt);
+                    
+                    return (
+                      <div 
+                        key={announcement.id}
+                        className={`flex items-start gap-3 p-3 ${color.bg} rounded-lg border-l-4 ${color.border} hover:shadow-md transition-all cursor-pointer`}
+                        onClick={() => setActiveTab("Announcements")}
+                      >
+                        <div className={`w-2 h-2 ${color.dot} rounded-full mt-2`}></div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-800 line-clamp-1">
+                            {announcement.title}
+                          </p>
+                          <p className="text-xs text-gray-600 line-clamp-2">
+                            {announcement.message}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-xs text-gray-500">From: {announcement.senderName}</p>
+                            <span className="text-xs text-gray-400">•</span>
+                            <p className="text-xs text-gray-500">{timeAgo}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>

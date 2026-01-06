@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Menu, X, Bell, BookOpen, ClipboardList, FileText, Mail, User, LogOut, Home, BarChart2, CheckCircle } from "lucide-react";
 import Courses from "./Courses";
 import Notifications from "./Notifications";
 import AssignmentsQuizzes from "./AssignmentsQuizzes";
 import Profile from "./Profile";
 import Requests from "./Requests";
+import { getAnnouncementsByRole } from "../../services/announcementAPI";
 
 const sidebarLinks = [
   { name: "Dashboard Overview", icon: <Home size={18} /> },
@@ -18,7 +19,35 @@ const sidebarLinks = [
 export default function StudentDashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard Overview");
-  const [unreadNotifications, setUnreadNotifications] = useState(3);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [recentAnnouncements, setRecentAnnouncements] = useState([]);
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+
+  // Fetch announcements for student
+  useEffect(() => {
+    const fetchAnnouncements = async () => {
+      try {
+        setLoadingAnnouncements(true);
+        const result = await getAnnouncementsByRole("student");
+        const announcements = result.data || [];
+        
+        // Sort by date and get the most recent 2
+        const sorted = announcements.sort((a, b) => 
+          new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        
+        setRecentAnnouncements(sorted.slice(0, 2));
+        setUnreadNotifications(announcements.length);
+      } catch (error) {
+        console.error("Failed to fetch announcements:", error);
+        setRecentAnnouncements([]);
+      } finally {
+        setLoadingAnnouncements(false);
+      }
+    };
+
+    fetchAnnouncements();
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -95,24 +124,25 @@ export default function StudentDashboard() {
                   )}
                 </div>
                 <div className="mt-4 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="bg-blue-100 p-1 rounded-full mt-1">
-                      <Bell size={14} className="text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">New assignment posted</p>
-                      <p className="text-xs text-gray-500">CS 2406 - Information Security</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="bg-blue-100 p-1 rounded-full mt-1">
-                      <Bell size={14} className="text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Grade updated</p>
-                      <p className="text-xs text-gray-500">MS 3801 - Entrepreneurship</p>
-                    </div>
-                  </div>
+                  {loadingAnnouncements ? (
+                    <p className="text-sm text-gray-500">Loading...</p>
+                  ) : recentAnnouncements.length === 0 ? (
+                    <p className="text-sm text-gray-500">No new notifications</p>
+                  ) : (
+                    recentAnnouncements.map((announcement, index) => (
+                      <div key={index} className="flex items-start gap-3">
+                        <div className="bg-blue-100 p-1 rounded-full mt-1">
+                          <Bell size={14} className="text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium line-clamp-1">{announcement.title}</p>
+                          <p className="text-xs text-gray-500">
+                            From: {announcement.senderName}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
                 {unreadNotifications > 2 && (
                   <p className="text-blue-600 text-sm mt-3 text-right">
