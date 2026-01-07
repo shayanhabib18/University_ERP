@@ -151,7 +151,7 @@ export default function StudentSignup() {
   };
 
   // Handle form submission
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
@@ -160,14 +160,47 @@ export default function StudentSignup() {
       return;
     }
 
-    // TODO: Send data to Supabase or backend
-    setTimeout(() => {
+    try {
+      // Prepare form data for submission
+      const signupData = {
+        student_name: formData.studentName,
+        father_name: formData.fatherName,
+        email: formData.email,
+        mobile: formData.mobile,
+        cnic: formData.cnic,
+        qualification: formData.qualification,
+        obtained_marks: Number(formData.obtainedMarks),
+        total_marks: Number(formData.totalMarks),
+        city: formData.city,
+        department_id: formData.departmentId,
+        joining_date: formData.joiningDate,
+        joining_session: formData.joiningSession,
+        marksheet_url: formData.marksheetFile?.name || "", // Store file name for now
+      };
+
+      const response = await fetch("http://localhost:5000/students/signup-requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(signupData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to submit application");
+      }
+
       setSuccess(
         "Application submitted successfully! You will receive login credentials after admin approval."
       );
       setLoading(false);
       setTimeout(() => navigate("/login/student"), 2500);
-    }, 1500);
+    } catch (err) {
+      console.error("Signup error:", err);
+      setError(err.message || "Failed to submit application. Please try again.");
+      setLoading(false);
+    }
   };
 
   return (

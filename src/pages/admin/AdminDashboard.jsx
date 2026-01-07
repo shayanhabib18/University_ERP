@@ -39,6 +39,8 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("Overview");
   const [counts, setCounts] = useState({ students: 0, faculties: 0, courses: 0, departments: 0 });
   const [loadingCounts, setLoadingCounts] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -64,7 +66,25 @@ export default function AdminDashboard() {
       }
     };
 
+    const loadPendingRequests = async () => {
+      try {
+        setLoadingRequests(true);
+        const response = await fetch("http://localhost:5000/students/signup-requests");
+        if (response.ok) {
+          const data = await response.json();
+          // Filter only pending requests and take latest 3
+          const pending = data.filter(req => req.status === "pending").slice(0, 3);
+          setPendingRequests(pending);
+        }
+      } catch (err) {
+        console.error("Failed to load pending requests", err);
+      } finally {
+        setLoadingRequests(false);
+      }
+    };
+
     loadCounts();
+    loadPendingRequests();
   }, []);
 
   const renderContent = () => {
@@ -93,7 +113,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
                 <div className="flex items-center gap-4">
                   <div className="bg-indigo-100 p-3 rounded-lg">
@@ -148,6 +168,28 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
+
+              <div 
+                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer"
+                onClick={() => setActiveTab("Requests")}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="bg-orange-100 p-3 rounded-lg">
+                    <Clock className="text-orange-600" size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-gray-500 text-sm font-medium">
+                      Pending Requests
+                    </h3>
+                    <p className="text-2xl font-bold text-gray-800 mt-1">
+                      {loadingRequests ? "..." : pendingRequests.length}
+                    </p>
+                    <p className="text-xs text-orange-600 mt-2">
+                      {loadingRequests ? "" : "Awaiting approval"}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Dashboard Sections */}
@@ -175,7 +217,7 @@ export default function AdminDashboard() {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
                     <ClipboardList className="text-indigo-600" size={20} />
-                    Incoming Requests
+                    Pending Signup Requests
                   </h2>
                   <button
                     onClick={() => setActiveTab("Requests")}
@@ -184,44 +226,52 @@ export default function AdminDashboard() {
                     View All
                   </button>
                 </div>
-                <ul className="space-y-4">
-                  {[
-                    {
-                      id: "RQT-001",
-                      title: "Transcript Request",
-                      description: "Requested by: Ahmed Raza",
-                      time: "1 hour ago",
-                    },
-                    {
-                      id: "RQT-002",
-                      title: "Course Add/Drop",
-                      description: "Requested by: Fatima Noor",
-                      time: "Today at 10:00 AM",
-                    },
-                    {
-                      id: "RQT-003",
-                      title: "Semester Freeze",
-                      description: "Requested by: Bilal Khan",
-                      time: "Yesterday",
-                    },
-                  ].map((req) => (
-                    <li
-                      key={req.id}
-                      className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg transition cursor-pointer"
-                      onClick={() => setActiveTab("Requests")}
-                    >
-                      <div className="bg-indigo-100 p-2 rounded-full mt-1">
-                        <ClipboardList className="text-indigo-600" size={16} />
-                      </div>
-                      <div>
-                        <p className="font-medium">{req.title}</p>
-                        <p className="text-sm text-gray-500">
-                          {req.description} • {req.time}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                {loadingRequests ? (
+                  <div className="text-center py-8 text-gray-500">
+                    Loading requests...
+                  </div>
+                ) : pendingRequests.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <ClipboardList className="mx-auto mb-2 text-gray-300" size={40} />
+                    <p className="text-sm">No pending requests</p>
+                  </div>
+                ) : (
+                  <ul className="space-y-4">
+                    {pendingRequests.map((req) => {
+                      const timeAgo = new Date(req.created_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      });
+                      const percentage = ((req.obtained_marks / req.total_marks) * 100).toFixed(1);
+                      
+                      return (
+                        <li
+                          key={req.id}
+                          className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg transition cursor-pointer border border-gray-100"
+                          onClick={() => setActiveTab("Requests")}
+                        >
+                          <div className="bg-indigo-100 p-2 rounded-full mt-1">
+                            <Users className="text-indigo-600" size={16} />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-800">{req.student_name}</p>
+                            <p className="text-sm text-gray-600">
+                              {req.departments?.name || 'Department N/A'} • {percentage}%
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {timeAgo}
+                            </p>
+                          </div>
+                          <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">
+                            Pending
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
             </div>
           </div>

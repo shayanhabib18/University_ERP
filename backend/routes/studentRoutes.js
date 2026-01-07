@@ -5,6 +5,163 @@ import supabase from "../model/supabaseClient.js";
 
 const router = express.Router();
 
+// ==================== STUDENT SIGNUP REQUEST ROUTES ====================
+
+// GET all pending signup requests
+router.get("/signup-requests", async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("student_signup_requests")
+      .select(`
+        *,
+        departments:department_id (
+          id,
+          name,
+          code
+        )
+      `)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// GET single signup request by ID
+router.get("/signup-requests/:requestId", async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { data, error } = await supabase
+      .from("student_signup_requests")
+      .select(`
+        *,
+        departments:department_id (
+          id,
+          name,
+          code
+        )
+      `)
+      .eq("id", requestId)
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// CREATE new signup request
+router.post("/signup-requests", async (req, res) => {
+  try {
+    const {
+      student_name,
+      father_name,
+      email,
+      mobile,
+      cnic,
+      qualification,
+      obtained_marks,
+      total_marks,
+      city,
+      department_id,
+      joining_date,
+      joining_session,
+      marksheet_url,
+    } = req.body;
+
+    const required = [
+      "student_name",
+      "father_name",
+      "email",
+      "mobile",
+      "cnic",
+      "qualification",
+      "obtained_marks",
+      "total_marks",
+      "city",
+      "department_id",
+      "joining_date",
+      "joining_session",
+    ];
+
+    for (const field of required) {
+      if (!req.body?.[field]) {
+        return res.status(400).json({ error: `${field} is required` });
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("student_signup_requests")
+      .insert([
+        {
+          student_name,
+          father_name,
+          email,
+          mobile,
+          cnic,
+          qualification,
+          obtained_marks,
+          total_marks,
+          city,
+          department_id,
+          joining_date,
+          joining_session,
+          marksheet_url,
+          status: "pending",
+        },
+      ])
+      .select();
+
+    if (error) throw error;
+    res.status(201).json(data?.[0]);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// UPDATE signup request status (approve/decline)
+router.put("/signup-requests/:requestId", async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { status } = req.body;
+
+    if (!["pending", "approved", "declined"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status value" });
+    }
+
+    const { data, error } = await supabase
+      .from("student_signup_requests")
+      .update({ status })
+      .eq("id", requestId)
+      .select();
+
+    if (error) throw error;
+    res.json(data?.[0]);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// DELETE signup request
+router.delete("/signup-requests/:requestId", async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    const { error } = await supabase
+      .from("student_signup_requests")
+      .delete()
+      .eq("id", requestId);
+
+    if (error) throw error;
+    res.json({ message: "Signup request deleted successfully" });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // ==================== STUDENT ROUTES ====================
 
 // GET all students
