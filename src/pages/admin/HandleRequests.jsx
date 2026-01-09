@@ -10,6 +10,8 @@ export default function HandleRequests() {
 
   const [studentRequests, setStudentRequests] = useState([]);
   const [viewingStudent, setViewingStudent] = useState(null);
+  const [approveLoading, setApproveLoading] = useState(false);
+  const [generatedCredentials, setGeneratedCredentials] = useState(null);
 
   // Fetch data based on active tab
   useEffect(() => {
@@ -90,6 +92,50 @@ export default function HandleRequests() {
     } catch (err) {
       console.error("Error updating status:", err);
       setError("Failed to update request status");
+    }
+  };
+
+  // Approve and create student account with credentials
+  const handleApproveWithAccount = async (id) => {
+    try {
+      setApproveLoading(true);
+      setError("");
+
+      const response = await fetch(`http://localhost:5000/students/signup-requests/${id}/approve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to approve request");
+      }
+
+      const data = await response.json();
+
+      // Show credentials modal
+      setGeneratedCredentials(data.credentials);
+
+      // Update local state
+      setStudentRequests((prev) =>
+        prev.map((student) =>
+          student.id === id ? { ...student, status: "approved" } : student
+        )
+      );
+
+      // Close viewing modal if open
+      setViewingStudent(null);
+
+      // Refresh the list
+      await fetchSignupRequests();
+    } catch (err) {
+      console.error("Error approving request:", err);
+      setError(err.message || "Failed to approve request and create account");
+      alert(err.message || "Failed to approve request and create account");
+    } finally {
+      setApproveLoading(false);
     }
   };
 
@@ -270,12 +316,11 @@ export default function HandleRequests() {
                       </button>
 
                       <button
-                        onClick={() =>
-                          updateStudentStatus(student.id, "Approved")
-                        }
-                        className="bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700 transition"
+                        onClick={() => handleApproveWithAccount(student.id)}
+                        disabled={approveLoading}
+                        className="bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Approve
+                        {approveLoading ? "Approving..." : "Approve & Create Account"}
                       </button>
 
                       <button
@@ -547,13 +592,11 @@ export default function HandleRequests() {
                   {viewingStudent.status === "pending" && (
                     <>
                       <button
-                        onClick={() => {
-                          updateStudentStatus(viewingStudent.id, "Approved");
-                          setViewingStudent(null);
-                        }}
-                        className="flex-1 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 transition font-medium"
+                        onClick={() => handleApproveWithAccount(viewingStudent.id)}
+                        disabled={approveLoading}
+                        className="flex-1 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Approve Application
+                        {approveLoading ? "Creating Account..." : "Approve & Create Account"}
                       </button>
                       <button
                         onClick={() => {
@@ -562,7 +605,8 @@ export default function HandleRequests() {
                             setViewingStudent(null);
                           }
                         }}
-                        className="flex-1 bg-red-600 text-white px-4 py-2.5 rounded-lg hover:bg-red-700 transition font-medium"
+                        disabled={approveLoading}
+                        className="flex-1 bg-red-600 text-white px-4 py-2.5 rounded-lg hover:bg-red-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Delete Request
                       </button>
@@ -579,6 +623,124 @@ export default function HandleRequests() {
             </div>
           )}
         </>
+      )}
+
+      {/* Credentials Modal */}
+      {generatedCredentials && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6 rounded-t-lg">
+              <div className="flex items-center gap-3">
+                <div className="bg-white bg-opacity-20 p-3 rounded-full">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Account Created Successfully!</h2>
+                  <p className="text-sm text-green-50 mt-1">Student login credentials generated</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                <div className="flex items-start">
+                  <svg className="w-5 h-5 text-yellow-600 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-yellow-800">Important!</p>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      Copy these credentials now. They won't be shown again.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <label className="text-xs text-gray-500 uppercase font-semibold block mb-1">
+                    Email (Username)
+                  </label>
+                  <div className="flex items-center justify-between">
+                    <p className="font-mono text-sm font-semibold text-gray-800">
+                      {generatedCredentials.email}
+                    </p>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedCredentials.email);
+                        alert('Email copied to clipboard!');
+                      }}
+                      className="text-indigo-600 hover:text-indigo-800 text-xs"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <label className="text-xs text-gray-500 uppercase font-semibold block mb-1">
+                    Temporary Password
+                  </label>
+                  <div className="flex items-center justify-between">
+                    <p className="font-mono text-lg font-bold text-gray-800 tracking-wider">
+                      {generatedCredentials.temporaryPassword}
+                    </p>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedCredentials.temporaryPassword);
+                        alert('Password copied to clipboard!');
+                      }}
+                      className="text-indigo-600 hover:text-indigo-800 text-xs"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <label className="text-xs text-gray-500 uppercase font-semibold block mb-1">
+                    Roll Number
+                  </label>
+                  <div className="flex items-center justify-between">
+                    <p className="font-mono text-sm font-semibold text-gray-800">
+                      {generatedCredentials.rollNumber}
+                    </p>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedCredentials.rollNumber);
+                        alert('Roll number copied to clipboard!');
+                      }}
+                      className="text-indigo-600 hover:text-indigo-800 text-xs"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mt-4">
+                <p className="text-xs text-blue-800">
+                  <strong>Note:</strong> An email has been sent to the student with their login credentials. 
+                  They can use these credentials to log in to the student portal.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+              <button
+                onClick={() => setGeneratedCredentials(null)}
+                className="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

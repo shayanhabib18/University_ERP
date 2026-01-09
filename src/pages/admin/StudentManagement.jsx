@@ -16,6 +16,7 @@ const StudentManagement = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [generatedCredentials, setGeneratedCredentials] = useState(null);
 
   const initialFormState = {
     fullName: "",
@@ -44,7 +45,7 @@ const StudentManagement = () => {
 
   const selectedDeptName = getDeptName(selectedDept);
 
-  // Derive next roll number based on department code/name and existing students
+  // Derive next roll number based on department code/name, batch year, and existing students
   useEffect(() => {
     if (!selectedDept) {
       setAutoRoll("");
@@ -53,13 +54,18 @@ const StudentManagement = () => {
 
     const prefixSource = selectedDept.code || selectedDept.name || "DEP";
     const prefix = (prefixSource || "DEP").toString().trim();
+    
+    // Get current year for batch (last 2 digits)
+    const currentYear = new Date().getFullYear();
+    const batchYear = currentYear.toString().slice(-2);
+    const rollPrefix = `${prefix}1${batchYear}`; // e.g., SE126 for Software Engineering 2026
 
     let maxNum = 0;
     students
       .map((s) => s.roll_number)
       .filter(Boolean)
       .forEach((rn) => {
-        if (!rn.toUpperCase().startsWith(prefix.toUpperCase())) return;
+        if (!rn.toUpperCase().startsWith(rollPrefix.toUpperCase())) return;
         const parts = rn.split("-");
         const maybeNum = parseInt(parts[parts.length - 1], 10);
         if (!Number.isNaN(maybeNum) && maybeNum > maxNum) {
@@ -68,7 +74,7 @@ const StudentManagement = () => {
       });
 
     const nextNum = maxNum + 1;
-    const nextRoll = `${prefix}-${String(nextNum).padStart(2, "0")}`;
+    const nextRoll = `${rollPrefix}-${String(nextNum).padStart(2, "0")}`; // e.g., SE126-01
     setAutoRoll(nextRoll);
   }, [selectedDept, students]);
 
@@ -159,15 +165,39 @@ const StudentManagement = () => {
         setSuccess("Student updated successfully!");
         setEditingStudentId(null);
       } else {
-        await studentAPI.create(studentData);
-        setSuccess("Student added successfully!");
+        // Check if email is provided to create with auth
+        if (formData.personalEmail && formData.personalEmail.trim()) {
+          // Register with Supabase Auth and get credentials
+          const response = await fetch("http://localhost:5000/students/register-with-auth", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(studentData),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Failed to register student");
+          }
+
+          const data = await response.json();
+          setSuccess("Student registered successfully! Credentials generated.");
+          
+          // Show credentials modal
+          setGeneratedCredentials(data.credentials);
+        } else {
+          // Create without auth (legacy)
+          await studentAPI.create(studentData);
+          setSuccess("Student added successfully!");
+        }
       }
 
       await loadStudents();
       setFormData(initialFormState);
       setTimeout(() => {
-        setSuccess("");
-        setActiveOption("");
+        if (!generatedCredentials) {
+          setSuccess("");
+          setActiveOption("");
+        }
       }, 1500);
     } catch (err) {
       setError(err?.message || "Failed to save student");
@@ -1249,6 +1279,128 @@ This is an official document from the University ERP System
                     Close
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Credentials Modal */}
+        {generatedCredentials && (
+          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-2xl max-w-md w-full">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6 rounded-t-lg">
+                <div className="flex items-center gap-3">
+                  <div className="bg-white bg-opacity-20 p-3 rounded-full">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">Student Registered Successfully!</h2>
+                    <p className="text-sm text-green-50 mt-1">Login credentials generated</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 space-y-4">
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                  <div className="flex items-start">
+                    <svg className="w-5 h-5 text-yellow-600 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium text-yellow-800">Important!</p>
+                      <p className="text-xs text-yellow-700 mt-1">
+                        Copy these credentials and send them to the student. They won't be shown again.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <label className="text-xs text-gray-500 uppercase font-semibold block mb-1">
+                      Email (Username)
+                    </label>
+                    <div className="flex items-center justify-between">
+                      <p className="font-mono text-sm font-semibold text-gray-800">
+                        {generatedCredentials.email}
+                      </p>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedCredentials.email);
+                          alert('Email copied to clipboard!');
+                        }}
+                        className="text-indigo-600 hover:text-indigo-800 text-xs"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <label className="text-xs text-gray-500 uppercase font-semibold block mb-1">
+                      Temporary Password
+                    </label>
+                    <div className="flex items-center justify-between">
+                      <p className="font-mono text-lg font-bold text-gray-800 tracking-wider">
+                        {generatedCredentials.temporaryPassword}
+                      </p>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedCredentials.temporaryPassword);
+                          alert('Password copied to clipboard!');
+                        }}
+                        className="text-indigo-600 hover:text-indigo-800 text-xs"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <label className="text-xs text-gray-500 uppercase font-semibold block mb-1">
+                      Roll Number
+                    </label>
+                    <div className="flex items-center justify-between">
+                      <p className="font-mono text-sm font-semibold text-gray-800">
+                        {generatedCredentials.rollNumber}
+                      </p>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedCredentials.rollNumber);
+                          alert('Roll number copied to clipboard!');
+                        }}
+                        className="text-indigo-600 hover:text-indigo-800 text-xs"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mt-4">
+                  <p className="text-xs text-blue-800">
+                    <strong>Note:</strong> Email has been sent to the student with their login credentials. 
+                    You should also share these credentials directly with the student.
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+                <button
+                  onClick={() => {
+                    setGeneratedCredentials(null);
+                    setSuccess("");
+                    setActiveOption("");
+                  }}
+                  className="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition font-medium"
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>

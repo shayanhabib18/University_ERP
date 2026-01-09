@@ -2,6 +2,7 @@
 // Express routes for student management aligned with Supabase schema
 import express from "express";
 import supabase from "../model/supabaseClient.js";
+import { sendWelcomeWithPasswordReset } from "../utils/mailer.js";
 
 const router = express.Router();
 
@@ -145,6 +146,203 @@ router.put("/signup-requests/:requestId", async (req, res) => {
   }
 });
 
+// APPROVE signup request - create auth user, student record, and send password reset link
+router.post("/signup-requests/:requestId/approve", async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    // Get the signup request
+    const { data: request, error: fetchError } = await supabase
+      .from("student_signup_requests")
+      .select("*")
+      .eq("id", requestId)
+      .single();
+
+    if (fetchError) throw new Error("Signup request not found");
+    if (request.status !== "pending") {
+      return res.status(400).json({ error: "Request already processed" });
+    }
+
+    const email = request.email;
+
+    // Create Supabase Auth user with a random temporary password (will be changed via reset link)
+    const generateRandomPassword = () => {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz0123456789!@#$%^&*';
+      let password = '';
+      for (let i = 0; i < 16; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return password;
+    };
+
+    // Create Supabase Auth user
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      email: email,
+      password: generateRandomPassword(),
+      email_confirm: true,
+      user_metadata: {
+        full_name: request.student_name,
+        role: 'student',
+        department_id: request.department_id
+      }
+    });
+
+    if (authError) throw new Error(`Failed to create auth user: ${authError.message}`);
+
+    // Auto-generate roll number with batch year format: SE101-01, SE101-02, etc.
+    const { data: dept } = await supabase
+      .from("departments")
+      .select("code,name")
+      .eq("id", request.department_id)
+      .single();
+
+    const prefixSource = dept?.code || dept?.name || "STU";
+    const prefix = prefixSource.toString().trim();
+    
+    // Get current year for batch (e.g., 2026 -> 101 for batch 2026, or use joining year)
+    const joiningYear = request.joining_date ? new Date(request.joining_date).getFullYear() : new Date().getFullYear();
+    const batchYear = joiningYear.toString().slice(-2); // Last 2 digits: 2026 -> 26
+    const rollPrefix = `${prefix}1${batchYear}`; // e.g., SE126 for Software Engineering batch 2026
+
+    const { data: lastRoll } = await supabase
+      .from("students")
+      .select("roll_number")
+      .eq("department_id", request.department_id)
+      .ilike("roll_number", `${rollPrefix}-%`)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let nextNumber = 1;
+    if (lastRoll?.roll_number) {
+      const parts = lastRoll.roll_number.split("-");
+      const maybeNum = parseInt(parts[parts.length - 1], 10);
+      if (!Number.isNaN(maybeNum)) {
+        nextNumber = maybeNum + 1;
+      }
+    }
+
+    const rollNumber = `${rollPrefix}-${String(nextNumber).padStart(2, "0")}`; // e.g., SE126-01
+
+    // Create student record
+    const { error: studentError } = await supabase
+      .from("students")
+      .insert([{
+        auth_user_id: authUser.user.id,
+        full_name: request.student_name,
+        father_name: request.father_name,
+        date_of_birth: null, // Will be updated later by student
+        gender: null, // Will be updated later by student
+        cnic: request.cnic,
+        roll_number: rollNumber,
+        department_id: request.department_id,
+        joining_session: request.joining_session,
+        joining_date: request.joining_date,
+        personal_email: request.email,
+        student_phone: request.mobile,
+        parent_phone: null,
+        permanent_address: null,
+        current_address: request.city,
+        status: "active"
+      }]);
+
+    if (studentError) {
+      // Rollback: delete auth user if student creation fails
+      await supabase.auth.admin.deleteUser(authUser.user.id);
+      throw new Error(`Failed to create student record: ${studentError.message}`);
+    }
+
+    // Update signup request status to approved
+    await supabase
+      .from("student_signup_requests")
+      .update({ status: "approved" })
+      .eq("id", requestId);
+
+    // Generate password reset link and send custom welcome email
+    try {
+      // Use generateLink to get the recovery URL for our custom email
+      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+        type: 'recovery',
+        email: email,
+        options: {
+          redirectTo: 'http://localhost:5173/reset-password'
+        }
+      });
+
+      if (linkError) {
+        throw new Error(`Failed to generate reset link: ${linkError.message}`);
+      }
+
+      // Extract the recovery link from various possible response structures
+      let resetLink = null;
+      
+      // Try different possible paths in the response
+      if (linkData?.properties?.action_link) {
+        resetLink = linkData.properties.action_link;
+      } else if (linkData?.action_link) {
+        resetLink = linkData.action_link;
+      } else if (linkData?.properties?.hashed_token) {
+        // Construct the link manually if we only have the hashed token
+        const token = linkData.properties.hashed_token;
+        resetLink = `http://localhost:5173/reset-password#access_token=${token}&type=recovery`;
+      } else {
+        // Search for any property containing a URL
+        const findUrl = (obj) => {
+          for (const [key, value] of Object.entries(obj || {})) {
+            if (typeof value === 'string' && value.includes('http')) {
+              return value;
+            }
+            if (typeof value === 'object' && value !== null) {
+              const found = findUrl(value);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        resetLink = findUrl(linkData);
+      }
+
+      if (!resetLink) {
+        console.error("Could not extract reset link from generateLink response:", linkData);
+        // Fallback: use resetPasswordForEmail which sends Supabase's default email
+        await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: 'http://localhost:5173/reset-password'
+        });
+        console.log(`⚠️  Sent Supabase default password reset email to ${email} (fallback)`);
+      } else {
+        // Send our custom welcome email with the reset link
+        await sendWelcomeWithPasswordReset({
+          toEmail: email,
+          fullName: request.student_name,
+          rollNumber: rollNumber,
+          resetLink: resetLink,
+        });
+        
+        console.log(`\n${'='.repeat(60)}`);
+        console.log('✉️  CUSTOM WELCOME EMAIL SENT');
+        console.log('='.repeat(60));
+        console.log(`To: ${email}`);
+        console.log(`Roll Number: ${rollNumber}`);
+        console.log(`Student Name: ${request.student_name}`);
+        console.log('='.repeat(60) + '\n');
+      }
+
+    } catch (mailErr) {
+      console.warn("Failed to send welcome email:", mailErr?.message || mailErr);
+      // Continue anyway - student can use forgot password later
+    }
+
+    res.json({
+      success: true,
+      message: "Student approved. Password reset link sent via email.",
+      rollNumber: rollNumber
+    });
+  } catch (error) {
+    console.error("Approval error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // DELETE signup request
 router.delete("/signup-requests/:requestId", async (req, res) => {
   try {
@@ -233,7 +431,171 @@ router.get("/:studentId", async (req, res) => {
   }
 });
 
-// CREATE new student
+// CREATE new student with Supabase Auth account and send credentials
+router.post("/register-with-auth", async (req, res) => {
+  try {
+    const {
+      full_name,
+      father_name,
+      date_of_birth,
+      gender,
+      cnic,
+      department_id,
+      joining_session,
+      joining_date,
+      personal_email,
+      student_phone,
+      parent_phone,
+      permanent_address,
+      current_address,
+    } = req.body;
+
+    const required = [
+      "full_name",
+      "father_name",
+      "cnic",
+      "department_id",
+      "personal_email",
+    ];
+
+    for (const field of required) {
+      if (!req.body?.[field]) {
+        return res.status(400).json({ error: `${field} is required` });
+      }
+    }
+
+    // Generate temporary password
+    const generatePassword = () => {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+      let password = '';
+      for (let i = 0; i < 10; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return password;
+    };
+
+    const temporaryPassword = generatePassword();
+
+    // Create Supabase Auth user
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      email: personal_email,
+      password: temporaryPassword,
+      email_confirm: true,
+      user_metadata: {
+        full_name: full_name,
+        role: 'student',
+        department_id: department_id
+      }
+    });
+
+    if (authError) throw new Error(`Failed to create auth user: ${authError.message}`);
+
+    // Auto-generate roll number with batch year format
+    const { data: dept, error: deptError } = await supabase
+      .from("departments")
+      .select("code,name")
+      .eq("id", department_id)
+      .single();
+
+    if (deptError) {
+      await supabase.auth.admin.deleteUser(authUser.user.id);
+      throw deptError;
+    }
+
+    const prefixSource = dept?.code || dept?.name || "DEP";
+    const prefix = (prefixSource || "DEP").toString().trim();
+    
+    // Get batch year from joining date
+    const joiningYear = joining_date ? new Date(joining_date).getFullYear() : new Date().getFullYear();
+    const batchYear = joiningYear.toString().slice(-2);
+    const rollPrefix = `${prefix}1${batchYear}`;
+
+    const { data: lastRoll } = await supabase
+      .from("students")
+      .select("roll_number")
+      .eq("department_id", department_id)
+      .ilike("roll_number", `${rollPrefix}-%`)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let nextNumber = 1;
+    if (lastRoll?.roll_number) {
+      const parts = lastRoll.roll_number.split("-");
+      const maybeNum = parseInt(parts[parts.length - 1], 10);
+      if (!Number.isNaN(maybeNum)) {
+        nextNumber = maybeNum + 1;
+      }
+    }
+
+    const finalRollNumber = `${rollPrefix}-${String(nextNumber).padStart(2, "0")}`;
+
+    // Create student record
+    const { data, error } = await supabase
+      .from("students")
+      .insert([
+        {
+          auth_user_id: authUser.user.id,
+          full_name,
+          father_name,
+          date_of_birth,
+          gender,
+          cnic,
+          roll_number: finalRollNumber,
+          department_id,
+          joining_session,
+          joining_date,
+          personal_email,
+          student_phone,
+          parent_phone,
+          permanent_address,
+          current_address,
+          status: "active",
+        },
+      ])
+      .select();
+
+    if (error) {
+      // Rollback: delete auth user if student creation fails
+      await supabase.auth.admin.deleteUser(authUser.user.id);
+      throw error;
+    }
+
+    // Attempt to send credentials email
+    try {
+      await sendStudentCredentials({
+        toEmail: personal_email,
+        fullName: full_name,
+        rollNumber: finalRollNumber,
+        temporaryPassword,
+      });
+    } catch (mailErr) {
+      console.warn("Failed to send credentials email:", mailErr?.message || mailErr);
+    }
+
+    // Log credentials
+    console.log(`\n✉️  STUDENT CREDENTIALS GENERATED ✉️`);
+    console.log(`Email: ${personal_email}`);
+    console.log(`Temporary Password: ${temporaryPassword}`);
+    console.log(`Roll Number: ${finalRollNumber}`);
+    console.log(`-----------------------------------\n`);
+
+    res.status(201).json({
+      success: true,
+      student: data?.[0],
+      credentials: {
+        email: personal_email,
+        temporaryPassword: temporaryPassword,
+        rollNumber: finalRollNumber
+      }
+    });
+  } catch (error) {
+    console.error("Registration error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// CREATE new student (without auth - legacy endpoint)
 router.post("/", async (req, res) => {
   try {
     const {
@@ -267,7 +629,7 @@ router.post("/", async (req, res) => {
       }
     }
 
-    // Auto-generate roll number when not provided: uses department code as prefix (e.g., SE-01)
+    // Auto-generate roll number when not provided: uses department code with batch year (e.g., SE126-01)
     let finalRollNumber = roll_number;
     if (!finalRollNumber) {
       const { data: dept, error: deptError } = await supabase
@@ -280,12 +642,17 @@ router.post("/", async (req, res) => {
 
       const prefixSource = dept?.code || dept?.name || "DEP";
       const prefix = (prefixSource || "DEP").toString().trim();
+      
+      // Get batch year from joining date
+      const joiningYear = joining_date ? new Date(joining_date).getFullYear() : new Date().getFullYear();
+      const batchYear = joiningYear.toString().slice(-2);
+      const rollPrefix = `${prefix}1${batchYear}`;
 
       const { data: lastRoll } = await supabase
         .from("students")
         .select("roll_number")
         .eq("department_id", department_id)
-        .ilike("roll_number", `${prefix}-%`)
+        .ilike("roll_number", `${rollPrefix}-%`)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -299,7 +666,7 @@ router.post("/", async (req, res) => {
         }
       }
 
-      finalRollNumber = `${prefix}-${String(nextNumber).padStart(2, "0")}`;
+      finalRollNumber = `${rollPrefix}-${String(nextNumber).padStart(2, "0")}`;
     }
 
     const { data, error } = await supabase

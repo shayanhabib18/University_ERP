@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+// Using backend /auth/login; no direct Supabase client in frontend
 
 export default function StudentLogin() {
   const [identifier, setIdentifier] = useState(""); // Roll number or email
@@ -7,25 +8,37 @@ export default function StudentLogin() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
+    setError("");
+    try {
+      let email = identifier;
 
-    // ✅ Hardcoded student credentials (can login using either roll number or email)
-    const hardcodedStudent = {
-      rollNo: "BSSE1234",
-      email: "student@university.edu",
-      password: "student123",
-    };
+      // Resolve roll number to email
+      if (!identifier.includes("@")) {
+        const resp1 = await fetch(`http://localhost:5000/students/search?q=${encodeURIComponent(identifier)}`);
+        const data = await resp1.json();
+        const exact = (data || []).find((s) => s.roll_number?.toLowerCase() === identifier.toLowerCase());
+        if (!exact) {
+          throw new Error("Student not found for provided roll number");
+        }
+        email = exact.personal_email;
+      }
 
-    const isValidUser =
-      (identifier === hardcodedStudent.rollNo || identifier === hardcodedStudent.email) &&
-      password === hardcodedStudent.password;
+      const resp2 = await fetch("http://localhost:5000/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const json = await resp2.json();
+      if (!resp2.ok) {
+        throw new Error(json.error || "Login failed");
+      }
 
-    if (isValidUser) {
-      setError("");
-      navigate("/student/dashboard"); // Redirect to student dashboard
-    } else {
-      setError("Invalid roll number/email or password");
+      localStorage.setItem("student_token", json.access_token || "");
+      navigate("/student/dashboard");
+    } catch (err) {
+      setError(err.message || "Login failed");
     }
   };
 
@@ -42,7 +55,7 @@ export default function StudentLogin() {
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-500"
-              placeholder="e.g. BSSE1234 or student@university.edu"
+              placeholder="e.g. SE126-01 or student@university.edu"
               required
             />
           </div>

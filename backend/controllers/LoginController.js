@@ -1,14 +1,5 @@
-import supabase from "../model/supabaseClient.js";
-
-const AdminLogin = async (req, res) => {
-  const { email, password } = req.body;
-  console.log(email,password)
-  const { data, error } = await supabase
-    .from("users")
-    .insert([{ email, password }]);
-  if (error) return res.status(400).json({ error: error.message });
-  res.json(data);
-};
-
-export default AdminLogin;
+// Legacy admin login controller removed. Use Supabase Auth via backend/src/routes/auth.js instead.
+export default function AdminLogin(_req, res) {
+  res.status(410).json({ error: "Legacy admin login removed. Use /auth/login via Supabase Auth." });
+}
 

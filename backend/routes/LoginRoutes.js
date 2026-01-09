@@ -1,8 +1,2 @@
-import express from "express";
-import AdminLogin from "../controllers/LoginController.js"
-const router = express.Router()
-
-router.post('/login/admin', AdminLogin)
-
-
-export default router;
+// Legacy admin login route removed. Use Supabase Auth via backend/src/routes/auth.js instead.
+// This file is intentionally left empty to avoid accidental imports.

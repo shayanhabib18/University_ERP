@@ -7,10 +7,11 @@ import dotenv from "dotenv";
 import departmentRoutes from "./routes/departmentRoutes.js";
 import semesterRoutes from "./routes/semesterRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
-import loginRoutes from "./routes/LoginRoutes.js"; // added login routes
+// Removed legacy admin login routes to avoid confusion (using Supabase Auth routes instead)
 import facultyRoutes from "./routes/facultyRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js"; // student management routes
 import announcementRoutes from "./routes/announcementRoutes.js"; // announcement routes
+import authRoutes from "./src/routes/auth.js"; // Supabase Auth proxy routes
 
 dotenv.config();
 
@@ -25,7 +26,7 @@ app.use(express.urlencoded({ extended: true })); // parses URL-encoded requests
 app.use("/departments", departmentRoutes);
 app.use("/semesters", semesterRoutes);
 app.use("/courses", courseRoutes);
-app.use("/auth", loginRoutes); // login/auth routes prefixed with /auth
+app.use("/auth", authRoutes); // Supabase Auth login via backend
 app.use("/faculties", facultyRoutes);
 app.use("/students", studentRoutes); // student management routes
 app.use("/announcements", announcementRoutes); // announcement routes
