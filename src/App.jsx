@@ -5,6 +5,8 @@ import MainPage from './pages/MainPage';
 
 // Login Pages
 import AdminLogin from './pages/login/AdminLogin';
+import AdminForgotPassword from './pages/login/AdminForgotPassword';
+import AdminResetPassword from './pages/login/AdminResetPassword';
 import ChairmanLogin from './pages/login/ChairmanLogin';
 import StudentLogin from './pages/login/StudentLogin';
 import FacultyLogin from './pages/login/FacultyLogin';
@@ -57,9 +59,13 @@ function App() {
         <Route path="/login/executive" element={<ExecutiveLogin />} />
         <Route path="/login/coordinator" element={<CoordinatorLogin />} />
         
-        {/* Forgot Password */}
+        {/* Student Forgot Password */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+
+        {/* Admin Password Reset */}
+        <Route path="/admin/forgot-password" element={<AdminForgotPassword />} />
+        <Route path="/admin/reset-password" element={<AdminResetPassword />} />
 
         {/* ✅ Student Signup */}
         <Route path="/signup/student" element={<StudentSignup />} />

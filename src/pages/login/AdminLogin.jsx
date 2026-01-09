@@ -1,99 +1,115 @@
 // src/pages/login/AdminLogin.jsx
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function AdminLogin() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const navigate = useNavigate();
+  const [email, setEmail] = useState('universityerp9@gmail.com');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('admin login')
+    setError('');
+    setLoading(true);
 
-    // Send to your Node.js server
-    // const response = await fetch("http://localhost:4000/login/admin", {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify({ email, password }),
-    // });
-    // const data = await response.json();
-    // console.log(data);
+    try {
+      const response = await fetch('http://localhost:5000/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    // // Hardcoded admin credentials
-    const ADMIN_CREDENTIALS = {
-      email: "admin@university.edu",
-      password: "admin123",
-    };
+      const data = await response.json();
 
-    if (
-      email === ADMIN_CREDENTIALS.email &&
-      password === ADMIN_CREDENTIALS.password
-    ) {
-      navigate("/admin/dashboard"); // Redirect to dashboard
-    } else {
-      alert(
-        `Invalid credentials. Use:\nEmail: ${ADMIN_CREDENTIALS.email}\nPassword: ${ADMIN_CREDENTIALS.password}`
-      );
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      // Store token and admin info
+      localStorage.setItem('admin_token', data.access_token);
+      localStorage.setItem('admin_refresh_token', data.refresh_token);
+      localStorage.setItem('admin_info', JSON.stringify(data.admin));
+
+      // Redirect to admin dashboard
+      navigate('/admin/dashboard');
+    } catch (err) {
+      setError(err.message || 'Login failed');
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleForgotPassword = () => {
+    navigate('/admin/forgot-password');
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md transition-all transform hover:scale-105 hover:shadow-xl duration-500">
-        <h2 className="text-3xl font-semibold text-center text-blue-600 mb-6 animate__animated animate__fadeIn animate__delay-1s">
-          Admin Login
-        </h2>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label
-              htmlFor="email"
-              className="block text-gray-700 text-sm font-medium"
-            >
-              Email
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
+      <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Portal</h1>
+          <p className="text-gray-600">University ERP System</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email Address
             </label>
             <input
               type="email"
-              id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               placeholder="admin@university.edu"
               required
             />
           </div>
-          <div className="mb-6">
-            <label
-              htmlFor="password"
-              className="block text-gray-700 text-sm font-medium"
-            >
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Password
             </label>
             <input
               type="password"
-              id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out"
-              placeholder="admin123"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              placeholder="••••••••"
               required
             />
           </div>
+
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+              {error}
+            </div>
+          )}
+
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition duration-300"
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition disabled:bg-gray-400"
           >
-            Login
+            {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-        <div className="mt-4 text-center">
+
+        <div className="mt-6 pt-6 border-t border-gray-200">
           <button
             type="button"
-            className="text-sm text-blue-600 hover:underline focus:outline-none"
-            onClick={() => navigate("/forgot-password")}
+            onClick={handleForgotPassword}
+            className="w-full text-center text-sm text-blue-600 hover:text-blue-700 font-medium"
           >
             Forgot Password?
           </button>
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-gray-200 text-center text-xs text-gray-500">
+          <p>For security reasons, admin accounts are not self-registered.</p>
+          <p>Contact system administrator for access.</p>
         </div>
       </div>
     </div>

@@ -11,7 +11,9 @@ const getSupabaseClient = () => {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 };
 
-// LOGIN
+// ==================== STUDENT LOGIN ====================
+// POST /auth/login
+// Login with email and password
 router.post('/login', async (req, res) => {
   const supabaseClient = getSupabaseClient();
   if (!supabaseClient) return res.status(500).json({ error: 'Supabase not configured. Set env in backend/.env' });
@@ -31,7 +33,9 @@ router.post('/login', async (req, res) => {
   });
 });
 
-// FORGOT PASSWORD - Send reset link
+// ==================== STUDENT FORGOT PASSWORD ====================
+// POST /auth/forgot-password
+// Send password reset link to student email
 router.post('/forgot-password', async (req, res) => {
   const supabaseClient = getSupabaseClient();
   if (!supabaseClient) return res.status(500).json({ error: 'Supabase not configured' });
@@ -61,7 +65,9 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-// RESET PASSWORD - Update password with new password
+// ==================== STUDENT RESET PASSWORD ====================
+// POST /auth/reset-password
+// Update password with new password using recovery token
 router.post('/reset-password', async (req, res) => {
   const supabaseClient = getSupabaseClient();
   if (!supabaseClient) return res.status(500).json({ error: 'Supabase not configured' });

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-const ResetPassword = () => {
+export default function AdminResetPassword() {
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -12,12 +12,11 @@ const ResetPassword = () => {
   const [success, setSuccess] = useState(false);
   const [validating, setValidating] = useState(true);
 
-  // Extract token from URL hash (Supabase recovery link format)
+  // Extract token from URL hash
   useEffect(() => {
     const extractToken = () => {
       try {
-        // Supabase sends token in hash fragment: #access_token=xxx&type=recovery&expires_in=3600
-        const hash = location.hash.slice(1); // Remove '#'
+        const hash = location.hash.slice(1);
         const params = new URLSearchParams(hash);
         const extractedToken = params.get('access_token') || params.get('token');
         
@@ -25,7 +24,6 @@ const ResetPassword = () => {
           setToken(extractedToken);
           setValidating(false);
         } else {
-          // Fallback: check URL search params
           const searchParams = new URLSearchParams(location.search);
           const paramToken = searchParams.get('token');
           if (paramToken) {
@@ -59,8 +57,8 @@ const ResetPassword = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
       return;
     }
 
@@ -69,7 +67,7 @@ const ResetPassword = () => {
 
     try {
       const response = await axios.post(
-        'http://localhost:5000/auth/reset-password',
+        'http://localhost:5000/admin/auth/reset-password',
         {
           accessToken: token,
           password,
@@ -78,7 +76,7 @@ const ResetPassword = () => {
 
       setSuccess(true);
       setTimeout(() => {
-        navigate('/login/student');
+        navigate('/admin/login');
       }, 2000);
     } catch (err) {
       console.error('Reset password error:', err);
@@ -94,8 +92,8 @@ const ResetPassword = () => {
 
   if (validating) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-4">
-        <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md text-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
+        <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Validating reset link...</p>
         </div>
@@ -105,26 +103,16 @@ const ResetPassword = () => {
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-4">
-        <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md text-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
+        <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
           <h2 className="text-2xl font-bold text-red-600 mb-4">Invalid Link</h2>
           <p className="text-gray-600 mb-6">{error || 'The password reset link is invalid or expired.'}</p>
-          <div className="space-y-3">
-            <button
-              onClick={() => navigate('/forgot-password')}
-              className="w-full bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-            >
-              Request New Reset Link
-            </button>
-            <button
-              onClick={() => {
-                window.location.href = '/login/student';
-              }}
-              className="w-full bg-gray-400 text-white px-6 py-2 rounded-lg hover:bg-gray-500 transition"
-            >
-              Back to Login
-            </button>
-          </div>
+          <button
+            onClick={() => navigate('/admin/forgot-password')}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+          >
+            Request New Reset Link
+          </button>
         </div>
       </div>
     );
@@ -132,8 +120,8 @@ const ResetPassword = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-4">
-        <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md text-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
+        <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
           <div className="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
             <span className="text-3xl text-green-600">✓</span>
           </div>
@@ -145,8 +133,8 @@ const ResetPassword = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-4">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
+      <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
         <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">Reset Password</h2>
 
         {error && (
@@ -165,7 +153,7 @@ const ResetPassword = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter new password"
+              placeholder="Enter new password (min 8 characters)"
               required
             />
           </div>
@@ -196,9 +184,7 @@ const ResetPassword = () => {
         <p className="text-center text-sm text-gray-600 mt-6">
           <button
             type="button"
-            onClick={() => {
-              window.location.href = '/login/student';
-            }}
+            onClick={() => navigate('/admin/login')}
             className="text-blue-600 hover:underline"
           >
             Back to Login
@@ -207,6 +193,4 @@ const ResetPassword = () => {
       </div>
     </div>
   );
-};
-
-export default ResetPassword;
+}

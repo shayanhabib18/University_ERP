@@ -258,77 +258,28 @@ router.post("/signup-requests/:requestId/approve", async (req, res) => {
       .update({ status: "approved" })
       .eq("id", requestId);
 
-    // Generate password reset link and send custom welcome email
+    // Send password reset link via Supabase's built-in email system
     try {
-      // Use generateLink to get the recovery URL for our custom email
-      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-        type: 'recovery',
-        email: email,
-        options: {
-          redirectTo: 'http://localhost:5173/reset-password'
-        }
+      const { data: resetData, error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'http://localhost:5173/reset-password'
       });
 
-      if (linkError) {
-        throw new Error(`Failed to generate reset link: ${linkError.message}`);
-      }
-
-      // Extract the recovery link from various possible response structures
-      let resetLink = null;
-      
-      // Try different possible paths in the response
-      if (linkData?.properties?.action_link) {
-        resetLink = linkData.properties.action_link;
-      } else if (linkData?.action_link) {
-        resetLink = linkData.action_link;
-      } else if (linkData?.properties?.hashed_token) {
-        // Construct the link manually if we only have the hashed token
-        const token = linkData.properties.hashed_token;
-        resetLink = `http://localhost:5173/reset-password#access_token=${token}&type=recovery`;
+      if (resetError) {
+        console.warn(`⚠️  Password reset email failed: ${resetError.message}`);
+        console.warn("Student can use forgot password link later if needed");
       } else {
-        // Search for any property containing a URL
-        const findUrl = (obj) => {
-          for (const [key, value] of Object.entries(obj || {})) {
-            if (typeof value === 'string' && value.includes('http')) {
-              return value;
-            }
-            if (typeof value === 'object' && value !== null) {
-              const found = findUrl(value);
-              if (found) return found;
-            }
-          }
-          return null;
-        };
-        resetLink = findUrl(linkData);
-      }
-
-      if (!resetLink) {
-        console.error("Could not extract reset link from generateLink response:", linkData);
-        // Fallback: use resetPasswordForEmail which sends Supabase's default email
-        await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: 'http://localhost:5173/reset-password'
-        });
-        console.log(`⚠️  Sent Supabase default password reset email to ${email} (fallback)`);
-      } else {
-        // Send our custom welcome email with the reset link
-        await sendWelcomeWithPasswordReset({
-          toEmail: email,
-          fullName: request.student_name,
-          rollNumber: rollNumber,
-          resetLink: resetLink,
-        });
-        
         console.log(`\n${'='.repeat(60)}`);
-        console.log('✉️  CUSTOM WELCOME EMAIL SENT');
+        console.log('✉️  PASSWORD RESET EMAIL SENT');
         console.log('='.repeat(60));
         console.log(`To: ${email}`);
         console.log(`Roll Number: ${rollNumber}`);
         console.log(`Student Name: ${request.student_name}`);
+        console.log(`Instructions: Check email for password reset link`);
         console.log('='.repeat(60) + '\n');
       }
 
     } catch (mailErr) {
-      console.warn("Failed to send welcome email:", mailErr?.message || mailErr);
+      console.warn("Failed to send password reset email:", mailErr?.message || mailErr);
       // Continue anyway - student can use forgot password later
     }
 
