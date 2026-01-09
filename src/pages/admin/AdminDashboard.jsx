@@ -179,7 +179,7 @@ export default function AdminDashboard() {
                   </div>
                   <div>
                     <h3 className="text-gray-500 text-sm font-medium">
-                      Pending Requests
+                      Requests
                     </h3>
                     <p className="text-2xl font-bold text-gray-800 mt-1">
                       {loadingRequests ? "..." : pendingRequests.length}
@@ -217,7 +217,7 @@ export default function AdminDashboard() {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
                     <ClipboardList className="text-indigo-600" size={20} />
-                    Pending Signup Requests
+                    Requests
                   </h2>
                   <button
                     onClick={() => setActiveTab("Requests")}

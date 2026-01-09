@@ -13,6 +13,8 @@ export default function StudentLogin() {
     setError("");
     try {
       let email = identifier;
+      let accessToken = "";
+      let studentProfile = null;
 
       // Resolve roll number to email
       if (!identifier.includes("@")) {
@@ -35,7 +37,25 @@ export default function StudentLogin() {
         throw new Error(json.error || "Login failed");
       }
 
-      localStorage.setItem("student_token", json.access_token || "");
+      accessToken = json.access_token || "";
+      localStorage.setItem("student_token", accessToken);
+
+      // Fetch current student profile to get name/roll/email
+      try {
+        const meResp = await fetch("http://localhost:5000/students/me", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (meResp.ok) {
+          studentProfile = await meResp.json();
+          localStorage.setItem("student_info", JSON.stringify(studentProfile));
+        } else {
+          localStorage.removeItem("student_info");
+        }
+      } catch (profileErr) {
+        console.warn("Failed to load student profile", profileErr);
+        localStorage.removeItem("student_info");
+      }
+
       navigate("/student/dashboard");
     } catch (err) {
       setError(err.message || "Login failed");

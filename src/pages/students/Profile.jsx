@@ -1,17 +1,41 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [details, setDetails] = useState({
-    registrationNo: "2022-BSSE-120",
-    phone: "051-1234567",
-    address: "House no 1 Street 2 B17",
-    mobile: "0123456789",
-    city: "Islamabad",
-    email: "shayanhabib2003@gmail.com",
-    session: "Fa-2022",
-    degree: "BSSE",
+    registrationNo: "",
+    phone: "",
+    address: "",
+    mobile: "",
+    city: "",
+    email: "",
+    session: "",
+    degree: "",
   });
+
+  // Load profile from localStorage (set during login) or fallback to placeholders
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("student_info");
+      if (stored) {
+        const info = JSON.parse(stored);
+        console.log("Loaded student_info from localStorage:", info); // Debug log
+        setDetails((prev) => ({
+          ...prev,
+          registrationNo: info.roll_number || prev.registrationNo || "",
+          phone: info.student_phone || prev.phone || "",
+          mobile: info.student_phone || prev.mobile || "",
+          address: info.current_address || prev.address || "",
+          city: info.current_address || prev.city || "",
+          email: info.personal_email || prev.email || "",
+          session: info.joining_session || prev.session || "",
+          degree: info.department_name || prev.degree || "",
+        }));
+      }
+    } catch (err) {
+      console.warn("Failed to load student profile", err);
+    }
+  }, []);
 
   const [requestStatus, setRequestStatus] = useState("");
 

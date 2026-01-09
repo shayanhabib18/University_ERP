@@ -258,34 +258,58 @@ router.post("/signup-requests/:requestId/approve", async (req, res) => {
       .update({ status: "approved" })
       .eq("id", requestId);
 
-    // Send password reset link via Supabase's built-in email system
+    // Generate password reset link and send approval email
     try {
-      const { data: resetData, error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'http://localhost:5173/reset-password'
+      const { sendApprovalEmailWithLink } = await import('../utils/mailer.js');
+      const departmentName = dept?.name || 'N/A';
+      
+      // Generate recovery link using Supabase admin
+      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+        type: 'recovery',
+        email: email,
+        options: {
+          redirectTo: 'http://localhost:5173/reset-password'
+        }
       });
 
-      if (resetError) {
-        console.warn(`⚠️  Password reset email failed: ${resetError.message}`);
-        console.warn("Student can use forgot password link later if needed");
-      } else {
-        console.log(`\n${'='.repeat(60)}`);
-        console.log('✉️  PASSWORD RESET EMAIL SENT');
-        console.log('='.repeat(60));
-        console.log(`To: ${email}`);
-        console.log(`Roll Number: ${rollNumber}`);
-        console.log(`Student Name: ${request.student_name}`);
-        console.log(`Instructions: Check email for password reset link`);
-        console.log('='.repeat(60) + '\n');
+      if (linkError) {
+        console.warn(`⚠️  Failed to generate reset link: ${linkError.message}`);
+        throw new Error(`Failed to generate reset link: ${linkError.message}`);
       }
 
+      // Extract the recovery link
+      let resetLink = linkData?.properties?.action_link || 
+                     linkData?.action_link || 
+                     `http://localhost:5173/reset-password#access_token=${linkData?.properties?.hashed_token}&type=recovery`;
+
+      await sendApprovalEmailWithLink({
+        toEmail: email,
+        fullName: request.student_name,
+        rollNumber: rollNumber,
+        departmentName: departmentName,
+        resetLink: resetLink,
+      });
+
+      console.log(`\n${'='.repeat(60)}`);
+      console.log('✉️  APPROVAL EMAIL WITH PASSWORD LINK SENT');
+      console.log('='.repeat(60));
+      console.log(`To: ${email}`);
+      console.log(`Roll Number: ${rollNumber}`);
+      console.log(`Student Name: ${request.student_name}`);
+      console.log(`Department: ${departmentName}`);
+      console.log(`Instructions: Student clicks link to set initial password`);
+
+      console.log('='.repeat(60) + '\n');
+
+
     } catch (mailErr) {
-      console.warn("Failed to send password reset email:", mailErr?.message || mailErr);
-      // Continue anyway - student can use forgot password later
+      console.warn("Failed to send approval email:", mailErr?.message || mailErr);
+      // Continue anyway - student can set password via forgot password later
     }
 
     res.json({
       success: true,
-      message: "Student approved. Password reset link sent via email.",
+      message: "Student approved. Notification email sent with login details.",
       rollNumber: rollNumber
     });
   } catch (error) {
@@ -339,10 +363,53 @@ router.get("/search", async (req, res) => {
     const { data, error } = await supabase
       .from("students")
       .select("*")
-      .or(`full_name.ilike.%${q}%,roll_number.ilike.%${q}%`);
+      .or(`full_name.ilike.%${q}%,roll_number.ilike.%${q}%,personal_email.ilike.%${q}%`);
 
     if (error) throw error;
     res.json(data || []);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// GET current student profile using auth token (supabase access token)
+router.get("/me", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization || "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!token) return res.status(401).json({ error: "Missing access token" });
+
+    // Decode JWT to extract user id (sub)
+    const parts = token.split(".");
+    if (parts.length < 2) return res.status(401).json({ error: "Invalid token" });
+    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString());
+    const userId = payload.sub;
+    if (!userId) return res.status(401).json({ error: "Invalid token payload" });
+
+    const { data: student, error } = await supabase
+      .from("students")
+      .select("id, full_name, roll_number, personal_email, student_phone, current_address, joining_session, department_id")
+      .eq("auth_user_id", userId)
+      .single();
+
+    if (error) throw error;
+    if (!student) return res.status(404).json({ error: "Student not found" });
+
+    // Fetch department name if department_id exists
+    let departmentName = "";
+    if (student.department_id) {
+      const { data: dept } = await supabase
+        .from("departments")
+        .select("name")
+        .eq("id", student.department_id)
+        .single();
+      departmentName = dept?.name || "";
+    }
+
+    res.json({
+      ...student,
+      department_name: departmentName,
+    });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -930,6 +997,20 @@ router.put("/enrollments/:enrollmentId/drop", async (req, res) => {
 
     if (error) throw error;
     res.json(data?.[0]);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// DEBUG: Check all students with full details (remove in production)
+router.get("/debug/all", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("students")
+      .select("id, full_name, roll_number, personal_email, student_phone, current_address, joining_session, department_id");
+
+    if (error) throw error;
+    res.json(data);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

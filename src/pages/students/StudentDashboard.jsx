@@ -19,9 +19,43 @@ const sidebarLinks = [
 export default function StudentDashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard Overview");
+  const [studentName, setStudentName] = useState("Student");
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [recentAnnouncements, setRecentAnnouncements] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+
+  // Load student name from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("student_info");
+      if (stored) {
+        const info = JSON.parse(stored);
+        setStudentName(info.full_name || info.roll_number || "Student");
+        return;
+      }
+
+      // Fallback: fetch from backend using token
+      const token = localStorage.getItem("student_token");
+      if (token) {
+        fetch("http://localhost:5000/students/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data) {
+              localStorage.setItem("student_info", JSON.stringify(data));
+              setStudentName(data.full_name || data.roll_number || "Student");
+            }
+          })
+          .catch((err) => {
+            console.warn("Failed to fetch student profile", err);
+          });
+      }
+    } catch (err) {
+      console.warn("Failed to load student name", err);
+      setStudentName("Student");
+    }
+  }, []);
 
   // Fetch announcements for student
   useEffect(() => {
@@ -60,7 +94,7 @@ export default function StudentDashboard() {
                 <h1 className="text-3xl font-bold text-gray-800">
                   Welcome back,{" "}
                   <span className="text-gradient bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                    Student
+                    {studentName}
                   </span>
                 </h1>
                 <p className="text-gray-500 mt-1">Here's your academic summary</p>
