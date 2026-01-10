@@ -54,7 +54,7 @@ const StudentManagement = () => {
 
     const prefixSource = selectedDept.code || selectedDept.name || "DEP";
     const prefix = (prefixSource || "DEP").toString().trim();
-    
+
     // Get current year for batch (last 2 digits)
     const currentYear = new Date().getFullYear();
     const batchYear = currentYear.toString().slice(-2);
@@ -104,11 +104,16 @@ const StudentManagement = () => {
   }, []);
 
   const loadStudents = async () => {
-    if (!selectedDept) return;
+    if (!selectedDept) {
+      setStudents([]);
+      return;
+    }
+
     try {
       setLoading(true);
       setError("");
-      const data = await studentAPI.getByDepartment(selectedDept.id);
+      const deptId = selectedDept.id || selectedDept.department_id || selectedDept.departmentId;
+      const data = await studentAPI.getByDepartment(deptId);
       setStudents(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err?.message || "Failed to load students");
@@ -119,94 +124,84 @@ const StudentManagement = () => {
   };
 
   useEffect(() => {
-    if (selectedDept) {
-      loadStudents();
-    }
+    loadStudents();
   }, [selectedDept]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    setError("");
+    setSuccess("");
   };
 
   const handleFileChange = (e) => {
-    setFormData((prev) => ({
-      ...prev,
-      academicDocs: [...e.target.files],
-    }));
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setFormData((prev) => ({ ...prev, academicDocs: files }));
   };
 
   const handleAddOrUpdateStudent = async (e) => {
     e.preventDefault();
+    if (!selectedDept) {
+      setError("Please select a department first.");
+      return;
+    }
+
+    const studentData = {
+      full_name: formData.fullName,
+      father_name: formData.fatherName,
+      date_of_birth: formData.dob,
+      gender: formData.gender,
+      roll_number: formData.rollNo,
+      cnic: formData.cnic,
+      permanent_address: formData.permanentAddress,
+      current_address: formData.currentAddress,
+      personal_email: formData.personalEmail,
+      student_phone: formData.studentPhone,
+      parent_phone: formData.parentPhone,
+      joining_session: formData.joiningSession,
+      joining_date: formData.joiningDate,
+      department_id: selectedDept.id || selectedDept.department_id || selectedDept.departmentId,
+      attendance: formData.attendance,
+      grades: formData.grades,
+    };
+
+    setLoading(true);
     setError("");
     setSuccess("");
-    setLoading(true);
 
     try {
-      const studentData = {
-        full_name: formData.fullName,
-        father_name: formData.fatherName,
-        date_of_birth: formData.dob,
-        gender: formData.gender,
-        roll_number: formData.rollNo,
-        cnic: formData.cnic,
-        permanent_address: formData.permanentAddress,
-        current_address: formData.currentAddress,
-        personal_email: formData.personalEmail,
-        student_phone: formData.studentPhone,
-        parent_phone: formData.parentPhone,
-        joining_session: formData.joiningSession,
-        joining_date: formData.joiningDate,
-        department_id: selectedDept.id,
-      };
-
       if (editingStudentId) {
         await studentAPI.update(editingStudentId, studentData);
         setSuccess("Student updated successfully!");
+        await loadStudents();
+        setFormData(initialFormState);
         setEditingStudentId(null);
-      } else {
-        // Check if email is provided to create with auth
-        if (formData.personalEmail && formData.personalEmail.trim()) {
-          // Register with Supabase Auth and get credentials
-          const response = await fetch("http://localhost:5000/students/register-with-auth", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(studentData),
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Failed to register student");
-          }
-
-          const data = await response.json();
-          setSuccess("Student registered successfully! Credentials generated.");
-          
-          // Show credentials modal
-          setGeneratedCredentials(data.credentials);
-        } else {
-          // Create without auth (legacy)
-          await studentAPI.create(studentData);
-          setSuccess("Student added successfully!");
-        }
-      }
-
-      await loadStudents();
-      setFormData(initialFormState);
-      setTimeout(() => {
-        if (!generatedCredentials) {
+        setTimeout(() => {
           setSuccess("");
           setActiveOption("");
-        }
-      }, 1500);
+        }, 2000);
+      } else {
+        await studentAPI.create(studentData);
+        setSuccess("Student added successfully!");
+        await loadStudents();
+        setFormData(initialFormState);
+        setTimeout(() => {
+          setSuccess("");
+        }, 2000);
+      }
     } catch (err) {
       setError(err?.message || "Failed to save student");
+      setTimeout(() => setError(""), 4000);
     } finally {
       setLoading(false);
     }
   };
 
-  const startEditingStudent = (student) => {
+  const startEditingStudent = (studentOrIndex) => {
+    const student = typeof studentOrIndex === "number" ? students[studentOrIndex] : studentOrIndex;
+    if (!student) return;
+
     setFormData({
       fullName: student.full_name || "",
       fatherName: student.father_name || "",
@@ -223,8 +218,8 @@ const StudentManagement = () => {
       joiningDate: student.joining_date || "",
       academicDocs: [],
       department: "",
-      attendance: "",
-      grades: "",
+      attendance: student.attendance || "",
+      grades: student.grades || "",
     });
     setEditingStudentId(student.id);
     setActiveOption("Add Student");
@@ -245,42 +240,63 @@ const StudentManagement = () => {
     }
   };
 
+  // Helper to normalize student object to camelCase for UI
+  const normalizeStudent = (student) => ({
+    id: student.id,
+    fullName: student.full_name || student.fullName || "",
+    fatherName: student.father_name || student.fatherName || "",
+    rollNo: student.roll_number || student.rollNo || "",
+    dob: student.date_of_birth || student.dob || "",
+    gender: student.gender || "",
+    cnic: student.cnic || "",
+    personalEmail: student.personal_email || student.personalEmail || "",
+    studentPhone: student.student_phone || student.studentPhone || "",
+    parentPhone: student.parent_phone || student.parentPhone || "",
+    permanentAddress: student.permanent_address || student.permanentAddress || "",
+    currentAddress: student.current_address || student.currentAddress || "",
+    joiningSession: student.joining_session || student.joiningSession || "",
+    joiningDate: student.joining_date || student.joiningDate || "",
+    attendance: student.attendance || "",
+    grades: student.grades || "",
+  });
+
   const viewAcademicRecords = (student) => {
-    setSelectedStudentForRecords(student);
+    setSelectedStudentForRecords(normalizeStudent(student));
     setShowAcademicRecordsModal(true);
   };
 
   const generateTranscript = (student) => {
+    const normalized = normalizeStudent(student);
     // Generate transcript content
     const transcriptContent = `
 ═══════════════════════════════════════════════════════════════
                     OFFICIAL ACADEMIC TRANSCRIPT
 ═══════════════════════════════════════════════════════════════
 
-Student Name: ${student.fullName}
-Father's Name: ${student.fatherName}
-Roll Number: ${student.rollNo}
-CNIC: ${student.cnic}
+Student Name: ${normalized.fullName}
+Father's Name: ${normalized.fatherName}
+Roll Number: ${normalized.rollNo}
+CNIC: ${normalized.cnic}
 Department: ${selectedDeptName}
-Date of Birth: ${student.dob}
+Date of Birth: ${normalized.dob}
 
 ───────────────────────────────────────────────────────────────
                       ACADEMIC PERFORMANCE
 ───────────────────────────────────────────────────────────────
 
-Overall Grade: ${student.grades}
-Attendance: ${student.attendance}
+Overall Grade: ${normalized.grades}
+Attendance: ${normalized.attendance}
 
 ───────────────────────────────────────────────────────────────
                       CONTACT INFORMATION
 ───────────────────────────────────────────────────────────────
 
-Personal Email: ${student.personalEmail || 'N/A'}
-Student Phone: ${student.studentPhone || 'N/A'}
-Parent/Guardian Phone: ${student.parentPhone || 'N/A'}
+Personal Email: ${normalized.personalEmail || 'N/A'}
+Student Phone: ${normalized.studentPhone || 'N/A'}
+Parent/Guardian Phone: ${normalized.parentPhone || 'N/A'}
 
-Permanent Address: ${student.permanentAddress || 'N/A'}
-Current Address: ${student.currentAddress || 'N/A'}
+Permanent Address: ${normalized.permanentAddress || 'N/A'}
+Current Address: ${normalized.currentAddress || 'N/A'}
 
 ───────────────────────────────────────────────────────────────
 Generated on: ${new Date().toLocaleDateString()}
@@ -293,7 +309,7 @@ This is an official document from the University ERP System
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Transcript_${student.rollNo}_${student.fullName.replace(/\s+/g, '_')}.txt`;
+    link.download = `Transcript_${normalized.rollNo}_${normalized.fullName.replace(/\s+/g, '_')}.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -303,16 +319,17 @@ This is an official document from the University ERP System
   const studentsInDept = students;
 
   const filteredStudents = students.filter((student) => {
-    const q = searchQuery.toLowerCase();
+    const q = (searchQuery || "").toLowerCase();
     return (
-      student.roll_number.toLowerCase().includes(q) ||
-      student.full_name.toLowerCase().includes(q)
+      (student.roll_number || "").toLowerCase().includes(q) ||
+      (student.full_name || "").toLowerCase().includes(q) ||
+      (student.personal_email || "").toLowerCase().includes(q)
     );
   });
 
   const studentsForDisplay = students;
 
-  const options = ["Add Student", "Update Student", "Search Student", "Delete Student", "Show Prev Academic History"];
+  const options = ["Add Student", "Search Student", "Delete Student"];
 
   // Function to generate avatar background color based on name
   const getAvatarColor = (name) => {
@@ -424,7 +441,7 @@ This is an official document from the University ERP System
             </div>
 
             {/* Options Navigation */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               {options.map((opt) => (
                 <button
                   key={opt}
@@ -441,11 +458,6 @@ This is an official document from the University ERP System
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                       </svg>
                     )}
-                    {opt === "Update Student" && (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    )}
                     {opt === "Search Student" && (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -454,11 +466,6 @@ This is an official document from the University ERP System
                     {opt === "Delete Student" && (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    )}
-                    {opt === "Show Prev Academic History" && (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
                     )}
                     <span>{opt}</span>
@@ -748,82 +755,6 @@ This is an official document from the University ERP System
               </div>
             )}
 
-            {/* Update Student List */}
-            {activeOption === "Update Student" && (
-              <div className="bg-white rounded-xl border border-gray-200">
-                <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-xl font-semibold text-gray-800 flex items-center">
-                    <svg className="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Manage Student Records
-                  </h3>
-                </div>
-                
-                {loading && (
-                  <div className="p-8 text-center">
-                    <p className="text-gray-600">Loading students...</p>
-                  </div>
-                )}
-
-                {error && (
-                  <div className="m-6 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-                    {error}
-                  </div>
-                )}
-
-                {!loading && studentsInDept.length === 0 ? (
-                  <div className="p-8 text-center">
-                    <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    <p className="text-gray-500 text-lg">No student records found.</p>
-                    <p className="text-gray-400 text-sm mt-2">
-                      Use the "Add Student" option to register new students.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-200">
-                    {studentsForDisplay.map((student) => (
-                      <div key={student.id} className="p-6 hover:bg-gray-50 transition-colors">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between">
-                          <div className="flex items-start space-x-4">
-                            <div className={`w-12 h-12 bg-gradient-to-r ${getAvatarColor(student.full_name)} rounded-xl flex items-center justify-center text-white font-semibold text-lg`}>
-                              {student.full_name.charAt(0)}
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-gray-800 text-lg">{student.full_name}</h4>
-                              <p className="text-gray-600">{student.roll_number}</p>
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
-                            <button
-                              onClick={() => startEditingStudent(student)}
-                              className="flex items-center text-green-600 hover:text-green-800 transition-colors font-medium px-3 py-1 rounded-lg hover:bg-green-50"
-                            >
-                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => deleteStudent(student.id)}
-                              className="flex items-center text-red-600 hover:text-red-800 transition-colors font-medium px-3 py-1 rounded-lg hover:bg-red-50"
-                              disabled={loading}
-                            >
-                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Delete Student */}
             {activeOption === "Delete Student" && (
@@ -914,87 +845,96 @@ This is an official document from the University ERP System
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {filteredStudents.map((student, idx) => {
-                      const actualStudentIndex = students.findIndex(s => s.rollNo === student.rollNo);
+                    {filteredStudents.map((student) => {
+                      const name = student.full_name || student.fullName || "";
+                      const roll = student.roll_number || student.rollNo || "";
+                      const phone = student.student_phone || student.studentPhone || "";
+                      const gender = student.gender || "";
+                      const dob = student.date_of_birth || student.dob || "";
+                      const studentKey = student.id || roll || name;
+
                       return (
-                      <div key={idx} className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow bg-white">
-                        <div className="flex items-start space-x-4">
-                          <div className={`w-14 h-14 bg-gradient-to-r ${getAvatarColor(student.fullName)} rounded-xl flex items-center justify-center text-white font-semibold text-xl`}>
-                            {student.fullName.charAt(0)}
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-gray-800 text-lg mb-1">{student.fullName}</h4>
-                            <p className="text-green-600 font-medium mb-2">{student.rollNo}</p>
-                            <div className="space-y-1 text-sm text-gray-600">
-                              <div className="flex items-center">
-                                <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                </svg>
-                                {student.rollNo}
-                              </div>
-                              {student.studentPhone && (
+                        <div key={studentKey} className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow bg-white">
+                          <div className="flex items-start space-x-4">
+                            <div className={`w-14 h-14 bg-gradient-to-r ${getAvatarColor(name)} rounded-xl flex items-center justify-center text-white font-semibold text-xl`}>
+                              {name ? name.charAt(0) : "?"}
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-gray-800 text-lg mb-1">{name}</h4>
+                              <p className="text-green-600 font-medium mb-2">{roll}</p>
+                              <div className="space-y-1 text-sm text-gray-600">
                                 <div className="flex items-center">
                                   <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                   </svg>
-                                  {student.studentPhone}
+                                  {roll}
                                 </div>
-                              )}
-                              <div className="flex items-center">
-                                <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
-                                {student.gender} • {student.dob}
+                                {phone && (
+                                  <div className="flex items-center">
+                                    <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                    </svg>
+                                    {phone}
+                                  </div>
+                                )}
+                                {(gender || dob) && (
+                                  <div className="flex items-center">
+                                    <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                    {gender} {gender && dob ? "•" : ""} {dob}
+                                  </div>
+                                )}
                               </div>
-                            </div>
-                            <div className="flex gap-2 mt-3">
-                              {student.attendance && (
-                                <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
-                                  {student.attendance} Attendance
-                                </span>
-                              )}
-                              {student.grades && (
-                                <span className="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs font-medium">
-                                  Grade: {student.grades}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap gap-2 mt-4">
-                              <button
-                                onClick={() => startEditingStudent(actualStudentIndex)}
-                                className="flex items-center text-green-600 hover:text-green-800 transition-colors font-medium text-sm px-3 py-2 rounded-lg hover:bg-green-50 border border-green-200"
-                              >
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                Edit Details
-                              </button>
-                              <button
-                                onClick={() => viewAcademicRecords(student)}
-                                className="flex items-center text-blue-600 hover:text-blue-800 transition-colors font-medium text-sm px-3 py-2 rounded-lg hover:bg-blue-50 border border-blue-200"
-                              >
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                Academic History
-                              </button>
-                              <button
-                                onClick={() => generateTranscript(student)}
-                                className="flex items-center text-purple-600 hover:text-purple-800 transition-colors font-medium text-sm px-3 py-2 rounded-lg hover:bg-purple-50 border border-purple-200"
-                              >
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                                </svg>
-                                Transcript
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (window.confirm(`Are you sure you want to delete ${student.fullName}? This action cannot be undone.`)) {
-                                    deleteStudent(actualStudentIndex);
-                                  }
-                                }}
-                                className="flex items-center text-red-600 hover:text-red-800 transition-colors font-medium text-sm px-3 py-2 rounded-lg hover:bg-red-50 border border-red-200"
-                              >
+                              <div className="flex gap-2 mt-3">
+                                {student.attendance && (
+                                  <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+                                    {student.attendance} Attendance
+                                  </span>
+                                )}
+                                {student.grades && (
+                                  <span className="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs font-medium">
+                                    Grade: {student.grades}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-2 mt-4">
+                                <button
+                                  onClick={() => startEditingStudent(student)}
+                                  className="flex items-center text-green-600 hover:text-green-800 transition-colors font-medium text-sm px-3 py-2 rounded-lg hover:bg-green-50 border border-green-200"
+                                >
+                                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                  Edit Details
+                                </button>
+                                <button
+                                  onClick={() => viewAcademicRecords(student)}
+                                  className="flex items-center text-blue-600 hover:text-blue-800 transition-colors font-medium text-sm px-3 py-2 rounded-lg hover:bg-blue-50 border border-blue-200"
+                                >
+                                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  Academic History
+                                </button>
+                                <button
+                                  onClick={() => generateTranscript(student)}
+                                  className="flex items-center text-purple-600 hover:text-purple-800 transition-colors font-medium text-sm px-3 py-2 rounded-lg hover:bg-purple-50 border border-purple-200"
+                                >
+                                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                                  </svg>
+                                  Transcript
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (!student.id) return;
+                                    if (window.confirm(`Are you sure you want to delete ${name}? This action cannot be undone.`)) {
+                                      deleteStudent(student.id);
+                                    }
+                                  }}
+                                  className="flex items-center text-red-600 hover:text-red-800 transition-colors font-medium text-sm px-3 py-2 rounded-lg hover:bg-red-50 border border-red-200"
+                                >
                                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
@@ -1006,99 +946,6 @@ This is an official document from the University ERP System
                       </div>
                       );
                     })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Show Previous Academic History */}
-            {activeOption === "Show Prev Academic History" && (
-              <div className="bg-white rounded-xl border border-gray-200">
-                <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-xl font-semibold text-gray-800 flex items-center">
-                    <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Student Academic History
-                  </h3>
-                </div>
-                {studentsInDept.length === 0 ? (
-                  <div className="p-8 text-center">
-                    <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    <p className="text-gray-500 text-lg">No student records found.</p>
-                    <p className="text-gray-400 text-sm mt-2">
-                      Use the "Add Student" option to register new students.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-200">
-                    {studentsForDisplay.map(({ student, idx }) => (
-                      <div key={idx} className="p-6 hover:bg-gray-50 transition-colors">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between">
-                          <div className="flex items-start space-x-4">
-                            <div className={`w-12 h-12 bg-gradient-to-r ${getAvatarColor(student.fullName)} rounded-xl flex items-center justify-center text-white font-semibold text-lg`}>
-                              {student.fullName.charAt(0)}
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-gray-800 text-lg">{student.fullName}</h4>
-                              <p className="text-gray-600">{student.rollNo}</p>
-                              <div className="flex flex-wrap gap-2 mt-2">
-                                <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
-                                  {student.gender}
-                                </span>
-                                {student.attendance && (
-                                  <span className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
-                                    Attendance: {student.attendance}
-                                  </span>
-                                )}
-                                {student.grades && (
-                                  <span className="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs font-medium">
-                                    Grade: {student.grades}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center text-sm text-gray-500 mt-2">
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                </svg>
-                                {student.rollNo}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
-                            <button
-                              onClick={() => viewAcademicRecords(student)}
-                              className="flex items-center text-blue-600 hover:text-blue-800 transition-colors font-medium px-3 py-1 rounded-lg hover:bg-blue-50"
-                            >
-                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              Records
-                            </button>
-                            <button
-                              onClick={() => generateTranscript(student)}
-                              className="flex items-center text-purple-600 hover:text-purple-800 transition-colors font-medium px-3 py-1 rounded-lg hover:bg-purple-50"
-                            >
-                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                              </svg>
-                              Transcript
-                            </button>
-                            <button
-                              onClick={() => startEditingStudent(idx)}
-                              className="flex items-center text-green-600 hover:text-green-800 transition-colors font-medium px-3 py-1 rounded-lg hover:bg-green-50"
-                            >
-                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                              Edit
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 )}
               </div>
@@ -1183,12 +1030,12 @@ This is an official document from the University ERP System
                       <p className="text-2xl font-bold text-green-700">{selectedStudentForRecords.rollNo}</p>
                     </div>
                     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
-                      <p className="text-sm text-gray-600 mb-2">Overall Grade</p>
-                      <p className="text-2xl font-bold text-blue-700">{selectedStudentForRecords.grades}</p>
+                      <p className="text-sm text-gray-600 mb-2">GPA / Grade</p>
+                      <p className="text-2xl font-bold text-blue-700">{selectedStudentForRecords.grades || "N/A"}</p>
                     </div>
                     <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-6 rounded-lg border border-purple-200">
                       <p className="text-sm text-gray-600 mb-2">Attendance</p>
-                      <p className="text-2xl font-bold text-purple-700">{selectedStudentForRecords.attendance}</p>
+                      <p className="text-2xl font-bold text-purple-700">{selectedStudentForRecords.attendance || "N/A"}</p>
                     </div>
                   </div>
                 </div>

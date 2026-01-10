@@ -75,7 +75,7 @@ export default function StudentLogin() {
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-500"
-              placeholder="e.g. SE126-01 or student@university.edu"
+              placeholder="Enter your roll number or email"
               required
             />
           </div>
@@ -87,7 +87,7 @@ export default function StudentLogin() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-500"
-              placeholder="e.g. student123"
+              placeholder="Enter your password"
               required
             />
           </div>
