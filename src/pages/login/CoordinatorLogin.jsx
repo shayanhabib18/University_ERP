@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -29,9 +28,9 @@ export default function CoordinatorLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-white p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-4">
       <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
-        <h2 className="text-3xl font-bold text-center text-orange-600 mb-6">
+        <h2 className="text-3xl font-bold text-center text-blue-600 mb-6">
           Coordinator Login
         </h2>
 
@@ -43,7 +42,7 @@ export default function CoordinatorLogin() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-orange-500"
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-500"
               placeholder="e.g. coordinator@university.edu"
               required
             />
@@ -56,7 +55,7 @@ export default function CoordinatorLogin() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-orange-500"
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-500"
               placeholder="e.g. coordinator123"
               required
             />
@@ -68,7 +67,7 @@ export default function CoordinatorLogin() {
           {/* Login Button */}
           <button
             type="submit"
-            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-2 px-4 rounded-lg"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
           >
             Login
           </button>
@@ -77,7 +76,7 @@ export default function CoordinatorLogin() {
           <div className="text-center mt-2">
             <button
               type="button"
-              className="text-sm text-orange-600 hover:underline focus:outline-none"
+              className="text-sm text-blue-600 hover:text-blue-800 hover:underline focus:outline-none transition-colors duration-200"
               onClick={() => navigate("/forgot-password")}
             >
               Forgot password?

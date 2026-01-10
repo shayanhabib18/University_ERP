@@ -10,6 +10,7 @@ import courseRoutes from "./routes/courseRoutes.js";
 import facultyRoutes from "./routes/facultyRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js"; // student management routes
 import announcementRoutes from "./routes/announcementRoutes.js"; // announcement routes
+import studentRequestRoutes from "./routes/studentRequestRoutes.js"; // student requests module
 
 // Import auth routes from organized auth folder
 import { studentAuth, adminAuth } from "./src/routes/auth/index.js";
@@ -32,6 +33,7 @@ app.use("/admin/auth", adminAuth); // Admin authentication: login, verify, forgo
 app.use("/faculties", facultyRoutes);
 app.use("/students", studentRoutes); // student management routes
 app.use("/announcements", announcementRoutes); // announcement routes
+app.use("/requests", studentRequestRoutes); // student requests module (both student and coordinator)
 
 // Default route (optional)
 app.get("/", (req, res) => {
