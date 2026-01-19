@@ -34,6 +34,7 @@ app.use("/faculties", facultyRoutes);
 app.use("/students", studentRoutes); // student management routes
 app.use("/announcements", announcementRoutes); // announcement routes
 app.use("/requests", studentRequestRoutes); // student requests module (both student and coordinator)
+app.use("/api", studentRequestRoutes); // Also mount at /api for new endpoints
 
 // Default route (optional)
 app.get("/", (req, res) => {

@@ -23,15 +23,18 @@ const StudentManagement = () => {
     fatherName: "",
     dob: "",
     gender: "",
-    rollNo: "",
     cnic: "",
-    permanentAddress: "",
-    currentAddress: "",
+    rollNo: "",
+    joiningSession: "",
+    joiningDate: "",
     personalEmail: "",
     studentPhone: "",
     parentPhone: "",
-    joiningSession: "",
-    joiningDate: "",
+    permanentAddress: "",
+    city: "",
+    qualification: "",
+    totalMarks: "",
+    obtainedMarks: "",
     academicDocs: [],
     department: "",
     attendance: "",
@@ -154,8 +157,8 @@ const StudentManagement = () => {
       gender: formData.gender,
       roll_number: formData.rollNo,
       cnic: formData.cnic,
-      permanent_address: formData.permanentAddress,
-      current_address: formData.currentAddress,
+        address: formData.permanentAddress,
+      city: formData.city,
       personal_email: formData.personalEmail,
       student_phone: formData.studentPhone,
       parent_phone: formData.parentPhone,
@@ -169,6 +172,7 @@ const StudentManagement = () => {
     setLoading(true);
     setError("");
     setSuccess("");
+    setGeneratedCredentials(null);
 
     try {
       if (editingStudentId) {
@@ -182,13 +186,26 @@ const StudentManagement = () => {
           setActiveOption("");
         }, 2000);
       } else {
-        await studentAPI.create(studentData);
-        setSuccess("Student added successfully!");
+        const response = await studentAPI.create(studentData);
+        
+        // Check if credentials were returned
+        if (response?.credentials) {
+          setGeneratedCredentials(response.credentials);
+          setSuccess("Student registered successfully! Credentials have been sent to the student's email.");
+        } else {
+          setSuccess("Student added successfully!");
+        }
+        
         await loadStudents();
         setFormData(initialFormState);
+        
+        // Keep the success message visible longer if credentials are shown
         setTimeout(() => {
           setSuccess("");
-        }, 2000);
+          if (!response?.credentials) {
+            setGeneratedCredentials(null);
+          }
+        }, response?.credentials ? 8000 : 2000);
       }
     } catch (err) {
       setError(err?.message || "Failed to save student");
@@ -493,6 +510,37 @@ This is an official document from the University ERP System
                 {success && (
                   <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
                     ✓ {success}
+
+                                  {generatedCredentials && (
+                                    <div className="mb-4 p-4 bg-blue-50 border-2 border-blue-400 rounded-lg">
+                                      <h4 className="text-lg font-semibold text-blue-800 mb-3 flex items-center">
+                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                        Login Credentials (Sent to Student Email)
+                                      </h4>
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                                        <div className="bg-white p-3 rounded border border-blue-200">
+                                          <p className="text-gray-600 font-medium mb-1">Email</p>
+                                          <p className="text-gray-800 font-mono break-all">{generatedCredentials.email}</p>
+                                        </div>
+                                        <div className="bg-white p-3 rounded border border-blue-200">
+                                          <p className="text-gray-600 font-medium mb-1">Roll Number</p>
+                                          <p className="text-gray-800 font-mono">{generatedCredentials.rollNumber}</p>
+                                        </div>
+                                        <div className="bg-white p-3 rounded border border-blue-200">
+                                          <p className="text-gray-600 font-medium mb-1">Temporary Password</p>
+                                          <p className="text-gray-800 font-mono">{generatedCredentials.temporaryPassword}</p>
+                                        </div>
+                                      </div>
+                                      <p className="text-xs text-blue-700 mt-3 flex items-center">
+                                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        These credentials have been emailed to the student. They should change their password on first login.
+                                      </p>
+                                    </div>
+                                  )}
                   </div>
                 )}
 
@@ -519,13 +567,13 @@ This is an official document from the University ERP System
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Father's Name *
+                        Father Name *
                       </label>
                       <input
                         name="fatherName"
                         value={formData.fatherName}
                         onChange={handleChange}
-                        placeholder="Enter father's name"
+                        placeholder="Enter father name"
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
                         required
                       />
@@ -533,7 +581,7 @@ This is an official document from the University ERP System
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Date of Birth *
+                        DOB *
                       </label>
                       <input
                         name="dob"
@@ -563,23 +611,24 @@ This is an official document from the University ERP System
                       </select>
                     </div>
 
-                    {/* Academic Information */}
-                    <div className="md:col-span-2 mt-4">
-                      <h4 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Academic Information</h4>
-                    </div>
-
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        CNIC/B-Form *
+                        CNIC Number *
                       </label>
                       <input
                         name="cnic"
                         value={formData.cnic}
                         onChange={handleChange}
-                        placeholder="Enter CNIC or B-Form number"
+                        placeholder="Enter 13-digit CNIC number"
+                        maxLength="13"
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
                         required
                       />
+                    </div>
+
+                    {/* Academic Information */}
+                    <div className="md:col-span-2 mt-4">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Academic Information</h4>
                     </div>
 
                     <div>
@@ -639,68 +688,128 @@ This is an official document from the University ERP System
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Personal Email
+                        Student Email *
                       </label>
                       <input
                         name="personalEmail"
                         type="email"
                         value={formData.personalEmail}
                         onChange={handleChange}
-                        placeholder="personal@email.com"
+                        placeholder="student@email.com"
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        required
                       />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Student Phone
+                        Student Phone Number *
                       </label>
                       <input
                         name="studentPhone"
+                        type="tel"
                         value={formData.studentPhone}
                         onChange={handleChange}
                         placeholder="+92 300 1234567"
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        required
                       />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Parent/Guardian Phone
+                        Parent Phone Number *
                       </label>
                       <input
                         name="parentPhone"
+                        type="tel"
                         value={formData.parentPhone}
                         onChange={handleChange}
                         placeholder="+92 300 1234567"
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        required
                       />
                     </div>
 
-                    {/* Address Information */}
-                    <div className="md:col-span-2">
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Permanent Address
+                        Address
                       </label>
                       <input
                         name="permanentAddress"
                         value={formData.permanentAddress}
                         onChange={handleChange}
-                        placeholder="Enter permanent address"
+                        placeholder="Enter address"
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
                       />
                     </div>
 
-                    <div className="md:col-span-2">
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Current Address
+                        City
                       </label>
                       <input
-                        name="currentAddress"
-                        value={formData.currentAddress}
+                        name="city"
+                        value={formData.city}
                         onChange={handleChange}
-                        placeholder="Enter current address (if different)"
+                        placeholder="Enter city name"
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                      />
+                    </div>
+
+                    {/* Last Qualification */}
+                    <div className="md:col-span-2 mt-4">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Last Qualification</h4>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Last Qualification *
+                      </label>
+                      <select
+                        name="qualification"
+                        value={formData.qualification}
+                        onChange={handleChange}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        required
+                      >
+                        <option value="">Select Last Qualification</option>
+                        <option value="FSc">FSc (Pre-Engineering/Pre-Medical)</option>
+                        <option value="A-Levels">A-Levels</option>
+                        <option value="ICS">ICS (Intermediate Computer Science)</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Total Marks *
+                      </label>
+                      <input
+                        name="totalMarks"
+                        type="number"
+                        value={formData.totalMarks}
+                        onChange={handleChange}
+                        placeholder="Enter total marks"
+                        min="0"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Obtained Marks *
+                      </label>
+                      <input
+                        name="obtainedMarks"
+                        type="number"
+                        value={formData.obtainedMarks}
+                        onChange={handleChange}
+                        placeholder="Enter obtained marks"
+                        min="0"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                        required
                       />
                     </div>
                   </div>
@@ -708,7 +817,7 @@ This is an official document from the University ERP System
                   {/* Documents Upload */}
                   <div className="border-t border-gray-200 pt-6">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Academic Documents
+                      Upload Academic Documents
                     </label>
                     <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-green-400 transition-colors">
                       <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

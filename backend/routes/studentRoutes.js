@@ -2,7 +2,7 @@
 // Express routes for student management aligned with Supabase schema
 import express from "express";
 import supabase from "../model/supabaseClient.js";
-import { sendWelcomeWithPasswordReset } from "../utils/mailer.js";
+import { sendApprovalEmailWithLink } from "../utils/mailer.js";
 
 const router = express.Router();
 
@@ -60,12 +60,16 @@ router.post("/signup-requests", async (req, res) => {
     const {
       student_name,
       father_name,
+        date_of_birth,
+        gender,
       email,
       mobile,
+        parent_phone,
       cnic,
       qualification,
       obtained_marks,
       total_marks,
+        address,
       city,
       department_id,
       joining_date,
@@ -98,6 +102,10 @@ router.post("/signup-requests", async (req, res) => {
       .from("student_signup_requests")
       .insert([
         {
+                    date_of_birth,
+                    gender,
+                    parent_phone,
+                    address,
           student_name,
           father_name,
           email,
@@ -146,7 +154,7 @@ router.put("/signup-requests/:requestId", async (req, res) => {
   }
 });
 
-// APPROVE signup request - create auth user, student record, and send password reset link
+// APPROVE signup request - create auth user, student record, and email reset link
 router.post("/signup-requests/:requestId/approve", async (req, res) => {
   try {
     const { requestId } = req.params;
@@ -165,20 +173,12 @@ router.post("/signup-requests/:requestId/approve", async (req, res) => {
 
     const email = request.email;
 
-    // Create Supabase Auth user with a random temporary password (will be changed via reset link)
-    const generateRandomPassword = () => {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz0123456789!@#$%^&*';
-      let password = '';
-      for (let i = 0; i < 16; i++) {
-        password += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return password;
-    };
+    // Create Supabase Auth user with a random internal password (not shared) and confirm email
+    const internalPassword = `Student@${Math.random().toString(36).slice(-12)}`;
 
-    // Create Supabase Auth user
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
       email: email,
-      password: generateRandomPassword(),
+      password: internalPassword,
       email_confirm: true,
       user_metadata: {
         full_name: request.student_name,
@@ -189,7 +189,7 @@ router.post("/signup-requests/:requestId/approve", async (req, res) => {
 
     if (authError) throw new Error(`Failed to create auth user: ${authError.message}`);
 
-    // Auto-generate roll number with batch year format: SE101-01, SE101-02, etc.
+    // Auto-generate roll number with batch year format
     const { data: dept } = await supabase
       .from("departments")
       .select("code,name")
@@ -198,11 +198,9 @@ router.post("/signup-requests/:requestId/approve", async (req, res) => {
 
     const prefixSource = dept?.code || dept?.name || "STU";
     const prefix = prefixSource.toString().trim();
-    
-    // Get current year for batch (e.g., 2026 -> 101 for batch 2026, or use joining year)
     const joiningYear = request.joining_date ? new Date(request.joining_date).getFullYear() : new Date().getFullYear();
-    const batchYear = joiningYear.toString().slice(-2); // Last 2 digits: 2026 -> 26
-    const rollPrefix = `${prefix}1${batchYear}`; // e.g., SE126 for Software Engineering batch 2026
+    const batchYear = joiningYear.toString().slice(-2);
+    const rollPrefix = `${prefix}1${batchYear}`;
 
     const { data: lastRoll } = await supabase
       .from("students")
@@ -222,7 +220,7 @@ router.post("/signup-requests/:requestId/approve", async (req, res) => {
       }
     }
 
-    const rollNumber = `${rollPrefix}-${String(nextNumber).padStart(2, "0")}`; // e.g., SE126-01
+    const rollNumber = `${rollPrefix}-${String(nextNumber).padStart(2, "0")}`;
 
     // Create student record
     const { error: studentError } = await supabase
@@ -231,8 +229,8 @@ router.post("/signup-requests/:requestId/approve", async (req, res) => {
         auth_user_id: authUser.user.id,
         full_name: request.student_name,
         father_name: request.father_name,
-        date_of_birth: null, // Will be updated later by student
-        gender: null, // Will be updated later by student
+        date_of_birth: request.date_of_birth || null,
+        gender: request.gender || null,
         cnic: request.cnic,
         roll_number: rollNumber,
         department_id: request.department_id,
@@ -240,14 +238,13 @@ router.post("/signup-requests/:requestId/approve", async (req, res) => {
         joining_date: request.joining_date,
         personal_email: request.email,
         student_phone: request.mobile,
-        parent_phone: null,
-        permanent_address: null,
-        current_address: request.city,
+        parent_phone: request.parent_phone || null,
+        permanent_address: request.address || null,
+        city: request.city,
         status: "active"
       }]);
 
     if (studentError) {
-      // Rollback: delete auth user if student creation fails
       await supabase.auth.admin.deleteUser(authUser.user.id);
       throw new Error(`Failed to create student record: ${studentError.message}`);
     }
@@ -258,12 +255,8 @@ router.post("/signup-requests/:requestId/approve", async (req, res) => {
       .update({ status: "approved" })
       .eq("id", requestId);
 
-    // Generate password reset link and send approval email
+    // Send password-reset link email to student (best-effort)
     try {
-      const { sendApprovalEmailWithLink } = await import('../utils/mailer.js');
-      const departmentName = dept?.name || 'N/A';
-      
-      // Generate recovery link using Supabase admin
       const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
         type: 'recovery',
         email: email,
@@ -277,40 +270,26 @@ router.post("/signup-requests/:requestId/approve", async (req, res) => {
         throw new Error(`Failed to generate reset link: ${linkError.message}`);
       }
 
-      // Extract the recovery link
-      let resetLink = linkData?.properties?.action_link || 
-                     linkData?.action_link || 
-                     `http://localhost:5173/reset-password#access_token=${linkData?.properties?.hashed_token}&type=recovery`;
+      const resetLink = linkData?.properties?.action_link || linkData?.action_link;
+      const departmentName = dept?.name || 'N/A';
 
       await sendApprovalEmailWithLink({
         toEmail: email,
         fullName: request.student_name,
         rollNumber: rollNumber,
-        departmentName: departmentName,
-        resetLink: resetLink,
+        departmentName,
+        resetLink,
       });
 
-      console.log(`\n${'='.repeat(60)}`);
-      console.log('✉️  APPROVAL EMAIL WITH PASSWORD LINK SENT');
-      console.log('='.repeat(60));
-      console.log(`To: ${email}`);
-      console.log(`Roll Number: ${rollNumber}`);
-      console.log(`Student Name: ${request.student_name}`);
-      console.log(`Department: ${departmentName}`);
-      console.log(`Instructions: Student clicks link to set initial password`);
-
-      console.log('='.repeat(60) + '\n');
-
-
+      console.log(`✓ Approval email sent for ${request.student_name} (${rollNumber})`);
     } catch (mailErr) {
-      console.warn("Failed to send approval email:", mailErr?.message || mailErr);
-      // Continue anyway - student can set password via forgot password later
+      console.warn("Failed to send reset-link email:", mailErr?.message || mailErr);
     }
 
-    res.json({
+    res.status(200).json({
       success: true,
-      message: "Student approved. Notification email sent with login details.",
-      rollNumber: rollNumber
+      message: "Student approved. Reset link emailed to student.",
+      rollNumber,
     });
   } catch (error) {
     console.error("Approval error:", error);
@@ -388,7 +367,7 @@ router.get("/me", async (req, res) => {
 
     const { data: student, error } = await supabase
       .from("students")
-      .select("id, full_name, roll_number, personal_email, student_phone, current_address, joining_session, department_id")
+      .select("id, full_name, roll_number, personal_email, student_phone, city, joining_session, joining_date, permanent_address, department_id")
       .eq("auth_user_id", userId)
       .single();
 
@@ -449,7 +428,209 @@ router.get("/:studentId", async (req, res) => {
   }
 });
 
+// CREATE new student with Supabase Auth account and send reset link
+// Primary endpoint: POST /students (from admin panel)
+router.post("/", async (req, res) => {
+  // Delegate to register-with-auth logic
+  const {
+    full_name,
+    father_name,
+    date_of_birth,
+    gender,
+    cnic,
+    department_id,
+    joining_session,
+    joining_date,
+    personal_email,
+    student_phone,
+    parent_phone,
+  } = req.body;
+
+  const required = [
+    "full_name",
+    "father_name",
+    "cnic",
+    "department_id",
+    "personal_email",
+  ];
+
+  for (const field of required) {
+    if (!req.body?.[field]) {
+      return res.status(400).json({ error: `${field} is required` });
+    }
+  }
+
+  try {
+    // Check if student already exists in database
+    const { data: existingStudent } = await supabase
+      .from("students")
+      .select("id")
+      .eq("personal_email", personal_email)
+      .single();
+
+    if (existingStudent) {
+      return res.status(400).json({ error: "A student with this email already exists" });
+    }
+
+    // Create Supabase Auth user with internal password (not shared)
+    const internalPassword = `Student@${Math.random().toString(36).slice(-12)}`;
+    let authUser = null;
+    let isNewAuthUser = true;
+
+    const { data: createdUser, error: authError } = await supabase.auth.admin.createUser({
+      email: personal_email,
+      password: internalPassword,
+      email_confirm: true,
+      user_metadata: {
+        full_name: full_name,
+        role: 'student',
+        department_id: department_id
+      }
+    });
+
+    if (authError) {
+      // If auth user already exists with this email in auth system, try to fetch and reuse it
+      if (authError.message.includes("already been registered") || authError.message.includes("already exists")) {
+        console.warn(`⚠️  Auth user already exists for ${personal_email}, attempting to reuse...`);
+        // Try to get the existing user via admin API
+        const { data: users } = await supabase.auth.admin.listUsers();
+        const existingAuthUser = users?.users?.find(u => u.email?.toLowerCase() === personal_email.toLowerCase());
+        
+        if (existingAuthUser) {
+          authUser = { user: existingAuthUser };
+          isNewAuthUser = false;
+          console.log(`✓ Reusing existing auth user for ${personal_email}`);
+        } else {
+          throw new Error(`Auth user exists but cannot be retrieved for ${personal_email}`);
+        }
+      } else {
+        throw new Error(`Failed to create auth user: ${authError.message}`);
+      }
+    } else {
+      authUser = { user: createdUser.user };
+    }
+
+    // Auto-generate roll number with batch year format
+    const { data: dept, error: deptError } = await supabase
+      .from("departments")
+      .select("code,name")
+      .eq("id", department_id)
+      .single();
+
+    if (deptError) {
+      // Only delete auth user if we just created it (not if reusing existing)
+      if (isNewAuthUser) {
+        await supabase.auth.admin.deleteUser(authUser.user.id);
+      }
+      throw deptError;
+    }
+
+    const prefixSource = dept?.code || dept?.name || "DEP";
+    const prefix = (prefixSource || "DEP").toString().trim();
+    
+    // Get batch year from joining date
+    const joiningYear = joining_date ? new Date(joining_date).getFullYear() : new Date().getFullYear();
+    const batchYear = joiningYear.toString().slice(-2);
+    const rollPrefix = `${prefix}1${batchYear}`;
+
+    const { data: lastRoll } = await supabase
+      .from("students")
+      .select("roll_number")
+      .eq("department_id", department_id)
+      .ilike("roll_number", `${rollPrefix}-%`)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let nextNumber = 1;
+    if (lastRoll?.roll_number) {
+      const parts = lastRoll.roll_number.split("-");
+      const maybeNum = parseInt(parts[parts.length - 1], 10);
+      if (!Number.isNaN(maybeNum)) {
+        nextNumber = maybeNum + 1;
+      }
+    }
+
+    const finalRollNumber = `${rollPrefix}-${String(nextNumber).padStart(2, "0")}`;
+
+    // Create student record
+    const { data, error } = await supabase
+      .from("students")
+      .insert([
+        {
+          auth_user_id: authUser.user.id,
+          full_name,
+          father_name,
+          date_of_birth,
+          gender,
+          cnic,
+          roll_number: finalRollNumber,
+          permanent_address: req.body.address || req.body.permanent_address || null,
+          department_id,
+          joining_session,
+          joining_date,
+          personal_email,
+          student_phone,
+          parent_phone,
+          city: req.body.city || null,
+          status: "active",
+        },
+      ])
+      .select();
+
+    if (error) {
+      // Rollback: delete auth user only if we just created it (not if reusing existing)
+      if (isNewAuthUser) {
+        await supabase.auth.admin.deleteUser(authUser.user.id);
+      }
+      throw error;
+    }
+
+    // Attempt to send reset-link email
+    try {
+      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+        type: 'recovery',
+        email: personal_email,
+        options: {
+          redirectTo: 'http://localhost:5173/reset-password'
+        }
+      });
+
+      if (linkError) {
+        console.warn(`⚠️  Failed to generate reset link: ${linkError.message}`);
+        throw new Error(`Failed to generate reset link: ${linkError.message}`);
+      }
+
+      const resetLink = linkData?.properties?.action_link || linkData?.action_link;
+      const departmentName = dept?.name || 'N/A';
+
+      await sendApprovalEmailWithLink({
+        toEmail: personal_email,
+        fullName: full_name,
+        rollNumber: finalRollNumber,
+        departmentName,
+        resetLink,
+      });
+    } catch (mailErr) {
+      console.warn("Failed to send reset-link email:", mailErr?.message || mailErr);
+    }
+
+    res.status(201).json({
+      success: true,
+      student: data?.[0],
+      roll_number: finalRollNumber,
+      message: "Student created. Reset link emailed to student.",
+    });
+  } catch (error) {
+    console.error("Registration error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // CREATE new student with Supabase Auth account and send credentials
+// Legacy endpoint for backward compatibility - removed (POST / handles this now)
+// router.post("/register-with-auth") → use POST / instead
+
 router.post("/register-with-auth", async (req, res) => {
   try {
     const {
@@ -464,8 +645,6 @@ router.post("/register-with-auth", async (req, res) => {
       personal_email,
       student_phone,
       parent_phone,
-      permanent_address,
-      current_address,
     } = req.body;
 
     const required = [
@@ -482,22 +661,25 @@ router.post("/register-with-auth", async (req, res) => {
       }
     }
 
-    // Generate temporary password
-    const generatePassword = () => {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-      let password = '';
-      for (let i = 0; i < 10; i++) {
-        password += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return password;
-    };
+    // Check if student already exists in database
+    const { data: existingStudent } = await supabase
+      .from("students")
+      .select("id")
+      .eq("personal_email", personal_email)
+      .single();
 
-    const temporaryPassword = generatePassword();
+    if (existingStudent) {
+      return res.status(400).json({ error: "A student with this email already exists" });
+    }
 
-    // Create Supabase Auth user
-    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+    // Create Supabase Auth user with internal password (not shared)
+    const internalPassword = `Student@${Math.random().toString(36).slice(-12)}`;
+    let authUser = null;
+    let isNewAuthUser = true;
+
+    const { data: createdUser, error: authError } = await supabase.auth.admin.createUser({
       email: personal_email,
-      password: temporaryPassword,
+      password: internalPassword,
       email_confirm: true,
       user_metadata: {
         full_name: full_name,
@@ -506,7 +688,27 @@ router.post("/register-with-auth", async (req, res) => {
       }
     });
 
-    if (authError) throw new Error(`Failed to create auth user: ${authError.message}`);
+    if (authError) {
+      // If auth user already exists with this email in auth system, try to fetch and reuse it
+      if (authError.message.includes("already been registered") || authError.message.includes("already exists")) {
+        console.warn(`⚠️  Auth user already exists for ${personal_email}, attempting to reuse...`);
+        // Try to get the existing user via admin API
+        const { data: users } = await supabase.auth.admin.listUsers();
+        const existingAuthUser = users?.users?.find(u => u.email?.toLowerCase() === personal_email.toLowerCase());
+        
+        if (existingAuthUser) {
+          authUser = { user: existingAuthUser };
+          isNewAuthUser = false;
+          console.log(`✓ Reusing existing auth user for ${personal_email}`);
+        } else {
+          throw new Error(`Auth user exists but cannot be retrieved for ${personal_email}`);
+        }
+      } else {
+        throw new Error(`Failed to create auth user: ${authError.message}`);
+      }
+    } else {
+      authUser = { user: createdUser.user };
+    }
 
     // Auto-generate roll number with batch year format
     const { data: dept, error: deptError } = await supabase
@@ -516,7 +718,10 @@ router.post("/register-with-auth", async (req, res) => {
       .single();
 
     if (deptError) {
-      await supabase.auth.admin.deleteUser(authUser.user.id);
+      // Only delete auth user if we just created it (not if reusing existing)
+      if (isNewAuthUser) {
+        await supabase.auth.admin.deleteUser(authUser.user.id);
+      }
       throw deptError;
     }
 
@@ -566,153 +771,58 @@ router.post("/register-with-auth", async (req, res) => {
           personal_email,
           student_phone,
           parent_phone,
-          permanent_address,
-          current_address,
+          permanent_address: req.body.address || req.body.permanent_address || null,
+          city: req.body.city || null,
           status: "active",
         },
       ])
       .select();
 
     if (error) {
-      // Rollback: delete auth user if student creation fails
-      await supabase.auth.admin.deleteUser(authUser.user.id);
+      // Rollback: delete auth user only if we just created it (not if reusing existing)
+      if (isNewAuthUser) {
+        await supabase.auth.admin.deleteUser(authUser.user.id);
+      }
       throw error;
     }
 
-    // Attempt to send credentials email
+    // Attempt to send reset-link email
     try {
-      await sendStudentCredentials({
+      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+        type: 'recovery',
+        email: personal_email,
+        options: {
+          redirectTo: 'http://localhost:5173/reset-password'
+        }
+      });
+
+      if (linkError) {
+        console.warn(`⚠️  Failed to generate reset link: ${linkError.message}`);
+        throw new Error(`Failed to generate reset link: ${linkError.message}`);
+      }
+
+      const resetLink = linkData?.properties?.action_link || linkData?.action_link;
+      const departmentName = dept?.name || 'N/A';
+
+      await sendApprovalEmailWithLink({
         toEmail: personal_email,
         fullName: full_name,
         rollNumber: finalRollNumber,
-        temporaryPassword,
+        departmentName,
+        resetLink,
       });
     } catch (mailErr) {
-      console.warn("Failed to send credentials email:", mailErr?.message || mailErr);
+      console.warn("Failed to send reset-link email:", mailErr?.message || mailErr);
     }
-
-    // Log credentials
-    console.log(`\n✉️  STUDENT CREDENTIALS GENERATED ✉️`);
-    console.log(`Email: ${personal_email}`);
-    console.log(`Temporary Password: ${temporaryPassword}`);
-    console.log(`Roll Number: ${finalRollNumber}`);
-    console.log(`-----------------------------------\n`);
 
     res.status(201).json({
       success: true,
       student: data?.[0],
-      credentials: {
-        email: personal_email,
-        temporaryPassword: temporaryPassword,
-        rollNumber: finalRollNumber
-      }
+      roll_number: finalRollNumber,
+      message: "Student created. Reset link emailed to student.",
     });
   } catch (error) {
     console.error("Registration error:", error);
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// CREATE new student (without auth - legacy endpoint)
-router.post("/", async (req, res) => {
-  try {
-    const {
-      full_name,
-      father_name,
-      date_of_birth,
-      gender,
-      cnic,
-      roll_number,
-      department_id,
-      joining_session,
-      joining_date,
-      personal_email,
-      student_phone,
-      parent_phone,
-      permanent_address,
-      current_address,
-    } = req.body;
-
-    const required = [
-      "full_name",
-      "father_name",
-      "cnic",
-      "department_id",
-      "date_of_birth",
-    ];
-
-    for (const field of required) {
-      if (!req.body?.[field]) {
-        return res.status(400).json({ error: `${field} is required` });
-      }
-    }
-
-    // Auto-generate roll number when not provided: uses department code with batch year (e.g., SE126-01)
-    let finalRollNumber = roll_number;
-    if (!finalRollNumber) {
-      const { data: dept, error: deptError } = await supabase
-        .from("departments")
-        .select("code,name")
-        .eq("id", department_id)
-        .single();
-
-      if (deptError) throw deptError;
-
-      const prefixSource = dept?.code || dept?.name || "DEP";
-      const prefix = (prefixSource || "DEP").toString().trim();
-      
-      // Get batch year from joining date
-      const joiningYear = joining_date ? new Date(joining_date).getFullYear() : new Date().getFullYear();
-      const batchYear = joiningYear.toString().slice(-2);
-      const rollPrefix = `${prefix}1${batchYear}`;
-
-      const { data: lastRoll } = await supabase
-        .from("students")
-        .select("roll_number")
-        .eq("department_id", department_id)
-        .ilike("roll_number", `${rollPrefix}-%`)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      let nextNumber = 1;
-      if (lastRoll?.roll_number) {
-        const parts = lastRoll.roll_number.split("-");
-        const maybeNum = parseInt(parts[parts.length - 1], 10);
-        if (!Number.isNaN(maybeNum)) {
-          nextNumber = maybeNum + 1;
-        }
-      }
-
-      finalRollNumber = `${rollPrefix}-${String(nextNumber).padStart(2, "0")}`;
-    }
-
-    const { data, error } = await supabase
-      .from("students")
-      .insert([
-        {
-          full_name,
-          father_name,
-          date_of_birth,
-          gender,
-          cnic,
-          roll_number: finalRollNumber,
-          department_id,
-          joining_session,
-          joining_date,
-          personal_email,
-          student_phone,
-          parent_phone,
-          permanent_address,
-          current_address,
-          status: "active",
-        },
-      ])
-      .select();
-
-    if (error) throw error;
-    res.status(201).json(data?.[0]);
-  } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
@@ -898,7 +1008,6 @@ router.get("/documents/student/:studentId", async (req, res) => {
 router.delete("/documents/:documentId", async (req, res) => {
   try {
     const { documentId } = req.params;
-
     const { error } = await supabase
       .from("student_documents")
       .delete()

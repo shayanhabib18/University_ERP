@@ -7,6 +7,7 @@ export default function HandleRequests() {
   const [error, setError] = useState("");
 
   const [requests, setRequests] = useState([]);
+  const [viewingRequest, setViewingRequest] = useState(null);
 
   const [studentRequests, setStudentRequests] = useState([]);
   const [viewingStudent, setViewingStudent] = useState(null);
@@ -26,13 +27,27 @@ export default function HandleRequests() {
     try {
       setLoading(true);
       setError("");
-      // For now showing empty state - you can create a backend endpoint for general requests later
-      // const response = await fetch("http://localhost:5000/requests/general");
-      // const data = await response.json();
-      setRequests([]);
+      const token = localStorage.getItem("admin_token");
+      console.log("Fetching with token:", token ? "present" : "missing");
+      
+      const response = await fetch("http://localhost:5000/api/admin/student-requests", {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Error response:", errorData);
+        throw new Error(`HTTP ${response.status}: ${errorData.error || errorData.details || "Failed to load"}`);
+      }
+      
+      const data = await response.json();
+      console.log("Fetched student requests:", data);
+      setRequests(data || []);
     } catch (err) {
       console.error("Failed to fetch general requests:", err);
-      setError("Failed to load general requests.");
+      setError(`Failed to load general requests: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -66,6 +81,74 @@ export default function HandleRequests() {
         req.id === id ? { ...req, status: "Resolved" } : req
       )
     );
+  };
+
+  // Approve Profile Edit Request
+  const handleApproveProfileEdit = async (requestId) => {
+    try {
+      setLoading(true);
+      setError("");
+      const token = localStorage.getItem("admin_token");
+      
+      const response = await fetch(`http://localhost:5000/api/admin/requests/${requestId}/approve-profile-edit`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to approve profile edit request");
+      }
+
+      const data = await response.json();
+      alert(data.message || "Profile updated successfully!");
+
+      // Refresh the requests
+      await fetchGeneralRequests();
+    } catch (err) {
+      console.error("Error approving profile edit:", err);
+      setError(err.message || "Failed to approve profile edit request");
+      alert(err.message || "Failed to approve profile edit request");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reject Profile Edit Request
+  const handleRejectProfileEdit = async (requestId) => {
+    try {
+      setLoading(true);
+      setError("");
+      const token = localStorage.getItem("admin_token");
+      
+      const response = await fetch(`http://localhost:5000/api/admin/requests/${requestId}/reject-profile-edit`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to reject profile edit request");
+      }
+
+      const data = await response.json();
+      alert(data.message || "Request rejected successfully");
+
+      // Refresh the requests
+      await fetchGeneralRequests();
+    } catch (err) {
+      console.error("Error rejecting profile edit:", err);
+      setError(err.message || "Failed to reject profile edit request");
+      alert(err.message || "Failed to reject profile edit request");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Student Approve / Decline
@@ -218,33 +301,147 @@ export default function HandleRequests() {
             </div>
           ) : (
             <div className="space-y-4">
-              {requests.map((req) => (
-                <div key={req.id} className="border p-4 rounded-lg shadow-sm">
-                  <p className="font-semibold">From: {req.sender}</p>
-                  <p className="text-gray-600 mt-1">{req.message}</p>
-                  <p className="text-sm mt-2">
-                    Status:{" "}
-                    <span
-                      className={`font-medium ${
-                        req.status === "Resolved"
-                          ? "text-green-600"
-                          : "text-orange-600"
-                      }`}
-                    >
-                      {req.status}
-                    </span>
-                  </p>
+              {requests.map((req) => {
+                // Check if this is a PROFILE_EDIT request
+                const isProfileEdit = req.request_type === 'PROFILE_EDIT';
+                const changes = isProfileEdit ? req.payload : null;
+                
+                return (
+                  <div key={req.id} className="border p-4 rounded-lg shadow-sm">
+                    {isProfileEdit ? (
+                      <>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-semibold text-lg text-indigo-700">
+                              Profile Edit Request
+                            </p>
+                            <p className="text-sm text-gray-600 mt-1">
+                              Student: <span className="font-medium">{req.student_name}</span> (Roll: {req.student_roll_number})
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Requested: {new Date(req.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              req.status === "approved"
+                                ? "bg-green-100 text-green-700"
+                                : req.status === "rejected"
+                                ? "bg-red-100 text-red-700"
+                                : "bg-orange-100 text-orange-700"
+                            }`}
+                          >
+                            {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
+                          </span>
+                        </div>
 
-                  {req.status !== "Resolved" && (
-                    <button
-                      onClick={() => handleResolve(req.id)}
-                      className="mt-3 bg-indigo-600 text-white px-4 py-1 rounded hover:bg-indigo-700"
-                    >
-                      Mark as Resolved
-                    </button>
-                  )}
-                </div>
-              ))}
+                        {/* Display requested changes */}
+                        {changes && Object.keys(changes).length > 0 && (
+                          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <p className="font-semibold text-blue-900 mb-2">Requested Changes:</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {changes.phone && (
+                                <div>
+                                  <p className="text-xs text-blue-700 uppercase">Phone</p>
+                                  <p className="font-medium text-blue-900">{changes.phone}</p>
+                                </div>
+                              )}
+                              {changes.mobile && (
+                                <div>
+                                  <p className="text-xs text-blue-700 uppercase">Mobile</p>
+                                  <p className="font-medium text-blue-900">{changes.mobile}</p>
+                                </div>
+                              )}
+                              {changes.address && (
+                                <div>
+                                  <p className="text-xs text-blue-700 uppercase">Address</p>
+                                  <p className="font-medium text-blue-900">{changes.address}</p>
+                                </div>
+                              )}
+                              {changes.city && (
+                                <div>
+                                  <p className="text-xs text-blue-700 uppercase">City</p>
+                                  <p className="font-medium text-blue-900">{changes.city}</p>
+                                </div>
+                              )}
+                              {changes.email && (
+                                <div>
+                                  <p className="text-xs text-blue-700 uppercase">Email</p>
+                                  <p className="font-medium text-blue-900">{changes.email}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {req.status === "pending" && (
+                          <div className="flex gap-3 mt-4">
+                            <button
+                              onClick={() => setViewingRequest(req)}
+                              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+                            >
+                              View Details
+                            </button>
+                            <button
+                              onClick={() => handleApproveProfileEdit(req.id)}
+                              disabled={loading}
+                              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {loading ? "Approving..." : "Approve Changes"}
+                            </button>
+                            <button
+                              onClick={() => handleRejectProfileEdit(req.id)}
+                              disabled={loading}
+                              className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {loading ? "Rejecting..." : "Reject Request"}
+                            </button>
+                          </div>
+                        )}
+
+                        {req.status !== "pending" && (
+                          <div className="flex gap-3 mt-4">
+                            <button
+                              onClick={() => setViewingRequest(req)}
+                              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+                            >
+                              View Details
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-semibold">Request Type: {req.request_type}</p>
+                        <p className="text-gray-600 mt-1">{req.description || "No description"}</p>
+                        <p className="text-sm mt-2">
+                          Status:{" "}
+                          <span
+                            className={`font-medium ${
+                              req.status === "approved"
+                                ? "text-green-600"
+                                : req.status === "rejected"
+                                ? "text-red-600"
+                                : "text-orange-600"
+                            }`}
+                          >
+                            {req.status}
+                          </span>
+                        </p>
+
+                        {req.status !== "approved" && req.status !== "rejected" && (
+                          <button
+                            onClick={() => handleResolve(req.id)}
+                            className="mt-3 bg-indigo-600 text-white px-4 py-1 rounded hover:bg-indigo-700"
+                          >
+                            Mark as Resolved
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </>
@@ -735,6 +932,175 @@ export default function HandleRequests() {
               <button
                 onClick={() => setGeneratedCredentials(null)}
                 className="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Request Details Modal */}
+      {viewingRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full my-8">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-blue-50">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Request Details
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {viewingRequest.request_type === 'PROFILE_EDIT' ? 'Profile Update Request' : viewingRequest.request_type}
+                </p>
+              </div>
+              <button
+                onClick={() => setViewingRequest(null)}
+                className="text-gray-500 hover:text-gray-700 text-3xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+              <div className="space-y-6">
+                {/* Student Information */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-blue-900 mb-3">Student Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-blue-700 uppercase">Student Name</p>
+                      <p className="font-semibold text-blue-900">{viewingRequest.student_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-blue-700 uppercase">Roll Number</p>
+                      <p className="font-semibold text-blue-900">{viewingRequest.student_roll_number || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Request Information */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-3">Request Details</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Request Type</p>
+                      <p className="font-medium text-gray-800">{viewingRequest.request_type}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Status</p>
+                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                        viewingRequest.status === 'approved' 
+                          ? 'bg-green-100 text-green-700'
+                          : viewingRequest.status === 'rejected'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-orange-100 text-orange-700'
+                      }`}>
+                        {viewingRequest.status.charAt(0).toUpperCase() + viewingRequest.status.slice(1)}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Priority</p>
+                      <p className="font-medium text-gray-800">{viewingRequest.priority || 'N/A'}</p>
+                    </div>
+                    {viewingRequest.title && (
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Title</p>
+                        <p className="font-medium text-gray-800">{viewingRequest.title}</p>
+                      </div>
+                    )}
+                    {viewingRequest.description && (
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Description</p>
+                        <p className="text-gray-700">{viewingRequest.description}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Submitted On</p>
+                      <p className="font-medium text-gray-800">{new Date(viewingRequest.created_at).toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Requested Changes (for PROFILE_EDIT) */}
+                {viewingRequest.request_type === 'PROFILE_EDIT' && viewingRequest.payload && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-yellow-900 mb-3">Requested Changes</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {viewingRequest.payload.phone && (
+                        <div>
+                          <p className="text-xs text-yellow-700 uppercase">Phone</p>
+                          <p className="font-semibold text-yellow-900">{viewingRequest.payload.phone}</p>
+                        </div>
+                      )}
+                      {viewingRequest.payload.mobile && (
+                        <div>
+                          <p className="text-xs text-yellow-700 uppercase">Mobile</p>
+                          <p className="font-semibold text-yellow-900">{viewingRequest.payload.mobile}</p>
+                        </div>
+                      )}
+                      {viewingRequest.payload.address && (
+                        <div>
+                          <p className="text-xs text-yellow-700 uppercase">Address</p>
+                          <p className="font-semibold text-yellow-900">{viewingRequest.payload.address}</p>
+                        </div>
+                      )}
+                      {viewingRequest.payload.city && (
+                        <div>
+                          <p className="text-xs text-yellow-700 uppercase">City</p>
+                          <p className="font-semibold text-yellow-900">{viewingRequest.payload.city}</p>
+                        </div>
+                      )}
+                      {viewingRequest.payload.email && (
+                        <div>
+                          <p className="text-xs text-yellow-700 uppercase">Email</p>
+                          <p className="font-semibold text-yellow-900">{viewingRequest.payload.email}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Resolution Note */}
+                {viewingRequest.resolution_note && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">Resolution Note</h3>
+                    <p className="text-gray-700">{viewingRequest.resolution_note}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+              {viewingRequest.status === 'pending' && viewingRequest.request_type === 'PROFILE_EDIT' && (
+                <div className="flex gap-3 mb-3">
+                  <button
+                    onClick={() => {
+                      handleApproveProfileEdit(viewingRequest.id);
+                      setViewingRequest(null);
+                    }}
+                    disabled={loading}
+                    className="flex-1 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition font-medium disabled:opacity-50"
+                  >
+                    {loading ? "Approving..." : "Approve Changes"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleRejectProfileEdit(viewingRequest.id);
+                      setViewingRequest(null);
+                    }}
+                    disabled={loading}
+                    className="flex-1 bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 transition font-medium disabled:opacity-50"
+                  >
+                    {loading ? "Rejecting..." : "Reject Request"}
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => setViewingRequest(null)}
+                className="w-full bg-gray-600 text-white px-4 py-3 rounded-lg hover:bg-gray-700 transition font-medium"
               >
                 Close
               </button>

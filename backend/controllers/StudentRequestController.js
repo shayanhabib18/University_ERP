@@ -68,7 +68,6 @@ export const createRequest = async (req, res) => {
       .insert([{
         student_id: student.id,
         department_id: student.department_id,
-        submitted_by: userId,
         request_type,
         title,
         description: description || null,
@@ -110,9 +109,76 @@ export const getStudentRequests = async (req, res) => {
 
     if (error) throw error;
 
-    res.json({ requests: data });
+    res.json(data || []);
   } catch (error) {
     console.error('Get student requests error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * GET /admin/student-requests
+ * List all student requests (admin only)
+ */
+export const getAllStudentRequestsForAdmin = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized - No token provided' });
+    }
+
+    const token = authHeader.slice(7);
+
+    // Get user from Supabase Auth
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    console.log('Admin auth check - userError:', userError, 'user:', user ? user.email : 'none');
+    
+    if (userError || !user) {
+      console.error('Auth token validation failed:', userError);
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    console.log('Admin request - user from token:', user.id, user.email);
+
+    // Check if user is admin by email
+    const { data: admin, error: adminError } = await supabase
+      .from('admins')
+      .select('id, email, name, role, is_active')
+      .eq('email', user.email)
+      .eq('is_active', true)
+      .single();
+
+    console.log('Admin lookup result:', { admin, error: adminError });
+
+    if (adminError || !admin) {
+      console.error('Admin authentication failed:', adminError);
+      return res.status(403).json({ error: 'Not an admin', details: adminError?.message });
+    }
+
+    const { data, error } = await supabase
+      .from('student_requests')
+      .select(`
+        *,
+        students (
+          roll_number,
+          full_name
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Flatten the response to include student roll number and name
+    const formattedData = (data || []).map(req => ({
+      ...req,
+      student_roll_number: req.students?.roll_number || 'N/A',
+      student_name: req.students?.full_name || 'N/A',
+    }));
+
+    res.json(formattedData);
+  } catch (error) {
+    console.error('Get all student requests error:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -310,7 +376,7 @@ export const updateRequestStatus = async (req, res) => {
     }
 
     const { id } = req.params;
-    const { status, resolution_note } = req.body;
+    const { status, resolution_note } = req.body || {};
 
     if (!status) {
       return res.status(400).json({ error: 'status is required' });
@@ -457,6 +523,200 @@ export const getCoordinatorAnalytics = async (req, res) => {
     });
   } catch (error) {
     console.error('Get analytics error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ============================================
+// ADMIN PROFILE EDIT REQUEST HANDLER
+// ============================================
+
+/**
+ * PATCH /admin/requests/:id/approve-profile-edit
+ * Admin approves profile edit request and updates student profile
+ */
+export const approveProfileEditRequest = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const token = authHeader.slice(7);
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    // Check if user is admin
+    const { data: admin, error: adminError } = await supabase
+      .from('admins')
+      .select('id, email')
+      .eq('email', user.email)
+      .eq('is_active', true)
+      .single();
+
+    if (adminError || !admin) {
+      return res.status(403).json({ error: 'Not an admin' });
+    }
+
+    const { id } = req.params;
+    const { resolution_note } = req.body || {};
+
+    // Get the request
+    const { data: request, error: reqError } = await supabase
+      .from('student_requests')
+      .select('*, students(id)')
+      .eq('id', id)
+      .eq('request_type', 'PROFILE_EDIT')
+      .single();
+
+    if (reqError || !request) {
+      return res.status(404).json({ error: 'Profile edit request not found' });
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: 'Request already processed' });
+    }
+
+    // Extract profile changes from payload (handle both JSON string and object)
+    let changes = request.payload || {};
+    if (typeof changes === 'string') {
+      try {
+        changes = JSON.parse(changes);
+      } catch (e) {
+        changes = {};
+      }
+    }
+    
+    const studentId = request.student_id;
+
+    console.log('Approving profile edit - studentId:', studentId, 'changes:', changes);
+
+    // Update student profile with the requested changes
+    const updates = {};
+    // Use mobile/phone - prefer mobile if both exist
+    if (changes.mobile) {
+      updates.student_phone = changes.mobile;
+    } else if (changes.phone) {
+      updates.student_phone = changes.phone;
+    }
+    
+    if (changes.address) updates.current_address = changes.address;
+    if (changes.city) updates.current_address = changes.city;
+    if (changes.email) updates.personal_email = changes.email;
+
+    console.log('Updates to apply:', updates);
+
+    if (Object.keys(updates).length > 0) {
+      const { data: updatedStudent, error: updateError } = await supabase
+        .from('students')
+        .update(updates)
+        .eq('id', studentId)
+        .select();
+
+      console.log('Student update result:', { updatedStudent, error: updateError });
+
+      if (updateError) {
+        throw new Error(`Failed to update student profile: ${updateError.message}`);
+      }
+    }
+
+    // Update request status to approved
+    const { data: updatedRequest, error: updateReqError } = await supabase
+      .from('student_requests')
+      .update({
+        status: 'approved',
+        handled_by: admin.id,
+        handled_at: new Date().toISOString(),
+        resolution_note: resolution_note || 'Profile updated successfully',
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateReqError) throw updateReqError;
+
+    res.json({
+      message: 'Profile edit request approved and student profile updated',
+      request: updatedRequest,
+    });
+  } catch (error) {
+    console.error('Approve profile edit request error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * PATCH /admin/requests/:id/reject-profile-edit
+ * Admin rejects profile edit request
+ */
+export const rejectProfileEditRequest = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const token = authHeader.slice(7);
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    // Check if user is admin
+    const { data: admin, error: adminError } = await supabase
+      .from('admins')
+      .select('id, email')
+      .eq('email', user.email)
+      .eq('is_active', true)
+      .single();
+
+    if (adminError || !admin) {
+      return res.status(403).json({ error: 'Not an admin' });
+    }
+
+    const { id } = req.params;
+
+    // Get the request
+    const { data: request, error: reqError } = await supabase
+      .from('student_requests')
+      .select('*')
+      .eq('id', id)
+      .eq('request_type', 'PROFILE_EDIT')
+      .single();
+
+    if (reqError || !request) {
+      return res.status(404).json({ error: 'Profile edit request not found' });
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: 'Request already processed' });
+    }
+
+    // Update request status to rejected
+    const { data: updatedRequest, error: updateReqError } = await supabase
+      .from('student_requests')
+      .update({
+        status: 'rejected',
+        handled_by: admin.id,
+        handled_at: new Date().toISOString(),
+        resolution_note: 'Request rejected. Please contact student affairs for more details.',
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateReqError) throw updateReqError;
+
+    res.json({
+      message: 'Profile edit request rejected',
+      request: updatedRequest,
+    });
+  } catch (error) {
+    console.error('Reject profile edit request error:', error);
     res.status(500).json({ error: error.message });
   }
 };

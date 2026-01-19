@@ -9,6 +9,9 @@ import {
   updateRequestStatus,
   addCoordinatorComment,
   getCoordinatorAnalytics,
+  approveProfileEditRequest,
+  rejectProfileEditRequest,
+  getAllStudentRequestsForAdmin,
 } from '../controllers/StudentRequestController.js';
 
 const router = express.Router();
@@ -47,5 +50,18 @@ router.post('/coordinator/requests/:id/comments', addCoordinatorComment);
 
 // Get analytics/summary for coordinator dashboard
 router.get('/coordinator/analytics', getCoordinatorAnalytics);
+
+// ============================================
+// ADMIN ROUTES (for profile edit requests)
+// ============================================
+
+// Get all student requests (admin only)
+router.get('/admin/student-requests', getAllStudentRequestsForAdmin);
+
+// Approve profile edit request and update student profile
+router.patch('/admin/requests/:id/approve-profile-edit', approveProfileEditRequest);
+
+// Reject profile edit request
+router.patch('/admin/requests/:id/reject-profile-edit', rejectProfileEditRequest);
 
 export default router;
