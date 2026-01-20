@@ -10,6 +10,7 @@ import AdminResetPassword from './pages/login/AdminResetPassword';
 import ChairmanLogin from './pages/login/ChairmanLogin';
 import StudentLogin from './pages/login/StudentLogin';
 import FacultyLogin from './pages/login/FacultyLogin';
+import FacultyForgotPassword from './pages/login/FacultyForgotPassword';
 import ExecutiveLogin from './pages/login/ExecutiveLogin';
 import CoordinatorLogin from './pages/login/CoordinatorLogin';
 import ForgotPassword from './pages/login/ForgotPassword';
@@ -56,6 +57,7 @@ function App() {
         <Route path="/login/chairman" element={<ChairmanLogin />} />
         <Route path="/login/student" element={<StudentLogin />} />
         <Route path="/login/faculty" element={<FacultyLogin />} />
+        <Route path="/login/faculty/forgot-password" element={<FacultyForgotPassword />} />
         <Route path="/login/executive" element={<ExecutiveLogin />} />
         <Route path="/login/coordinator" element={<CoordinatorLogin />} />
         

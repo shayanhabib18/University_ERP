@@ -17,60 +17,6 @@ const getTransporter = () => {
   });
 };
 
-export const sendStudentCredentials = async ({
-  toEmail,
-  fullName,
-  rollNumber,
-  temporaryPassword,
-}) => {
-  const transporter = getTransporter();
-  const fromEmail = process.env.FROM_EMAIL || "no-reply@university.local";
-
-  const subject = "Your University ERP Account Credentials";
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color:#1e40af;">Welcome to University ERP</h2>
-      <p>Dear ${fullName},</p>
-      <p>Your student account has been created. Use the credentials below to log in:</p>
-      <ul>
-        <li><strong>Roll Number:</strong> ${rollNumber}</li>
-        <li><strong>Email:</strong> ${toEmail}</li>
-        <li><strong>Temporary Password:</strong> ${temporaryPassword}</li>
-      </ul>
-      <p>Please log in and change your password immediately.</p>
-      <p><a href="http://localhost:5173/login/student" style="background:#1e40af;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Go to Student Portal</a></p>
-      <p style="color:#555;font-size:12px;">If you did not request this, please contact the administration.</p>
-    </div>
-  `;
-
-  if (!transporter) {
-    console.warn("SMTP not configured; credentials logged to console below.");
-    // Log credentials to console for development/testing
-    console.log("\n" + "=".repeat(60));
-    console.log("📧 EMAIL WOULD BE SENT (SMTP NOT CONFIGURED)");
-    console.log("=".repeat(60));
-    console.log(`To: ${toEmail}`);
-    console.log(`Subject: ${subject}`);
-    console.log(`Roll Number: ${rollNumber}`);
-    console.log(`Temporary Password: ${temporaryPassword}`);
-    console.log("=".repeat(60) + "\n");
-    return { skipped: true };
-  }
-
-  try {
-    await transporter.sendMail({
-      from: fromEmail,
-      to: toEmail,
-      subject,
-      html,
-    });
-    console.log(`✅ Email sent to ${toEmail}`);
-    return { sent: true };
-  } catch (err) {
-    console.error(`❌ Failed to send email to ${toEmail}:`, err.message);
-    throw err;
-  }
-};
 // Send approval email with password reset link
 export const sendApprovalEmailWithLink = async ({
   toEmail,
@@ -85,28 +31,16 @@ export const sendApprovalEmailWithLink = async ({
   const subject = "Account Approved - Set Your Password";
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color:#1e40af;">🎉 Account Approved!</h2>
+      <h2 style="color:#1e40af;">Account Approved</h2>
       <p>Dear ${fullName},</p>
-      <p>Congratulations! Your student account has been approved. Here are your account details:</p>
-      
-      <div style="background:#f0f7ff;padding:20px;border-radius:8px;margin:20px 0;">
-        <p style="margin:8px 0;"><strong>Roll Number:</strong> <code style="background:#fff;padding:5px 10px;border-radius:4px;font-family:monospace;">${rollNumber}</code></p>
-        <p style="margin:8px 0;"><strong>Email:</strong> <code style="background:#fff;padding:5px 10px;border-radius:4px;font-family:monospace;">${toEmail}</code></p>
-        ${departmentName ? `<p style="margin:8px 0;"><strong>Department:</strong> ${departmentName}</p>` : ''}
-      </div>
+      <p>Your student account has been approved. Click the button below to set your password:</p>
 
-      <h3 style="color:#1e40af;margin-top:25px;">Set Your Password:</h3>
-      <p>Click the button below to set your initial password:</p>
-      
       <p style="text-align:center;margin:30px 0;">
-        <a href="${resetLink}" style="background:#1e40af;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:bold;font-size:16px;">Set Password Now</a>
+        <a href="${resetLink}" style="background:#1e40af;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:bold;font-size:16px;">Set Password</a>
       </p>
 
-      <p style="color:#666;font-size:13px;">After setting your password, you can log in to the Student Portal using your Roll Number or Email.</p>
-
-      <hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">
-      <p style="color:#555;font-size:13px;"><strong>Forgot Password Later?</strong> You can always click "Forgot Password" on the login page to reset your password.</p>
-      <p style="color:#888;font-size:11px;">This link expires in 24 hours. If you did not apply for this account or if you have any issues, contact the administration office immediately.</p>
+      <p style="color:#888;font-size:11px;">This link expires in 24 hours. If you did not apply for this account, please ignore this email.</p>
+      <p style="color:#888;font-size:11px;">If the button doesn't work, copy and paste this link in your browser:<br>${resetLink}</p>
     </div>
   `;
 
@@ -138,82 +72,21 @@ export const sendApprovalEmailWithLink = async ({
     throw err;
   }
 };
-// Send approval notification email with login details
-export const sendApprovalEmail = async ({
+
+// Send faculty credentials email
+export const sendFacultyCredentials = async ({
   toEmail,
   fullName,
-  rollNumber,
+  facultyId,
+  resetLink,
+  designation,
   departmentName,
 }) => {
-  const transporter = getTransporter();
-  const fromEmail = process.env.FROM_EMAIL || "no-reply@university.local";
-
-  const subject = "Account Approved - Welcome to University ERP";
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color:#1e40af;">🎉 Account Approved!</h2>
-      <p>Dear ${fullName},</p>
-      <p>Congratulations! Your student account has been approved. Here are your login details:</p>
-      
-      <div style="background:#f0f7ff;padding:20px;border-radius:8px;margin:20px 0;">
-        <p style="margin:8px 0;"><strong>Roll Number:</strong> <code style="background:#fff;padding:5px 10px;border-radius:4px;font-family:monospace;">${rollNumber}</code></p>
-        <p style="margin:8px 0;"><strong>Email:</strong> <code style="background:#fff;padding:5px 10px;border-radius:4px;font-family:monospace;">${toEmail}</code></p>
-        ${departmentName ? `<p style="margin:8px 0;"><strong>Department:</strong> ${departmentName}</p>` : ''}
-      </div>
-
-      <h3 style="color:#1e40af;margin-top:25px;">How to Get Started:</h3>
-      <ol>
-        <li>Click the button below to go to the Student Portal</li>
-        <li>Use your <strong>Roll Number</strong> or <strong>Email</strong> to log in</li>
-        <li>Click <strong>"Forgot Password"</strong> to set your initial password</li>
-        <li>Log in with your new password</li>
-      </ol>
-
-      <p style="text-align:center;margin:30px 0;">
-        <a href="http://localhost:5173/login/student" style="background:#1e40af;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:bold;font-size:16px;">Go to Student Portal</a>
-      </p>
-
-      <hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">
-      <p style="color:#555;font-size:13px;"><strong>Need Help?</strong> If you have any issues, contact the administration office.</p>
-      <p style="color:#888;font-size:11px;">If you did not apply for this account, please contact the administration immediately.</p>
-    </div>
-  `;
-
-  if (!transporter) {
-    console.warn("SMTP not configured; email details logged to console below.");
-    console.log("\n" + "=".repeat(60));
-    console.log("📧 APPROVAL EMAIL WOULD BE SENT (SMTP NOT CONFIGURED)");
-    console.log("=".repeat(60));
-    console.log(`To: ${toEmail}`);
-    console.log(`Roll Number: ${rollNumber}`);
-    console.log(`Student Name: ${fullName}`);
-    console.log(`Department: ${departmentName}`);
-    console.log("=".repeat(60) + "\n");
-    return { skipped: true };
+  // Validate required parameters
+  if (!toEmail || !fullName || !resetLink) {
+    throw new Error("Missing required parameters: toEmail, fullName, or resetLink");
   }
 
-  try {
-    await transporter.sendMail({
-      from: fromEmail,
-      to: toEmail,
-      subject,
-      html,
-    });
-    console.log(`✅ Approval email sent to ${toEmail}`);
-    return { sent: true };
-  } catch (err) {
-    console.error(`❌ Failed to send approval email to ${toEmail}:`, err.message);
-    throw err;
-  }
-};
-
-// Send welcome email with password reset link
-export const sendWelcomeWithPasswordReset = async ({
-  toEmail,
-  fullName,
-  rollNumber,
-  resetLink,
-}) => {
   const transporter = getTransporter();
   const fromEmail = process.env.FROM_EMAIL || "no-reply@university.local";
 
@@ -222,32 +95,48 @@ export const sendWelcomeWithPasswordReset = async ({
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color:#1e40af;">Welcome to University ERP</h2>
       <p>Dear ${fullName},</p>
-      <p>Your student account has been approved! Here are your account details:</p>
-      <ul>
-        <li><strong>Roll Number:</strong> ${rollNumber}</li>
-        <li><strong>Email:</strong> ${toEmail}</li>
-      </ul>
-      <p>To get started, please set your password by clicking the button below:</p>
-      <p style="text-align: center; margin: 30px 0;">
-        <a href="${resetLink}" style="background:#1e40af;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;">Set Your Password</a>
+      <p>Your faculty account has been created. Please click the button below to set your password and activate your account:</p>
+      
+      <div style="background:#f0f7ff;padding:20px;border-radius:8px;margin:20px 0;">
+        <p style="margin:8px 0;"><strong>Email:</strong> <code style="background:#fff;padding:5px 10px;border-radius:4px;font-family:monospace;">${toEmail}</code></p>
+        ${designation ? `<p style="margin:8px 0;"><strong>Designation:</strong> ${designation}</p>` : ''}
+        ${departmentName ? `<p style="margin:8px 0;"><strong>Department:</strong> ${departmentName}</p>` : ''}
+      </div>
+
+      <h3 style="color:#1e40af;margin-top:25px;">Set Your Password:</h3>
+      <p>Click the button below to create your password and access the Faculty Portal:</p>
+
+      <p style="text-align:center;margin:30px 0;">
+        <a href="${resetLink}" style="background:#1e40af;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:bold;font-size:16px;">Set Password & Login</a>
       </p>
-      <p>After setting your password, you can log in using your <strong>Roll Number</strong> or <strong>Email</strong> with your new password.</p>
-      <p style="color:#555;font-size:12px;">This link will expire in 24 hours. If you did not request this, please contact the administration.</p>
+
+      <p style="color:#666;font-size:13px;">After setting your password, you can log in to the Faculty Portal using your email address and new password.</p>
+
       <hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">
+      <p style="color:#555;font-size:13px;"><strong>Security Notice:</strong> This link expires in 24 hours for security purposes.</p>
+      <p style="color:#888;font-size:11px;">If you did not expect this email or have any concerns, please contact the administration office immediately.</p>
       <p style="color:#888;font-size:11px;">If the button doesn't work, copy and paste this link in your browser:<br>${resetLink}</p>
     </div>
   `;
 
   if (!transporter) {
-    console.warn("SMTP not configured; email details logged to console below.");
-    console.log("\n" + "=".repeat(60));
-    console.log("📧 WELCOME EMAIL WOULD BE SENT (SMTP NOT CONFIGURED)");
-    console.log("=".repeat(60));
+    console.warn("\n" + "⚠️".repeat(30));
+    console.warn("⚠️  SMTP NOT CONFIGURED - EMAILS WILL NOT BE SENT  ⚠️");
+    console.warn("⚠️".repeat(30));
+    console.warn("\n📋 TO FIX: Configure SMTP in your .env file:\n");
+    console.warn("    SMTP_HOST=smtp.gmail.com");
+    console.warn("    SMTP_PORT=587");
+    console.warn("    SMTP_USER=your-email@gmail.com");
+    console.warn("    SMTP_PASS=your-app-password");
+    console.warn("    FROM_EMAIL=your-email@gmail.com\n");
+    console.warn("📧 EMAIL THAT WOULD BE SENT (if SMTP was configured):");
+    console.warn("=".repeat(60));
     console.log(`To: ${toEmail}`);
-    console.log(`Subject: ${subject}`);
-    console.log(`Roll Number: ${rollNumber}`);
-    console.log(`Reset Link: ${resetLink}`);
-    console.log("=".repeat(60) + "\n");
+    console.log(`Faculty Name: ${fullName}`);
+    console.log(`Designation: ${designation || 'N/A'}`);
+    console.log(`Department: ${departmentName || 'N/A'}`);
+    console.log(`Password Setup Link: ${resetLink}`);
+    console.warn("=".repeat(60) + "\n");
     return { skipped: true };
   }
 
@@ -258,10 +147,66 @@ export const sendWelcomeWithPasswordReset = async ({
       subject,
       html,
     });
-    console.log(`✅ Welcome email sent to ${toEmail}`);
+    console.log(`✅ Faculty credentials email sent to ${toEmail}`);
     return { sent: true };
   } catch (err) {
-    console.error(`❌ Failed to send welcome email to ${toEmail}:`, err.message);
+    console.error(`❌ Failed to send faculty credentials email to ${toEmail}:`, err.message);
+    throw err;
+  }
+};
+
+// Send password reset email (for forgot password)
+export const sendPasswordResetEmail = async ({
+  toEmail,
+  fullName,
+  resetLink,
+  designation,
+  departmentName,
+}) => {
+  // Validate required parameters
+  if (!toEmail || !fullName || !resetLink) {
+    throw new Error("Missing required parameters: toEmail, fullName, or resetLink");
+  }
+
+  const transporter = getTransporter();
+  const fromEmail = process.env.FROM_EMAIL || "no-reply@university.local";
+
+  const subject = "Password Reset - University ERP";
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color:#1e40af;">Reset Password</h2>
+      <p>Follow this link to reset the password for your user:</p>
+
+      <p style="text-align:center;margin:30px 0;">
+        <a href="${resetLink}" style="background:#1e40af;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:bold;font-size:16px;">Reset Password</a>
+      </p>
+    </div>
+  `;
+
+  if (!transporter) {
+    console.warn("\n" + "⚠️".repeat(30));
+    console.warn("⚠️  SMTP NOT CONFIGURED - EMAILS WILL NOT BE SENT  ⚠️");
+    console.warn("⚠️".repeat(30));
+    console.warn("📧 PASSWORD RESET EMAIL WOULD BE SENT (if SMTP was configured):");
+    console.warn("=".repeat(60));
+    console.log(`To: ${toEmail}`);
+    console.log(`Faculty Name: ${fullName}`);
+    console.log(`Reset Link: ${resetLink}`);
+    console.warn("=".repeat(60) + "\n");
+    return { skipped: true };
+  }
+
+  try {
+    await transporter.sendMail({
+      from: fromEmail,
+      to: toEmail,
+      subject,
+      html,
+    });
+    console.log(`✅ Password reset email sent to ${toEmail}`);
+    return { sent: true };
+  } catch (err) {
+    console.error(`❌ Failed to send password reset email to ${toEmail}:`, err.message);
     throw err;
   }
 };

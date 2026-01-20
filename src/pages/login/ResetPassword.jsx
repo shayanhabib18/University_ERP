@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 
 const ResetPassword = () => {
+  console.log("🔷 ResetPassword component loaded");
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [token, setToken] = useState('');
@@ -11,30 +13,64 @@ const ResetPassword = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [validating, setValidating] = useState(true);
+  const [isFacultyReset, setIsFacultyReset] = useState(false);
 
-  // Extract token from URL hash (Supabase recovery link format)
+  // Extract token from URL hash (Supabase recovery link format) or search params
   useEffect(() => {
+    console.log("🔷 useEffect extractToken running, searchParams:", Array.from(searchParams.entries()));
     const extractToken = () => {
       try {
-        // Supabase sends token in hash fragment: #access_token=xxx&type=recovery&expires_in=3600
-        const hash = location.hash.slice(1); // Remove '#'
-        const params = new URLSearchParams(hash);
-        const extractedToken = params.get('access_token') || params.get('token');
+        // Check if this is a faculty reset (type=faculty in query params)
+        const resetType = searchParams.get('type');
+        const queryToken = searchParams.get('token');
         
-        if (extractedToken) {
-          setToken(extractedToken);
-          setValidating(false);
-        } else {
-          // Fallback: check URL search params
-          const searchParams = new URLSearchParams(location.search);
-          const paramToken = searchParams.get('token');
-          if (paramToken) {
-            setToken(paramToken);
-            setValidating(false);
-          } else {
+        console.log("🔍 Token extraction:", { resetType, queryToken, hasToken: !!queryToken, urlHashData: location.hash });
+
+        // Faculty reset takes priority
+        if (resetType === 'faculty') {
+          // For faculty, check both query params and hash
+          let tokenToUse = queryToken;
+          
+          // If no query token, try to extract from hash (Supabase format)
+          if (!tokenToUse) {
+            const hash = location.hash.slice(1); // Remove '#'
+            const params = new URLSearchParams(hash);
+            tokenToUse = params.get('access_token') || params.get('token_hash') || params.get('token');
+          }
+          
+          if (!tokenToUse) {
+            console.error("❌ Faculty reset but no token found in query or hash");
             setError('Invalid password reset link. No token found.');
             setValidating(false);
+            return;
           }
+          console.log("✅ Faculty reset detected with token");
+          setToken(tokenToUse);
+          setIsFacultyReset(true);
+          setValidating(false);
+          return;
+        }
+
+        // For students - try Supabase format (hash fragment)
+        const hash = location.hash.slice(1); // Remove '#'
+        const params = new URLSearchParams(hash);
+        const extractedToken = params.get('access_token') || params.get('token_hash') || params.get('token');
+        
+        if (extractedToken) {
+          console.log("✅ Student reset detected (Supabase format)");
+          setToken(extractedToken);
+          setIsFacultyReset(false);
+          setValidating(false);
+        } else if (queryToken) {
+          // Fallback: check URL search params for student reset
+          console.log("✅ Student reset detected (query token)");
+          setToken(queryToken);
+          setIsFacultyReset(false);
+          setValidating(false);
+        } else {
+          console.error("❌ No token found");
+          setError('Invalid password reset link. No token found.');
+          setValidating(false);
         }
       } catch (err) {
         console.error('Token extraction error:', err);
@@ -44,7 +80,23 @@ const ResetPassword = () => {
     };
 
     extractToken();
-  }, []);
+  }, [searchParams]);
+
+  // Handle redirect after password reset
+  useEffect(() => {
+    if (success) {
+      console.log("🎯 SUCCESS detected, will redirect in 2 seconds");
+      console.log("📊 Current state:", { success, isFacultyReset });
+      
+      const redirectTimeout = setTimeout(() => {
+        const redirectPath = isFacultyReset ? '/login/faculty' : '/login/student';
+        console.log("🔄 NOW REDIRECTING:", { isFacultyReset, redirectPath });
+        navigate(redirectPath);
+      }, 2000);
+      
+      return () => clearTimeout(redirectTimeout);
+    }
+  }, [success, isFacultyReset, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -68,18 +120,25 @@ const ResetPassword = () => {
     setError('');
 
     try {
-      const response = await axios.post(
-        'http://localhost:5000/auth/reset-password',
-        {
-          accessToken: token,
-          password,
-        }
-      );
+      let endpoint = 'http://localhost:5000/auth/reset-password';
+      let payload = { accessToken: token, password };
 
+      console.log("📤 Submitting password reset with isFacultyReset:", isFacultyReset);
+
+      // Use faculty endpoint if this is a faculty reset
+      if (isFacultyReset) {
+        endpoint = 'http://localhost:5000/faculties/set-password';
+        payload = { token, password };
+        console.log("📤 Using FACULTY endpoint:", endpoint);
+      } else {
+        console.log("📤 Using STUDENT endpoint:", endpoint);
+      }
+
+      const response = await axios.post(endpoint, payload);
+      console.log("✅ API Response:", response.data);
+
+      console.log("✅ Setting success=true, isFacultyReset:", isFacultyReset);
       setSuccess(true);
-      setTimeout(() => {
-        navigate('/login/student');
-      }, 2000);
     } catch (err) {
       console.error('Reset password error:', err);
       setError(
@@ -131,6 +190,7 @@ const ResetPassword = () => {
   }
 
   if (success) {
+    const portalType = isFacultyReset ? 'Faculty' : 'Student';
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-4">
         <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md text-center">
@@ -138,7 +198,8 @@ const ResetPassword = () => {
             <span className="text-3xl text-green-600">✓</span>
           </div>
           <h2 className="text-2xl font-bold text-green-600 mb-2">Password Reset Successful</h2>
-          <p className="text-gray-600 mb-4">Your password has been updated. Redirecting to login...</p>
+          <p className="text-gray-600 mb-2">Your password has been updated.</p>
+          <p className="text-gray-600 mb-4">Redirecting to {portalType} Portal...</p>
         </div>
       </div>
     );

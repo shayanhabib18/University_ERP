@@ -6,6 +6,84 @@ import { sendApprovalEmailWithLink } from "../utils/mailer.js";
 
 const router = express.Router();
 
+// ==================== HELPER FUNCTIONS ====================
+
+// Helper function to get first semester courses for a department
+const getFirstSemesterCourses = async (departmentId) => {
+  try {
+    // First, get the first semester for the department
+    const { data: semester, error: semesterError } = await supabase
+      .from("semesters")
+      .select("id")
+      .eq("department_id", departmentId)
+      .eq("number", 1)
+      .single();
+
+    if (semesterError || !semester) {
+      console.warn(`No first semester found for department ${departmentId}`);
+      return [];
+    }
+
+    // Get all courses for the first semester
+    const { data: courses, error: coursesError } = await supabase
+      .from("courses")
+      .select("id, code, name, credit_hours")
+      .eq("semester_id", semester.id);
+
+    if (coursesError) {
+      console.error(`Error fetching courses: ${coursesError.message}`);
+      return [];
+    }
+
+    return courses || [];
+  } catch (error) {
+    console.error("Error in getFirstSemesterCourses:", error);
+    return [];
+  }
+};
+
+// Helper function to enroll student in first semester courses
+const enrollStudentInFirstSemester = async (studentId, departmentId, joiningDate) => {
+  try {
+    const courses = await getFirstSemesterCourses(departmentId);
+    
+    if (courses.length === 0) {
+      console.warn(`No courses found for first semester in department ${departmentId}`);
+      return { success: false, message: "No first semester courses found" };
+    }
+
+    // Determine academic year from joining date
+    const year = joiningDate ? new Date(joiningDate).getFullYear() : new Date().getFullYear();
+    const academicYear = `${year}-${year + 1}`;
+
+    // Create enrollment records for all first semester courses
+    const enrollments = courses.map(course => ({
+      student_id: studentId,
+      course_id: course.id,
+      semester: 1,
+      academic_year: academicYear,
+      credit_hours: course.credit_hours,
+      status: "ongoing"
+    }));
+
+    const { data, error } = await supabase
+      .from("course_enrollments")
+      .insert(enrollments)
+      .select();
+
+    if (error) {
+      console.error("Error creating enrollments:", error.message);
+      return { success: false, message: error.message };
+    }
+
+    console.log(`✓ Enrolled student ${studentId} in ${data.length} first semester courses`);
+    return { success: true, count: data.length, enrollments: data };
+  } catch (error) {
+    console.error("Error in enrollStudentInFirstSemester:", error);
+    return { success: false, message: error.message };
+  }
+};
+
 // ==================== STUDENT SIGNUP REQUEST ROUTES ====================
 
 // GET all pending signup requests
@@ -223,7 +301,7 @@ router.post("/signup-requests/:requestId/approve", async (req, res) => {
     const rollNumber = `${rollPrefix}-${String(nextNumber).padStart(2, "0")}`;
 
     // Create student record
-    const { error: studentError } = await supabase
+    const { data: studentData, error: studentError } = await supabase
       .from("students")
       .insert([{
         auth_user_id: authUser.user.id,
@@ -242,11 +320,26 @@ router.post("/signup-requests/:requestId/approve", async (req, res) => {
         permanent_address: request.address || null,
         city: request.city,
         status: "active"
-      }]);
+      }])
+      .select();
 
     if (studentError) {
       await supabase.auth.admin.deleteUser(authUser.user.id);
       throw new Error(`Failed to create student record: ${studentError.message}`);
+    }
+
+    // Auto-enroll student in first semester courses
+    const studentId = studentData[0].id;
+    const enrollmentResult = await enrollStudentInFirstSemester(
+      studentId,
+      request.department_id,
+      request.joining_date
+    );
+
+    if (enrollmentResult.success) {
+      console.log(`✓ Auto-enrolled student in ${enrollmentResult.count} courses`);
+    } else {
+      console.warn(`⚠️  Could not auto-enroll student: ${enrollmentResult.message}`);
     }
 
     // Update signup request status to approved
@@ -586,6 +679,20 @@ router.post("/", async (req, res) => {
       throw error;
     }
 
+    // Auto-enroll student in first semester courses
+    const studentId = data[0].id;
+    const enrollmentResult = await enrollStudentInFirstSemester(
+      studentId,
+      department_id,
+      joining_date
+    );
+
+    if (enrollmentResult.success) {
+      console.log(`✓ Auto-enrolled student in ${enrollmentResult.count} courses`);
+    } else {
+      console.warn(`⚠️  Could not auto-enroll student: ${enrollmentResult.message}`);
+    }
+
     // Attempt to send reset-link email
     try {
       const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
@@ -784,6 +891,20 @@ router.post("/register-with-auth", async (req, res) => {
         await supabase.auth.admin.deleteUser(authUser.user.id);
       }
       throw error;
+    }
+
+    // Auto-enroll student in first semester courses
+    const studentId = data[0].id;
+    const enrollmentResult = await enrollStudentInFirstSemester(
+      studentId,
+      department_id,
+      joining_date
+    );
+
+    if (enrollmentResult.success) {
+      console.log(`✓ Auto-enrolled student in ${enrollmentResult.count} courses`);
+    } else {
+      console.warn(`⚠️  Could not auto-enroll student: ${enrollmentResult.message}`);
     }
 
     // Attempt to send reset-link email
@@ -1028,12 +1149,30 @@ router.get("/enrollments/student/:studentId", async (req, res) => {
     const { studentId } = req.params;
     const { data, error } = await supabase
       .from("course_enrollments")
-      .select("*")
+      .select(`
+        *,
+        courses:course_id (
+          id,
+          code,
+          name,
+          credit_hours,
+          semester_id
+        )
+      `)
       .eq("student_id", studentId)
       .order("semester", { ascending: false });
 
     if (error) throw error;
-    res.json(data || []);
+    
+    // Flatten the course data
+    const enrichedData = (data || []).map(enrollment => ({
+      ...enrollment,
+      course_code: enrollment.courses?.code,
+      course_name: enrollment.courses?.name,
+      credit_hours: enrollment.credit_hours || enrollment.courses?.credit_hours
+    }));
+    
+    res.json(enrichedData);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -1047,12 +1186,30 @@ router.get(
       const { studentId, semester } = req.params;
       const { data, error } = await supabase
         .from("course_enrollments")
-        .select("*")
+        .select(`
+          *,
+          courses:course_id (
+            id,
+            code,
+            name,
+            credit_hours,
+            semester_id
+          )
+        `)
         .eq("student_id", studentId)
         .eq("semester", parseInt(semester, 10));
 
       if (error) throw error;
-      res.json(data || []);
+      
+      // Flatten the course data
+      const enrichedData = (data || []).map(enrollment => ({
+        ...enrollment,
+        course_code: enrollment.courses?.code,
+        course_name: enrollment.courses?.name,
+        credit_hours: enrollment.credit_hours || enrollment.courses?.credit_hours
+      }));
+      
+      res.json(enrichedData);
     } catch (error) {
       res.status(400).json({ error: error.message });
     }
@@ -1088,6 +1245,60 @@ router.post("/enrollments", async (req, res) => {
 
     if (error) throw error;
     res.status(201).json(data?.[0]);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// AUTO-ENROLL existing student in first semester (utility endpoint)
+router.post("/enrollments/auto-enroll/:studentId", async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    // Get student info
+    const { data: student, error: studentError } = await supabase
+      .from("students")
+      .select("id, department_id, joining_date")
+      .eq("id", studentId)
+      .single();
+
+    if (studentError || !student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    // Check if student already has enrollments
+    const { data: existingEnrollments } = await supabase
+      .from("course_enrollments")
+      .select("id")
+      .eq("student_id", studentId)
+      .limit(1);
+
+    if (existingEnrollments && existingEnrollments.length > 0) {
+      return res.status(400).json({ 
+        error: "Student already has enrollments",
+        message: "This student is already enrolled in courses"
+      });
+    }
+
+    // Auto-enroll in first semester
+    const enrollmentResult = await enrollStudentInFirstSemester(
+      studentId,
+      student.department_id,
+      student.joining_date
+    );
+
+    if (!enrollmentResult.success) {
+      return res.status(400).json({ 
+        error: "Enrollment failed",
+        message: enrollmentResult.message
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Student enrolled in ${enrollmentResult.count} courses`,
+      enrollments: enrollmentResult.enrollments
+    });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

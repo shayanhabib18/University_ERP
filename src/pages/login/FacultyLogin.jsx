@@ -2,27 +2,44 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 export default function FacultyLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError("");
 
-    // hardcoded credentials
-    const hardcodedFaculty = {
-      email: "faculty@university.edu",
-      password: "faculty123",
-    };
+    try {
+      // Call backend to authenticate faculty
+      const response = await axios.post('http://localhost:5000/faculties/login', {
+        email: email,
+        password: password,
+      });
 
-    if (email === hardcodedFaculty.email && password === hardcodedFaculty.password) {
-      setError("");
-      navigate("/faculty/dashboard"); // Redirect to faculty dashboard
-    } else {
-      setError("Invalid email or password");
+      if (response.data?.success || response.data?.user) {
+        console.log("✅ Faculty logged in:", response.data.user?.email || email);
+        
+        // Store auth token if provided
+        if (response.data?.token) {
+          localStorage.setItem('facultyToken', response.data.token);
+          localStorage.setItem('facultyEmail', email);
+        }
+        
+        navigate("/faculty/dashboard");
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+      const errorMsg = err.response?.data?.error || err.message || "Invalid email or password";
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -39,8 +56,9 @@ export default function FacultyLogin() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-500"
-              placeholder="e.g. faculty@university.edu"
+              placeholder="your.email@university.edu"
               required
+              disabled={loading}
             />
           </div>
 
@@ -51,8 +69,9 @@ export default function FacultyLogin() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-500"
-              placeholder="e.g. faculty123"
+              placeholder="Your password"
               required
+              disabled={loading}
             />
           </div>
 
@@ -60,16 +79,18 @@ export default function FacultyLogin() {
 
           <button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg disabled:bg-gray-400"
+            disabled={loading}
           >
-            Login
+            {loading ? "Logging in..." : "Login"}
           </button>
 
           <div className="text-center mt-2">
             <button
               type="button"
               className="text-sm text-blue-600 hover:underline focus:outline-none"
-              onClick={() => navigate("/forgot-password")}
+              onClick={() => navigate("/login/faculty/forgot-password")}
+              disabled={loading}
             >
               Forgot password?
             </button>

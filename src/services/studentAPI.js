@@ -139,29 +139,29 @@ export const documentsAPI = {
 export const enrollmentsAPI = {
   // Get enrollments for a student
   getByStudent: (studentId) =>
-    apiCall(`/enrollments/student/${studentId}`),
+    apiCall(`/students/enrollments/student/${studentId}`),
 
   // Get enrollments for a semester
   getBySemester: (studentId, semester) =>
-    apiCall(`/enrollments/student/${studentId}/semester/${semester}`),
+    apiCall(`/students/enrollments/student/${studentId}/semester/${semester}`),
 
   // Enroll student in course
   create: (data) =>
-    apiCall("/enrollments", {
+    apiCall("/students/enrollments", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   // Update enrollment
   update: (enrollmentId, data) =>
-    apiCall(`/enrollments/${enrollmentId}`, {
+    apiCall(`/students/enrollments/${enrollmentId}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
 
   // Drop course
   drop: (enrollmentId) =>
-    apiCall(`/enrollments/${enrollmentId}/drop`, {
+    apiCall(`/students/enrollments/${enrollmentId}/drop`, {
       method: "PUT",
     }),
 };

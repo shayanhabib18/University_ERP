@@ -9,9 +9,7 @@ import {
   LogOut,
   Home,
   User,
-  BarChart3,
   CalendarDays,
-  MessageSquare,
 } from "lucide-react";
 
 import Courses from "./Courses";
@@ -20,7 +18,9 @@ import FacultyAnnouncements from "./FacultyAnnouncements";
 import FacultyProfile from "./FacultyProfile";
 import FacultyRequests from "./FacultyRequests";
 
-// Sidebar navigation links
+/* -------------------------------
+   Sidebar Links
+--------------------------------*/
 const sidebarLinks = [
   { name: "Dashboard", icon: <Home size={18} /> },
   { name: "My Courses", icon: <BookOpen size={18} /> },
@@ -49,37 +49,24 @@ export default function FacultyDashboard() {
       case "Profile":
         return <FacultyProfile />;
       default:
-        return (
-          <div className="p-6">
-            <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100">
-              <h1 className="text-2xl font-bold text-indigo-700">{activeTab}</h1>
-              <p className="text-gray-600 mt-4 text-center">
-                This section is under development. Coming soon!
-              </p>
-            </div>
-          </div>
-        );
+        return null;
     }
   };
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50">
+    <div className="flex min-h-screen bg-slate-100">
       {/* Sidebar */}
       <aside
-        className={`bg-black text-white w-64 py-6 px-4 fixed inset-y-0 left-0 transform ${
+        className={`fixed inset-y-0 left-0 w-64 bg-slate-900 text-slate-200 transform ${
           menuOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 transition duration-300 ease-in-out z-50 shadow-2xl`}
+        } md:translate-x-0 transition duration-300 z-50`}
       >
-        <div className="flex items-center justify-center gap-2 mb-10">
-          <div className="bg-indigo-600 p-2 rounded-lg shadow-md">
-            <Users className="text-white" size={24} />
-          </div>
-          <h2 className="text-xl font-bold text-white tracking-wide">
-            Faculty Portal
-          </h2>
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-800">
+          <Users className="text-indigo-500" />
+          <h2 className="text-lg font-semibold">Faculty Portal</h2>
         </div>
 
-        <nav className="space-y-1">
+        <nav className="p-4 space-y-1">
           {sidebarLinks.map((link) => (
             <button
               key={link.name}
@@ -87,187 +74,125 @@ export default function FacultyDashboard() {
                 setActiveTab(link.name);
                 setMenuOpen(false);
               }}
-              className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg transition-all duration-200 ${
+              className={`flex items-center gap-3 w-full px-4 py-2.5 rounded-md text-sm transition ${
                 activeTab === link.name
-                  ? "bg-white text-indigo-700 shadow-md"
-                  : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                  ? "bg-indigo-600 text-white"
+                  : "hover:bg-slate-800 text-slate-300"
               }`}
             >
-              <span
-                className={`${
-                  activeTab === link.name ? "text-indigo-600" : "text-gray-400"
-                }`}
-              >
-                {link.icon}
-              </span>
-              <span className="font-medium">{link.name}</span>
+              {link.icon}
+              {link.name}
             </button>
           ))}
         </nav>
       </aside>
 
       {/* Mobile Menu */}
-      <div className="md:hidden fixed top-4 left-4 z-50">
-        <button
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="text-white bg-indigo-600 p-2 rounded-lg shadow-lg hover:bg-indigo-700 transition"
-        >
-          {menuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
-      </div>
+      <button
+        onClick={() => setMenuOpen(!menuOpen)}
+        className="md:hidden fixed top-4 left-4 z-50 bg-indigo-600 text-white p-2 rounded-md"
+      >
+        {menuOpen ? <X /> : <Menu />}
+      </button>
 
       {/* Main Content */}
-      <main className="flex-1 ml-0 md:ml-64 p-4 md:p-6 overflow-auto">
-        {renderContent()}
-      </main>
+      <main className="flex-1 md:ml-64 p-6">{renderContent()}</main>
     </div>
   );
 }
 
 /* -------------------------------
-   Dashboard Page Component
+   Dashboard Content
 --------------------------------*/
 function DashboardContent({ setActiveTab }) {
   return (
-    <div className="p-6 space-y-10">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">
-            Welcome back,{" "}
-            <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              Professor
-            </span>
+          <h1 className="text-2xl font-semibold text-slate-800">
+            Welcome back, <span className="text-indigo-600">Professor</span>
           </h1>
-          <p className="text-gray-500 mt-1">
-            Here’s what’s happening in your courses this week.
+          <p className="text-sm text-slate-500">
+            Academic overview for this week
           </p>
         </div>
 
         <button
           onClick={() => (window.location.href = "/login/faculty")}
-          className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-5 py-2.5 rounded-xl shadow-md transition hover:shadow-lg"
+          className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700"
         >
-          <LogOut size={18} />
+          <LogOut size={16} />
           Logout
         </button>
       </div>
 
-      {/* Stats Section */}
+      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          icon={<BookOpen size={24} />}
-          title="Courses Assigned"
-          value="4"
-          gradient="from-indigo-500 to-blue-500"
-        />
-        <StatCard
-          icon={<Users size={24} />}
-          title="Active Students"
-          value="112"
-          gradient="from-purple-500 to-pink-500"
-        />
+        <StatCard title="Courses Assigned" value="4" icon={<BookOpen />} />
+        <StatCard title="Active Students" value="112" icon={<Users />} />
       </div>
 
-      {/* Upcoming Section */}
+      {/* Upcoming + Announcements */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Upcoming Classes */}
-        <div className="bg-white border shadow-sm p-6 rounded-2xl hover:shadow-lg transition">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-              <CalendarDays size={18} className="text-indigo-600" />
-              Upcoming Classes
-            </h2>
-            <button className="text-sm text-indigo-600 hover:underline">
-              View All
-            </button>
-          </div>
-          <ul className="space-y-3 text-gray-700">
-            <li className="flex justify-between items-center border-b pb-2">
-              <span>Data Structures — 10:00 AM</span>
-              <span className="text-sm text-gray-400">Room A1</span>
+        <div className="bg-white border rounded-lg p-6">
+          <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-4">
+            <CalendarDays size={16} className="text-indigo-600" />
+            Upcoming Classes
+          </h2>
+          <ul className="space-y-3 text-sm text-slate-600">
+            <li className="flex justify-between">
+              <span>Data Structures</span>
+              <span className="text-slate-400">10:00 AM · A1</span>
             </li>
-            <li className="flex justify-between items-center border-b pb-2">
-              <span>Operating Systems — 1:30 PM</span>
-              <span className="text-sm text-gray-400">Room B4</span>
+            <li className="flex justify-between">
+              <span>Operating Systems</span>
+              <span className="text-slate-400">1:30 PM · B4</span>
             </li>
-            <li className="flex justify-between items-center">
-              <span>AI & Machine Learning — 3:00 PM</span>
-              <span className="text-sm text-gray-400">Lab C2</span>
+            <li className="flex justify-between">
+              <span>AI & ML</span>
+              <span className="text-slate-400">3:00 PM · Lab C2</span>
             </li>
           </ul>
         </div>
 
-        {/* Recent Announcements */}
-        <div className="bg-white border shadow-sm p-6 rounded-2xl hover:shadow-lg transition">
+        {/* Announcements */}
+        <div className="bg-white border rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-              <Megaphone size={18} className="text-purple-600" />
+            <h2 className="text-sm font-semibold text-slate-700">
               Recent Announcements
             </h2>
             <button
               onClick={() => setActiveTab("Announcements")}
-              className="text-sm text-purple-600 hover:underline"
+              className="text-xs text-indigo-600 hover:underline"
             >
               View All
             </button>
           </div>
-          <ul className="space-y-3 text-gray-700">
-            <li className="border-b pb-2">
-              <p className="font-medium">Midterm exam postponed to Monday</p>
-              <span className="text-xs text-gray-400">2 hours ago</span>
-            </li>
-            <li className="border-b pb-2">
-              <p className="font-medium">
-                Submit Assignment 3 by next Thursday
-              </p>
-              <span className="text-xs text-gray-400">Yesterday</span>
+          <ul className="space-y-3 text-sm text-slate-600">
+            <li>
+              Midterm exam postponed
+              <div className="text-xs text-slate-400">2 hours ago</div>
             </li>
             <li>
-              <p className="font-medium">AI Quiz available now in portal</p>
-              <span className="text-xs text-gray-400">3 days ago</span>
+              Assignment 3 deadline updated
+              <div className="text-xs text-slate-400">Yesterday</div>
             </li>
           </ul>
         </div>
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-white border shadow-sm p-6 rounded-2xl mt-8 hover:shadow-lg transition">
-        <h2 className="text-lg font-semibold text-gray-800 mb-6">
+      <div className="bg-white border rounded-lg p-6">
+        <h2 className="text-sm font-semibold text-slate-700 mb-4">
           Quick Actions
         </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
-          <QuickAction
-            icon={<BookOpen size={22} />}
-            label="My Courses"
-            onClick={() => setActiveTab("My Courses")}
-            gradient="from-indigo-500 to-blue-500"
-          />
-          <QuickAction
-            icon={<ClipboardList size={22} />}
-            label="Assignments & Quiz"
-            onClick={() => setActiveTab("Assignments & Quiz")}
-            gradient="from-purple-500 to-pink-500"
-          />
-          <QuickAction
-            icon={<Megaphone size={22} />}
-            label="Announcements"
-            onClick={() => setActiveTab("Announcements")}
-            gradient="from-green-500 to-emerald-500"
-          />
-          <QuickAction
-            icon={<ClipboardList size={22} />}
-            label="Requests"
-            onClick={() => setActiveTab("Requests")}
-            gradient="from-teal-500 to-cyan-500"
-          />
-          {/* ✅ Fixed Profile Quick Action */}
-          <QuickAction
-            icon={<User size={22} />}
-            label="Profile"
-            onClick={() => setActiveTab("Profile")}
-            gradient="from-amber-500 to-orange-500"
-          />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <QuickAction label="My Courses" onClick={() => setActiveTab("My Courses")} icon={<BookOpen />} />
+          <QuickAction label="Assignments" onClick={() => setActiveTab("Assignments & Quiz")} icon={<ClipboardList />} />
+          <QuickAction label="Announcements" onClick={() => setActiveTab("Announcements")} icon={<Megaphone />} />
+          <QuickAction label="Profile" onClick={() => setActiveTab("Profile")} icon={<User />} />
         </div>
       </div>
     </div>
@@ -277,28 +202,26 @@ function DashboardContent({ setActiveTab }) {
 /* -------------------------------
    Reusable Components
 --------------------------------*/
-function StatCard({ icon, title, value, gradient }) {
+function StatCard({ title, value, icon }) {
   return (
-    <div
-      className={`p-6 rounded-2xl shadow-sm border text-white bg-gradient-to-r ${gradient} transform hover:scale-[1.02] transition-all duration-300`}
-    >
-      <div className="flex items-center justify-between">
-        <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">{icon}</div>
-        <h3 className="text-3xl font-bold drop-shadow-sm">{value}</h3>
+    <div className="bg-white border rounded-lg p-5 flex items-center justify-between">
+      <div>
+        <p className="text-sm text-slate-500">{title}</p>
+        <h3 className="text-2xl font-semibold text-slate-800">{value}</h3>
       </div>
-      <p className="mt-3 text-sm font-medium text-white/90">{title}</p>
+      <div className="text-indigo-600">{icon}</div>
     </div>
   );
 }
 
-function QuickAction({ icon, label, onClick, gradient }) {
+function QuickAction({ label, icon, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center gap-3 p-6 rounded-xl bg-gradient-to-br ${gradient} text-white shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all`}
+      className="border rounded-lg p-4 flex flex-col items-center gap-2 hover:bg-indigo-50 transition"
     >
-      <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm">{icon}</div>
-      <span className="text-sm font-semibold tracking-wide">{label}</span>
+      <div className="text-indigo-600">{icon}</div>
+      <span className="text-sm text-slate-700 font-medium">{label}</span>
     </button>
   );
 }

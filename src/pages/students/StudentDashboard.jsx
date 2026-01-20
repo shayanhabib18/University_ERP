@@ -23,6 +23,11 @@ export default function StudentDashboard() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [recentAnnouncements, setRecentAnnouncements] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+  const [dashboardStats, setDashboardStats] = useState({
+    cgpa: "Loading...",
+    gpa: "Loading...",
+    enrolledCourses: 0,
+  });
 
   // Load student name from localStorage
   useEffect(() => {
@@ -83,6 +88,44 @@ export default function StudentDashboard() {
     fetchAnnouncements();
   }, []);
 
+  // Fetch dashboard stats
+  useEffect(() => {
+    const fetchDashboardStats = async () => {
+      try {
+        const studentInfoStr = localStorage.getItem("student_info");
+        if (!studentInfoStr) return;
+
+        const studentInfo = JSON.parse(studentInfoStr);
+        const studentId = studentInfo.id;
+
+        // Fetch enrollments
+        const enrollmentsResponse = await fetch(`http://localhost:5000/students/enrollments/student/${studentId}`);
+        const enrollments = enrollmentsResponse.ok ? await enrollmentsResponse.json() : [];
+
+        // Get current semester enrollments
+        const currentSemester = Math.max(...enrollments.map(e => e.semester || 1), 1);
+        const currentEnrollments = enrollments.filter(e => e.semester === currentSemester);
+
+        // Fetch academic records
+        const academicResponse = await fetch(`http://localhost:5000/students/academic-records/student/${studentId}`);
+        const academicRecords = academicResponse.ok ? await academicResponse.json() : [];
+
+        // Get current semester academic record
+        const currentRecord = academicRecords.find(r => r.semester === currentSemester);
+
+        setDashboardStats({
+          cgpa: currentRecord?.overall_grade || "Result Awaited",
+          gpa: currentRecord?.gpa || "Result Awaited",
+          enrolledCourses: currentEnrollments.length,
+        });
+      } catch (error) {
+        console.error("Failed to fetch dashboard stats:", error);
+      }
+    };
+
+    fetchDashboardStats();
+  }, []);
+
   const renderContent = () => {
     switch (activeTab) {
       case "Dashboard Overview":
@@ -118,11 +161,11 @@ export default function StudentDashboard() {
                   </div>
                   <h3 className="text-gray-500 font-medium">CGPA</h3>
                 </div>
-                <p className="text-3xl font-bold text-gray-800 mt-4">3.8</p>
+                <p className="text-3xl font-bold text-gray-800 mt-4">{dashboardStats.cgpa}</p>
                 <div className="flex items-center mt-2">
                   <span className="text-sm text-gray-500 mr-2">Current:</span>
                   <span className="text-sm font-medium bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                    3.9 GPA
+                    {dashboardStats.gpa} GPA
                   </span>
                 </div>
               </div>
@@ -135,8 +178,8 @@ export default function StudentDashboard() {
                   </div>
                   <h3 className="text-gray-500 font-medium">Enrolled Courses</h3>
                 </div>
-                <p className="text-3xl font-bold text-gray-800 mt-4">5</p>
-                <p className="text-sm text-gray-500 mt-1">3 core, 2 electives</p>
+                <p className="text-3xl font-bold text-gray-800 mt-4">{dashboardStats.enrolledCourses}</p>
+                <p className="text-sm text-gray-500 mt-1">Current semester</p>
               </div>
 
               {/* Notifications Card */}
