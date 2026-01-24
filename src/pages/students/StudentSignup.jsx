@@ -22,14 +22,14 @@ export default function StudentSignup() {
     dateOfBirth: "",
     gender: "",
     cnic: "",
+    departmentId: "",
+    joiningSession: "",
+    joiningDate: "",
     email: "",
     mobile: "",
     parentPhone: "",
     address: "",
     city: "",
-    departmentId: "",
-    joiningSession: "",
-    joiningDate: "",
     qualification: "",
     totalMarks: "",
     obtainedMarks: "",
@@ -37,34 +37,41 @@ export default function StudentSignup() {
   });
 
   const [departments, setDepartments] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [fileName, setFileName] = useState("");
   const [deptLoading, setDeptLoading] = useState(true);
 
-  // Fetch departments from backend API
+  // Fetch departments and sessions from backend API
   useEffect(() => {
-    const fetchDepartments = async () => {
+    const fetchData = async () => {
       try {
         setDeptLoading(true);
-        const response = await fetch("http://localhost:5000/departments");
         
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        // Fetch departments
+        const deptResponse = await fetch("http://localhost:5000/departments");
+        if (!deptResponse.ok) {
+          throw new Error(`Failed to fetch departments: ${deptResponse.status}`);
         }
-        
-        const data = await response.json();
-        console.log("Fetched departments:", data);
-        setDepartments(data || []);
+        const deptData = await deptResponse.json();
+        setDepartments(deptData || []);
+
+        // Fetch semesters/sessions
+        const sessResponse = await fetch("http://localhost:5000/semesters");
+        if (sessResponse.ok) {
+          const sessData = await sessResponse.json();
+          setSessions(sessData || []);
+        }
       } catch (err) {
-        console.error("Failed to fetch departments:", err);
-        setError("Failed to load departments. Make sure backend is running on localhost:5000");
+        console.error("Failed to fetch data:", err);
+        setError("Failed to load departments and sessions. Make sure backend is running.");
       } finally {
         setDeptLoading(false);
       }
     };
-    fetchDepartments();
+    fetchData();
   }, []);
 
   // Calculate eligibility
@@ -162,10 +169,12 @@ export default function StudentSignup() {
     return true;
   };
 
-  // Handle form submission
+  // Handle form submission with file upload
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError("");
+    setSuccess("");
 
     if (!validateForm()) {
       setLoading(false);
@@ -173,33 +182,33 @@ export default function StudentSignup() {
     }
 
     try {
-      // Prepare form data for submission
-      const signupData = {
-        student_name: formData.studentName,
-        father_name: formData.fatherName,
-        date_of_birth: formData.dateOfBirth,
-        gender: formData.gender,
-        cnic: formData.cnic,
-        email: formData.email,
-        mobile: formData.mobile,
-        parent_phone: formData.parentPhone,
-        address: formData.address,
-        city: formData.city,
-        department_id: formData.departmentId,
-        joining_session: formData.joiningSession,
-        joining_date: formData.joiningDate,
-        qualification: formData.qualification,
-        total_marks: Number(formData.totalMarks),
-        obtained_marks: Number(formData.obtainedMarks),
-        marksheet_url: formData.marksheetFile?.name || "", // Store file name for now
-      };
+      // Create FormData for file upload
+      const formDataToSubmit = new FormData();
+      formDataToSubmit.append("student_name", formData.studentName);
+      formDataToSubmit.append("father_name", formData.fatherName);
+      formDataToSubmit.append("date_of_birth", formData.dateOfBirth);
+      formDataToSubmit.append("gender", formData.gender);
+      formDataToSubmit.append("cnic", formData.cnic);
+      formDataToSubmit.append("email", formData.email);
+      formDataToSubmit.append("mobile", formData.mobile);
+      formDataToSubmit.append("parent_phone", formData.parentPhone);
+      formDataToSubmit.append("address", formData.address);
+      formDataToSubmit.append("city", formData.city);
+      formDataToSubmit.append("department_id", formData.departmentId);
+      formDataToSubmit.append("joining_session", formData.joiningSession);
+      formDataToSubmit.append("joining_date", formData.joiningDate);
+      formDataToSubmit.append("qualification", formData.qualification);
+      formDataToSubmit.append("total_marks", Number(formData.totalMarks));
+      formDataToSubmit.append("obtained_marks", Number(formData.obtainedMarks));
+      
+      // Append file if exists
+      if (formData.marksheetFile) {
+        formDataToSubmit.append("marksheet", formData.marksheetFile);
+      }
 
       const response = await fetch("http://localhost:5000/students/signup-requests", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(signupData),
+        body: formDataToSubmit,
       });
 
       if (!response.ok) {
@@ -207,10 +216,34 @@ export default function StudentSignup() {
         throw new Error(errorData.error || "Failed to submit application");
       }
 
+      const responseData = await response.json();
       setSuccess(
-        "Application submitted successfully! You will receive login credentials after admin approval."
+        responseData.message || "Application submitted successfully! You will receive login credentials after admin approval."
       );
       setLoading(false);
+      
+      // Reset form
+      setFormData({
+        studentName: "",
+        fatherName: "",
+        dateOfBirth: "",
+        gender: "",
+        cnic: "",
+        departmentId: "",
+        joiningSession: "",
+        joiningDate: "",
+        email: "",
+        mobile: "",
+        parentPhone: "",
+        address: "",
+        city: "",
+        qualification: "",
+        totalMarks: "",
+        obtainedMarks: "",
+        marksheetFile: null,
+      });
+      setFileName("");
+      
       setTimeout(() => navigate("/login/student"), 2500);
     } catch (err) {
       console.error("Signup error:", err);
@@ -327,7 +360,7 @@ export default function StudentSignup() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Department Dropdown */}
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Category/Department</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Category/Department (In which student want admission)</label>
                 <div className="relative">
                   <select
                     name="departmentId"
@@ -337,7 +370,7 @@ export default function StudentSignup() {
                     disabled={deptLoading}
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-100"
                   >
-                    <option value="">{deptLoading ? "Loading departments..." : "Select Category/Department"}</option>
+                    <option value="">{deptLoading ? "Loading departments..." : "Select Department"}</option>
                     {departments.map((dep) => (
                       <option key={dep.id} value={dep.id}>
                         {dep.name}
@@ -359,8 +392,18 @@ export default function StudentSignup() {
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   >
                     <option value="">Select Joining Session</option>
-                    <option value="Spring">Spring</option>
-                    <option value="Fall">Fall</option>
+                    {sessions.length > 0 ? (
+                      sessions.map((session) => (
+                        <option key={session.id} value={session.id}>
+                          {session.name || `${session.year} - ${session.season}`}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Spring">Spring</option>
+                        <option value="Fall">Fall</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
@@ -552,7 +595,7 @@ export default function StudentSignup() {
                 <Upload className="w-10 h-10 text-gray-400 mb-2" />
                 <p className="text-gray-600 font-medium text-center">Upload Academic Documents</p>
                 <p className="text-xs text-gray-500 text-center">PDF, JPG, PNG (Max 5MB)</p>
-                <input type="file" accept=".pdf,.jpg,.png" onChange={handleFileChange} className="hidden" />
+                <input type="file" accept=".pdf,.jpg,.png,.jpeg" onChange={handleFileChange} className="hidden" />
               </label>
 
               {fileName && (

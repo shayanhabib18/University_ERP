@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Menu, X, Bell, BookOpen, ClipboardList, FileText, Mail, User, LogOut, Home, BarChart2, CheckCircle } from "lucide-react";
 import Courses from "./Courses";
 import Notifications from "./Notifications";
@@ -17,6 +18,7 @@ const sidebarLinks = [
 ];
 
 export default function StudentDashboard() {
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard Overview");
   const [studentName, setStudentName] = useState("Student");
@@ -143,7 +145,7 @@ export default function StudentDashboard() {
                 <p className="text-gray-500 mt-1">Here's your academic summary</p>
               </div>
               <button
-                onClick={() => (window.location.href = "/login/student")}
+                onClick={() => navigate("/")}
                 className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-4 py-2 rounded-lg shadow-md transition-all"
               >
                 <LogOut size={18} />

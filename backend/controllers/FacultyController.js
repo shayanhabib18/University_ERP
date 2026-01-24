@@ -304,7 +304,7 @@ export const login = async (req, res) => {
     // Get faculty details
     const { data: faculty, error: facultyError } = await supabase
       .from("faculties")
-      .select("id, name, email, designation, department_id")
+      .select("id, name, email, designation, department_id, role, auth_user_id")
       .eq("auth_user_id", authData.user.id)
       .single();
 
@@ -323,11 +323,48 @@ export const login = async (req, res) => {
         name: faculty.name,
         designation: faculty.designation,
         department_id: faculty.department_id,
+        role: faculty.role,
+        auth_user_id: faculty.auth_user_id,
       },
       token: authData.session.access_token,
     });
   } catch (err) {
     console.error("Login error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Get faculty profile from auth token
+export const getProfile = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: "No authorization token provided" });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // Verify token with Supabase
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    // Get faculty details
+    const { data: faculty, error: facultyError } = await supabase
+      .from("faculties")
+      .select("id, name, email, designation, department_id, role, phone, qualification, joining_date")
+      .eq("auth_user_id", user.id)
+      .single();
+
+    if (facultyError || !faculty) {
+      return res.status(404).json({ error: "Faculty profile not found" });
+    }
+
+    res.json(faculty);
+  } catch (err) {
+    console.error("getProfile error:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -401,6 +438,220 @@ export const forgotPassword = async (req, res) => {
     return res.json({ success: true, message: "Password reset link sent" });
   } catch (err) {
     console.error("forgotPassword error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+// Assign Executive Role
+export const assignExecutive = async (req, res) => {
+  try {
+    const { mode = "select_faculty", facultyId, executiveFullName, executiveEmail, effectiveFrom } = req.body;
+
+    // Validate mode
+    if (!["select_faculty", "manual"].includes(mode)) {
+      return res.status(400).json({ error: "Invalid assignment mode. Must be 'select_faculty' or 'manual'" });
+    }
+
+    let executiveRecord;
+
+    if (mode === "select_faculty") {
+      // Mode 1: Assign existing faculty as executive
+      if (!facultyId) {
+        return res.status(400).json({ error: "Faculty ID is required for select_faculty mode" });
+      }
+
+      // Verify faculty exists
+      const { data: faculty, error: facultyError } = await supabase
+        .from("faculties")
+        .select("*")
+        .eq("id", facultyId)
+        .single();
+
+      if (facultyError || !faculty) {
+        return res.status(400).json({ error: "Faculty not found" });
+      }
+
+      // Remove any existing executive record
+      await supabase.from("executives").delete().neq("faculty_id", facultyId);
+
+      // Mark previous faculty as non-executive
+      await supabase
+        .from("faculties")
+        .update({ is_executive: false })
+        .neq("id", facultyId)
+        .eq("is_executive", true);
+
+      // Create or update executive record for this faculty
+      const { data: executive, error: executiveError } = await supabase
+        .from("executives")
+        .upsert({
+          faculty_id: facultyId,
+          assignment_mode: "select_faculty",
+          effective_from: effectiveFrom || null,
+          executive_full_name: null,
+          executive_email: null,
+        }, { onConflict: "faculty_id" })
+        .select();
+
+      if (executiveError) {
+        if (executiveError.message && executiveError.message.includes("does not exist")) {
+          return res.status(500).json({
+            error: "Database schema needs to be updated. Please run the migration: create_executives_table.sql"
+          });
+        }
+        return res.status(500).json({ error: executiveError.message });
+      }
+
+      // Mark this faculty as executive
+      await supabase
+        .from("faculties")
+        .update({ is_executive: true })
+        .eq("id", facultyId);
+
+      executiveRecord = {
+        ...executive[0],
+        faculty: faculty
+      };
+    } else if (mode === "manual") {
+      // Mode 2: Manual Executive assignment
+      if (!executiveFullName || !executiveEmail) {
+        return res.status(400).json({ error: "Executive Full Name and Email are required for manual mode" });
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(executiveEmail)) {
+        return res.status(400).json({ error: "Invalid email format" });
+      }
+
+      // Remove any existing executive record
+      await supabase.from("executives").delete().not("faculty_id", "is", null);
+
+      // Mark previous executive faculty as non-executive
+      await supabase
+        .from("faculties")
+        .update({ is_executive: false })
+        .eq("is_executive", true);
+
+      // Create new executive record (without faculty_id for manual assignment)
+      const { data: newExecutive, error: createError } = await supabase
+        .from("executives")
+        .insert([
+          {
+            faculty_id: null, // No faculty assigned for manual entries
+            executive_full_name: executiveFullName,
+            executive_email: executiveEmail,
+            assignment_mode: "manual",
+            effective_from: effectiveFrom || null,
+          }
+        ])
+        .select();
+
+      if (createError) {
+        if (createError.message && createError.message.includes("does not exist")) {
+          return res.status(500).json({
+            error: "Database schema needs to be updated. Please run the migration: create_executives_table.sql"
+          });
+        }
+        return res.status(500).json({ error: createError.message });
+      }
+
+      executiveRecord = newExecutive[0];
+    }
+
+    res.json({
+      message: `Executive assigned successfully (${mode}). Previous executive role has been removed.`,
+      data: executiveRecord
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Get current executive
+export const getCurrentExecutive = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("executives")
+      .select(`
+        *,
+        faculty:faculty_id(*)
+      `)
+      .maybeSingle();
+
+    if (error && error.message && !error.message.includes("does not exist")) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json(data || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Assign courses to a faculty
+export const assignCoursesToFaculty = async (req, res) => {
+  try {
+    const { id: facultyId } = req.params;
+    const { courseIds } = req.body;
+
+    if (!facultyId) {
+      return res.status(400).json({ error: "Faculty ID is required" });
+    }
+    if (!Array.isArray(courseIds) || courseIds.length === 0) {
+      return res.status(400).json({ error: "courseIds must be a non-empty array" });
+    }
+
+    // Validate faculty exists and get department
+    const { data: faculty, error: facultyErr } = await supabase
+      .from("faculties")
+      .select("id, department_id, role, is_hod")
+      .eq("id", facultyId)
+      .maybeSingle();
+
+    if (facultyErr) return res.status(500).json({ error: facultyErr.message });
+    if (!faculty) return res.status(404).json({ error: "Faculty not found" });
+
+    // Enforce business rule: only regular faculty can be assigned courses
+    const role = (faculty.role || "").toUpperCase();
+    if (role === "EXECUTIVE" || role === "DEPT_CHAIR" || faculty.is_hod === true) {
+      return res.status(400).json({ error: "Only regular faculty can be assigned courses" });
+    }
+
+    // Fetch courses and ensure they belong to the same department through semesters
+    const { data: courses, error: coursesErr } = await supabase
+      .from("courses")
+      .select("id, name, semester_id, semesters:semester_id(department_id)")
+      .in("id", courseIds);
+
+    if (coursesErr) return res.status(500).json({ error: coursesErr.message });
+
+    // Validate department match
+    const invalid = (courses || []).filter(
+      (c) => (c?.semesters?.department_id ?? null) !== faculty.department_id
+    );
+    if (invalid.length > 0) {
+      return res.status(400).json({
+        error: "Some courses do not belong to the faculty's department",
+        invalidCourseIds: invalid.map((c) => c.id),
+      });
+    }
+
+    // Upsert assignments
+    const rows = courseIds.map((cid) => ({ faculty_id: facultyId, course_id: cid }));
+    const { data: assigned, error: upsertErr } = await supabase
+      .from("faculty_courses")
+      .upsert(rows, { onConflict: "faculty_id,course_id" })
+      .select("id, course_id, assigned_at");
+
+    if (upsertErr) return res.status(500).json({ error: upsertErr.message });
+
+    return res.json({
+      message: "Courses assigned successfully",
+      assignedCount: assigned?.length || 0,
+      assigned,
+    });
+  } catch (err) {
     return res.status(500).json({ error: err.message });
   }
 };

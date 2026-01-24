@@ -50,6 +50,13 @@ export const departmentAPI = {
     apiCall(`/departments/${id}`, {
       method: "DELETE",
     }),
+  getHOD: (departmentId) =>
+    apiCall(`/departments/${departmentId}/hod`),
+  assignHOD: (departmentId, payload) =>
+    apiCall(`/departments/${departmentId}/assign-hod`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };
 
 // Semester API
@@ -98,6 +105,12 @@ export const facultyAPI = {
   getAll: () => apiCall("/faculties"),
   getByDepartment: (departmentId) =>
     apiCall(`/faculties/department/${departmentId}`),
+  getProfile: (token) =>
+    apiCall("/faculties/profile", {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+  getCurrentExecutive: () =>
+    apiCall("/faculties/executive/current"),
   create: (data) =>
     apiCall("/faculties", {
       method: "POST",
@@ -110,6 +123,24 @@ export const facultyAPI = {
     }),
   delete: (id) =>
     apiCall(`/faculties/${id}`, {
+      method: "DELETE",
+    }),
+  assignExecutive: (payload) =>
+    apiCall("/faculties/assign-executive", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  assignCourses: (facultyId, courseIds) =>
+    apiCall("/faculty-courses/assign", {
+      method: "POST",
+      body: JSON.stringify({ faculty_id: facultyId, course_ids: courseIds }),
+    }),
+  getFacultyCourses: (facultyId) =>
+    apiCall(`/faculty-courses/faculty/${facultyId}`),
+  getUnassignedCourses: (facultyId) =>
+    apiCall(`/faculty-courses/unassigned/${facultyId}`),
+  removeCourse: (facultyId, courseId) =>
+    apiCall(`/faculty-courses/${facultyId}/${courseId}`, {
       method: "DELETE",
     }),
 };

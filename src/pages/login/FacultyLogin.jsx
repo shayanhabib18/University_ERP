@@ -26,10 +26,15 @@ export default function FacultyLogin() {
       if (response.data?.success || response.data?.user) {
         console.log("✅ Faculty logged in:", response.data.user?.email || email);
         
-        // Store auth token if provided
+        // Store auth token and basic identity info if provided
         if (response.data?.token) {
           localStorage.setItem('facultyToken', response.data.token);
-          localStorage.setItem('facultyEmail', email);
+        }
+        if (response.data?.user?.email || email) {
+          localStorage.setItem('facultyEmail', response.data.user?.email || email);
+        }
+        if (response.data?.user?.name) {
+          localStorage.setItem('facultyName', response.data.user.name);
         }
         
         navigate("/faculty/dashboard");
@@ -56,7 +61,7 @@ export default function FacultyLogin() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-500"
-              placeholder="your.email@university.edu"
+              placeholder="Enter your Email"
               required
               disabled={loading}
             />
@@ -69,7 +74,7 @@ export default function FacultyLogin() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-500"
-              placeholder="Your password"
+              placeholder="Enter Your Password"
               required
               disabled={loading}
             />

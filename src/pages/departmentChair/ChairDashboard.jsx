@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import FacultyManagement from "./FacultyManagement";
 import ChairApprovals from "./ChairApprovals";
 import ChairAnalytics from "./ChairAnalytics";
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 
 export default function ChairDashboard() {
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
 
@@ -49,7 +51,7 @@ export default function ChairDashboard() {
                 </p>
               </div>
               <button
-                onClick={() => (window.location.href = "/login/chairman")}
+                onClick={() => navigate("/")}
                 className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-4 py-2 rounded-lg shadow-md transition-all hover:scale-105"
               >
                 <LogOut size={18} /> Logout

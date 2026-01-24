@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import ExecutiveAnnouncements from "./ExecutiveAnnouncements";
 import ExecutiveDepartments from "./ExecutiveDepartments";
 import ExecutiveReports from "./ExecutiveReports";
@@ -32,6 +33,7 @@ const getTimeAgo = (dateString) => {
 };
 
 export default function ExecutiveDashboard() {
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [recentAnnouncements, setRecentAnnouncements] = useState([]);
@@ -93,7 +95,7 @@ export default function ExecutiveDashboard() {
               </div>
               
               <button
-                onClick={() => (window.location.href = "/login/executive")}
+                onClick={() => navigate("/")}
                 className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-5 py-2.5 rounded-xl shadow-lg transition-all hover:scale-105 font-semibold"
               >
                 <LogOut size={18} />

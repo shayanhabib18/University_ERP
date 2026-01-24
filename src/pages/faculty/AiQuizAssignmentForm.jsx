@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   FileText, 
   Sparkles, 
@@ -33,13 +33,53 @@ const AiQuizAssignmentForm = () => {
   const [generatedQuestions, setGeneratedQuestions] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState("quiz");
+  const [courses, setCourses] = useState([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
 
-  const courses = [
-    { id: "CS101", name: "Introduction to Programming", color: "indigo" },
-    { id: "CS201", name: "Data Structures & Algorithms", color: "blue" },
-    { id: "CS301", name: "Operating Systems", color: "emerald" },
-    { id: "CS401", name: "Database Systems", color: "amber" },
-  ];
+  useEffect(() => {
+    const loadCourses = async () => {
+      try {
+        setLoadingCourses(true);
+        const token = localStorage.getItem("facultyToken");
+        if (!token) {
+          console.warn("No faculty token found");
+          setLoadingCourses(false);
+          return;
+        }
+
+        const profileResp = await fetch("http://localhost:5000/faculties/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!profileResp.ok) {
+          console.error("Failed to load faculty profile");
+          setLoadingCourses(false);
+          return;
+        }
+        const profile = await profileResp.json();
+        const facultyId = profile.id;
+
+        const coursesResp = await fetch(`http://localhost:5000/faculty-courses/faculty/${facultyId}`);
+        if (!coursesResp.ok) {
+          console.error("Failed to load faculty courses");
+          setLoadingCourses(false);
+          return;
+        }
+        const data = await coursesResp.json();
+        const mapped = (data || []).map((c) => ({
+          id: c?.course?.id,
+          code: c?.course?.code,
+          name: c?.course?.name,
+        })).filter(c => c.id);
+        setCourses(mapped);
+      } catch (error) {
+        console.error("Error loading courses", error);
+      } finally {
+        setLoadingCourses(false);
+      }
+    };
+
+    loadCourses();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
@@ -172,28 +212,23 @@ const AiQuizAssignmentForm = () => {
                     <BookOpen className="inline w-4 h-4 mr-2" />
                     Select Course
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <select
+                    name="course"
+                    value={form.course}
+                    onChange={handleChange}
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                    disabled={loadingCourses || courses.length === 0}
+                  >
+                    <option value="">{loadingCourses ? "Loading courses..." : "Select a course"}</option>
                     {courses.map((course) => (
-                      <button
-                        key={course.id}
-                        onClick={() =>
-                          setForm((prev) => ({ ...prev, course: course.id }))
-                        }
-                        className={`p-4 rounded-xl border-2 text-left transition-all ${
-                          form.course === course.id
-                            ? `border-${course.color}-500 bg-${course.color}-50 shadow-sm`
-                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                        }`}
-                      >
-                        <div className="font-semibold text-gray-900">
-                          {course.id}
-                        </div>
-                        <div className="text-sm text-gray-600 mt-1">
-                          {course.name}
-                        </div>
-                      </button>
+                      <option key={course.id} value={course.id}>
+                        {course.code ? `${course.code} - ` : ""}{course.name}
+                      </option>
                     ))}
-                  </div>
+                  </select>
+                  {(!loadingCourses && courses.length === 0) && (
+                    <p className="text-sm text-gray-500 mt-2">No courses assigned to you yet.</p>
+                  )}
                 </div>
 
                 {/* Quiz Type and Topic */}
@@ -314,13 +349,16 @@ const AiQuizAssignmentForm = () => {
                       onChange={handleAssignmentChange}
                       className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                     >
-                      <option value="">Select a course</option>
+                      <option value="">{loadingCourses ? "Loading courses..." : "Select a course"}</option>
                       {courses.map((course) => (
                         <option key={course.id} value={course.id}>
-                          {course.id} - {course.name}
+                          {course.code ? `${course.code} - ` : ""}{course.name}
                         </option>
                       ))}
                     </select>
+                    {(!loadingCourses && courses.length === 0) && (
+                      <p className="text-sm text-gray-500 mt-2">No courses assigned to you yet.</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">

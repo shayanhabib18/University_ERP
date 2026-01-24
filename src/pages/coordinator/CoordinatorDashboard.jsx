@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Menu, X, Bell, FileText, Send, LogOut, Home } from "lucide-react";
 import CoordinatorAnnouncements from "./CoordinatorAnnouncements";
 import CoordinatorRequests from "./CoordinatorRequests";
@@ -10,6 +11,7 @@ const sidebarLinks = [
 ];
 
 export default function CoordinatorDashboard() {
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard Overview");
   const [pendingRequests, setPendingRequests] = useState(12);
@@ -31,7 +33,7 @@ export default function CoordinatorDashboard() {
                 <p className="text-gray-500 mt-1">Department overview & management</p>
               </div>
               <button
-                onClick={() => (window.location.href = "/login/coordinator")}
+                onClick={() => navigate("/")}
                 className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-4 py-2 rounded-lg shadow-md transition-all"
               >
                 <LogOut size={18} />

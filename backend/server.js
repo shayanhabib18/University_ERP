@@ -11,6 +11,7 @@ import facultyRoutes from "./routes/facultyRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js"; // student management routes
 import announcementRoutes from "./routes/announcementRoutes.js"; // announcement routes
 import studentRequestRoutes from "./routes/studentRequestRoutes.js"; // student requests module
+import facultyCourseRoutes from "./routes/facultyCourseRoutes.js"; // faculty course assignments
 
 // Import auth routes from organized auth folder
 import { studentAuth, adminAuth } from "./src/routes/auth/index.js";
@@ -35,6 +36,7 @@ app.use("/students", studentRoutes); // student management routes
 app.use("/announcements", announcementRoutes); // announcement routes
 app.use("/requests", studentRequestRoutes); // student requests module (both student and coordinator)
 app.use("/api", studentRequestRoutes); // Also mount at /api for new endpoints
+app.use("/faculty-courses", facultyCourseRoutes); // faculty course assignments
 
 // Default route (optional)
 app.get("/", (req, res) => {
