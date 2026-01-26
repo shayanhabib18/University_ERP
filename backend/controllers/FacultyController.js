@@ -352,14 +352,56 @@ export const getProfile = async (req, res) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
+      console.error("Token verification error:", authError);
       return res.status(401).json({ error: "Invalid or expired token" });
     }
 
-    // Get faculty details
+    // Get faculty details by auth_user_id
+    const { data: faculty, error: facultyError } = await supabase
+      .from("faculties")
+      .select("id, name, email, designation, department_id, role, phone, qualification, joining_date, auth_user_id")
+      .eq("auth_user_id", user.id)
+      .single();
+
+    if (facultyError) {
+      console.error("Faculty query error:", facultyError);
+      // Fallback: try to find by email if auth_user_id lookup fails
+      const { data: fallbackFaculty, error: fallbackError } = await supabase
+        .from("faculties")
+        .select("id, name, email, designation, department_id, role, phone, qualification, joining_date, auth_user_id")
+        .eq("email", user.email)
+        .single();
+
+      if (fallbackError || !fallbackFaculty) {
+        return res.status(404).json({ error: "Faculty profile not found", detail: facultyError.message });
+      }
+      return res.json(fallbackFaculty);
+    }
+
+    if (!faculty) {
+      return res.status(404).json({ error: "Faculty profile not found" });
+    }
+
+    res.json(faculty);
+  } catch (err) {
+    console.error("getProfile error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Get faculty profile by email (simpler fallback for ChairDashboard)
+export const getProfileByEmail = async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
     const { data: faculty, error: facultyError } = await supabase
       .from("faculties")
       .select("id, name, email, designation, department_id, role, phone, qualification, joining_date")
-      .eq("auth_user_id", user.id)
+      .eq("email", email)
       .single();
 
     if (facultyError || !faculty) {
@@ -368,7 +410,7 @@ export const getProfile = async (req, res) => {
 
     res.json(faculty);
   } catch (err) {
-    console.error("getProfile error:", err);
+    console.error("getProfileByEmail error:", err);
     res.status(500).json({ error: err.message });
   }
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Download, FileText, Calendar, BookOpen, Loader } from "lucide-react";
+import { Download, FileText, Calendar, BookOpen, Loader, Eye } from "lucide-react";
 
 export default function CourseMaterials() {
   const [materials, setMaterials] = useState([]);
@@ -16,14 +16,12 @@ export default function CourseMaterials() {
   const fetchMaterials = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("student_token");
+      const infoRaw = localStorage.getItem("student_info");
+      const info = infoRaw ? JSON.parse(infoRaw) : null;
+      const studentId = info?.id;
 
-      // Fetch enrollments to get courses
-      const enrollResponse = await fetch("http://localhost:5000/api/enrollments", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // Fetch enrollments to get courses for current student
+      const enrollResponse = await fetch(`http://localhost:5000/students/enrollments/student/${studentId}`);
 
       if (enrollResponse.ok) {
         const enrollments = await enrollResponse.json();
@@ -32,12 +30,7 @@ export default function CourseMaterials() {
 
         // Fetch materials for all courses
         const materialsResponse = await fetch(
-          "http://localhost:5000/api/course-materials",
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
+          "http://localhost:5000/api/course-materials"
         );
 
         if (materialsResponse.ok) {
@@ -58,12 +51,34 @@ export default function CourseMaterials() {
     }
   };
 
-  const handleDownload = (material) => {
-    // Create a link to download the file
-    const link = document.createElement("a");
-    link.href = material.file_path || material.url;
-    link.download = material.name || "material";
-    link.click();
+  const handleDownload = async (material) => {
+    try {
+      // Fetch the file as a blob to force download
+      const response = await fetch(material.file_path || material.url);
+      const blob = await response.blob();
+      
+      // Create a temporary URL for the blob
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      // Create a link and trigger download
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = material.name || "material";
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Download failed:", error);
+      alert("Failed to download file. Please try again.");
+    }
+  };
+
+  const handleView = (material) => {
+    // Open the file in a new tab for viewing
+    window.open(material.file_path || material.url, "_blank");
   };
 
   const getCourseName = (courseId) => {
@@ -133,7 +148,7 @@ export default function CourseMaterials() {
                     <BookOpen className="text-blue-600" size={20} />
                     <div>
                       <h2 className="text-lg font-semibold text-gray-800">
-                        {getCourseName(parseInt(courseId))}
+                        {getCourseName(courseId)}
                       </h2>
                       <p className="text-sm text-gray-600">
                         {courseMaterials.length} material(s)
@@ -185,13 +200,22 @@ export default function CourseMaterials() {
                             </div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleDownload(material)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition whitespace-nowrap ml-4"
-                        >
-                          <Download size={16} />
-                          Download
-                        </button>
+                        <div className="flex items-center gap-2 ml-4">
+                          <button
+                            onClick={() => handleView(material)}
+                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition whitespace-nowrap"
+                          >
+                            <Eye size={16} />
+                            View
+                          </button>
+                          <button
+                            onClick={() => handleDownload(material)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition whitespace-nowrap"
+                          >
+                            <Download size={16} />
+                            Download
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}

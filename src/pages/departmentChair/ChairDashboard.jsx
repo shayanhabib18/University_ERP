@@ -45,10 +45,8 @@ export default function ChairDashboard() {
           return;
         }
 
-        // Get faculty profile to get department_id
-        const profileRes = await fetch("http://localhost:5000/faculties/profile", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        // Get faculty profile by email (simpler, doesn't require token validation)
+        const profileRes = await fetch(`http://localhost:5000/faculties/profile/${encodeURIComponent(email)}`);
         
         if (!profileRes.ok) {
           console.error("Failed to fetch profile");

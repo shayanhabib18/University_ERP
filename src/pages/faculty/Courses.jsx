@@ -118,23 +118,37 @@ export default function Courses() {
   };
 
   /* ---------------- MATERIAL UPLOAD ---------------- */
-  const uploadMaterial = () => {
-    if (!selectedFile) return;
-    const newMaterial = {
-      id: Date.now().toString(),
-      name: selectedFile.name,
-      date: new Date().toISOString().slice(0, 10),
-      size: `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`,
-    };
+  const uploadMaterial = async () => {
+    if (!selectedFile || !activeCourseId) return;
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
 
-    setCourses((prev) =>
-      prev.map((c) =>
-        c.id === activeCourseId
-          ? { ...c, materials: [...c.materials, newMaterial] }
-          : c
-      )
-    );
-    setSelectedFile(null);
+      const response = await fetch(`${API_URL}/course-materials/${activeCourseId}/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => null);
+        throw new Error(errBody?.error || 'Upload failed');
+      }
+
+      const result = await response.json();
+      const mat = result.material;
+      setCourses((prev) =>
+        prev.map((c) =>
+          c.id === activeCourseId
+            ? { ...c, materials: [...c.materials, mat] }
+            : c
+        )
+      );
+      setSelectedFile(null);
+      alert('Material uploaded successfully');
+    } catch (err) {
+      console.error('Upload error:', err);
+      alert('Failed to upload: ' + err.message);
+    }
   };
 
   /* ---------------- ATTENDANCE ---------------- */
@@ -183,11 +197,21 @@ export default function Courses() {
           roll_number: s.roll_number || s.enrollment || s.rollNo || s.rollno || s.id,
         }));
 
+      // Fetch materials for this course
+      let materials = [];
+      try {
+        const matsResp = await fetch(`${API_URL}/course-materials/${courseId}`);
+        materials = matsResp.ok ? await matsResp.json() : [];
+      } catch (e) {
+        materials = [];
+      }
+
       setCourses(prev => prev.map(c => c.id === courseId ? {
         ...c,
         studentCount: details.students_count ?? c.studentCount,
         students: normalizedStudents,
         studentRSTs: studentRSTsMap,
+        materials,
       } : c));
     } catch (error) {
       console.error("Error loading course details", error);
@@ -368,8 +392,16 @@ export default function Courses() {
   };
 
   /* ---------------- DELETE MATERIAL ---------------- */
-  const deleteMaterial = (materialId) => {
-    if (window.confirm("Are you sure you want to delete this material?")) {
+  const deleteMaterial = async (materialId) => {
+    if (!materialId || !activeCourseId) return;
+    const ok = window.confirm('Are you sure you want to delete this material?');
+    if (!ok) return;
+    try {
+      const response = await fetch(`${API_URL}/course-materials/${materialId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => null);
+        throw new Error(errBody?.error || 'Delete failed');
+      }
       setCourses((prev) =>
         prev.map((c) =>
           c.id === activeCourseId
@@ -377,7 +409,41 @@ export default function Courses() {
             : c
         )
       );
+      alert('Material deleted');
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('Failed to delete: ' + err.message);
     }
+  };
+
+  const handleDownloadMaterial = async (material) => {
+    try {
+      // Fetch the file as a blob to force download
+      const response = await fetch(material.file_path || material.url);
+      const blob = await response.blob();
+      
+      // Create a temporary URL for the blob
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      // Create a link and trigger download
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = material.name || "material";
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Download failed:", error);
+      alert("Failed to download file. Please try again.");
+    }
+  };
+
+  const handleViewMaterial = (material) => {
+    // Open the file in a new tab for viewing
+    window.open(material.file_path || material.url, "_blank");
   };
 
   // Get RST record for student (if exists)
@@ -871,10 +937,22 @@ export default function Courses() {
                           <span>{material.date}</span>
                           <span>{material.size}</span>
                         </div>
-                        <button className="mt-4 w-full py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
-                          <Download size={14} />
-                          Download
-                        </button>
+                        <div className="mt-4 flex gap-2">
+                          <button 
+                            onClick={() => handleViewMaterial(material)}
+                            className="flex-1 py-2 text-sm font-medium text-green-600 hover:text-green-700 border border-green-200 rounded-lg hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <FileText size={14} />
+                            View
+                          </button>
+                          <button 
+                            onClick={() => handleDownloadMaterial(material)}
+                            className="flex-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <Download size={14} />
+                            Download
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

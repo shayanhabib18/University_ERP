@@ -29,4 +29,24 @@ export const facultyCoursesAPI = {
     if (!response.ok) throw new Error("Failed to fetch materials");
     return response.json();
   },
+  // Upload course material
+  uploadCourseMaterial: async (courseId, file, description) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (description) formData.append("description", description);
+    const response = await fetch(`${API_URL}/course-materials/${courseId}/upload`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) throw new Error("Failed to upload material");
+    return response.json();
+  },
+  // Delete course material
+  deleteCourseMaterial: async (materialId) => {
+    const response = await fetch(`${API_URL}/course-materials/${materialId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Failed to delete material");
+    return response.json();
+  },
 };

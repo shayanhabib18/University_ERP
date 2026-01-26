@@ -69,20 +69,20 @@ export default function FacultyManagement() {
     const fetchFaculty = async () => {
       try {
         const token = localStorage.getItem("facultyToken");
-        console.log("🔍 Token present:", !!token);
+        const email = localStorage.getItem("facultyEmail");
+        console.log("🔍 Token present:", !!token, "Email:", email);
         
-        if (!token) {
-          console.error("❌ No faculty token found in localStorage");
+        if (!token || !email) {
+          console.error("❌ No faculty token or email found in localStorage");
           setError("No authentication token found. Please login again.");
           setLoading(false);
           return;
         }
 
-        // Get faculty profile to get department_id
+        // Get faculty profile by email to get department_id
         console.log("📡 Fetching faculty profile...");
         const profileRes = await fetch(
-          "http://localhost:5000/faculties/profile",
-          { headers: { Authorization: `Bearer ${token}` } }
+          `http://localhost:5000/faculties/profile/${encodeURIComponent(email)}`
         );
 
         console.log("📊 Profile response status:", profileRes.status);

@@ -13,12 +13,14 @@ import {
   assignExecutive,
   getCurrentExecutive,
   assignCoursesToFaculty,
+  getProfileByEmail,
 } from "../controllers/FacultyController.js";
 
 const router = express.Router();
 
 router.post("/login", login);
 router.get("/profile", getProfile);
+router.get("/profile/:email", getProfileByEmail);
 router.post("/forgot-password", forgotPassword);
 router.get("/", getAllFaculty);
 router.get("/executive/current", getCurrentExecutive);

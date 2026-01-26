@@ -10,10 +10,12 @@ import courseRoutes from "./routes/courseRoutes.js";
 import facultyRoutes from "./routes/facultyRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js"; // student management routes
 import announcementRoutes from "./routes/announcementRoutes.js"; // announcement routes
+import materialRoutes from "./routes/materialRoutes.js"; // course materials routes
 import studentRequestRoutes from "./routes/studentRequestRoutes.js"; // student requests module
 import facultyCourseRoutes from "./routes/facultyCourseRoutes.js"; // faculty course assignments
 import rstRoutes from "./routes/rstRoutes.js"; // RST (Result Summary Table) routes
 import resultsRoutes from "./routes/resultsRoutes.js"; // Results approval routes
+import { initializeStorage } from "./controllers/CourseMaterialsController.js"; // storage initialization
 
 // Import auth routes from organized auth folder
 import { studentAuth, adminAuth } from "./src/routes/auth/index.js";
@@ -26,6 +28,8 @@ const app = express();
 app.use(cors());
 app.use(express.json()); // parses incoming JSON requests
 app.use(express.urlencoded({ extended: true })); // parses URL-encoded requests
+// Serve static files from /public under /static URL
+app.use("/static", express.static("public"));
 
 // Routes
 app.use("/departments", departmentRoutes);
@@ -41,10 +45,18 @@ app.use("/api", studentRequestRoutes); // Also mount at /api for new endpoints
 app.use("/faculty-courses", facultyCourseRoutes); // faculty course assignments
 app.use("/results", resultsRoutes); // results approval & student results
 app.use("/", rstRoutes); // RST routes
+// Mount materials routes at both /course-materials and /api/course-materials for student portal
+app.use("/course-materials", materialRoutes);
+app.use("/api/course-materials", materialRoutes);
 
 // Default route (optional)
 app.get("/", (req, res) => {
   res.send("University ERP Backend is running!");
+});
+
+// Initialize storage
+initializeStorage().catch(err => {
+  console.error("⚠️  Failed to initialize storage:", err.message);
 });
 
 // Start server
