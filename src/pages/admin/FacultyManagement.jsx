@@ -124,16 +124,25 @@ const FacultyManagement = () => {
 
     try {
       const payload = toPayload(formData);
+      const isNewFaculty = editingIndex === null;
+      const facultyEmail = formData.email;
+      
       if (editingIndex !== null) {
         const target = facultyList[editingIndex];
         await facultyAPI.update(target.id, payload);
       } else {
         await facultyAPI.create(payload);
       }
+      
       await loadFaculty(selectedDept.id);
       setEditingIndex(null);
       setFormData(initialFormState);
       setActiveOption("");
+      
+      // Show alert only for new faculty registration
+      if (isNewFaculty) {
+        alert(`✓ Faculty registered successfully!\n\nCredentials have been sent to ${facultyEmail}`);
+      }
     } catch (err) {
       alert(err?.message || "Failed to save faculty");
     }

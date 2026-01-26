@@ -6,6 +6,7 @@ import Notifications from "./Notifications";
 import AssignmentsQuizzes from "./AssignmentsQuizzes";
 import Profile from "./Profile";
 import Requests from "./Requests";
+import CourseMaterials from "./CourseMaterials";
 import { getAnnouncementsByRole } from "../../services/announcementAPI";
 
 const sidebarLinks = [
@@ -13,6 +14,7 @@ const sidebarLinks = [
   { name: "My Profile", icon: <User size={18} /> },
   { name: "Assignments & Quizzes", icon: <ClipboardList size={18} /> },
   { name: "Courses / Enrollments", icon: <BookOpen size={18} /> },
+  { name: "Course Materials", icon: <FileText size={18} /> },
   { name: "Requests / Messages", icon: <Mail size={18} /> },
   { name: "Notifications", icon: <Bell size={18} /> }
 ];
@@ -90,6 +92,51 @@ export default function StudentDashboard() {
     fetchAnnouncements();
   }, []);
 
+  // Helper functions for GPA calculation
+  const getGradePoints = (grade) => {
+    const gradeMap = {
+      'A': 4.0, 'A-': 3.7, 'B+': 3.3, 'B': 3.0, 'B-': 2.7,
+      'C+': 2.3, 'C': 2.0, 'C-': 1.7, 'D': 1.0, 'F': 0.0
+    };
+    return gradeMap[grade] || 0;
+  };
+
+  const calculateSemesterGPA = (courses) => {
+    let totalGradePoints = 0;
+    let totalCredits = 0;
+    let hasGrades = false;
+    
+    courses.forEach(course => {
+      if (course.grade && course.grade !== "Result Awaited") {
+        hasGrades = true;
+        totalGradePoints += getGradePoints(course.grade) * (course.creditHours || 0);
+        totalCredits += course.creditHours || 0;
+      }
+    });
+    
+    return !hasGrades || totalCredits === 0 ? "Result Awaited" : (totalGradePoints / totalCredits).toFixed(2);
+  };
+
+  const calculateCGPA = (enrollmentsList) => {
+    let totalGradePoints = 0;
+    let totalCredits = 0;
+    let hasAnyGrades = false;
+    
+    enrollmentsList.forEach(semester => {
+      if (semester.courses) {
+        semester.courses.forEach(course => {
+          if (course.grade && course.grade !== "Result Awaited") {
+            hasAnyGrades = true;
+            totalGradePoints += getGradePoints(course.grade) * (course.creditHours || 0);
+            totalCredits += course.creditHours || 0;
+          }
+        });
+      }
+    });
+    
+    return !hasAnyGrades || totalCredits === 0 ? "Result Awaited" : (totalGradePoints / totalCredits).toFixed(2);
+  };
+
   // Fetch dashboard stats
   useEffect(() => {
     const fetchDashboardStats = async () => {
@@ -104,20 +151,62 @@ export default function StudentDashboard() {
         const enrollmentsResponse = await fetch(`http://localhost:5000/students/enrollments/student/${studentId}`);
         const enrollments = enrollmentsResponse.ok ? await enrollmentsResponse.json() : [];
 
-        // Get current semester enrollments
-        const currentSemester = Math.max(...enrollments.map(e => e.semester || 1), 1);
-        const currentEnrollments = enrollments.filter(e => e.semester === currentSemester);
+        // Group enrollments by semester
+        const grouped = {};
+        enrollments.forEach(enrollment => {
+          const semester = enrollment.semester || 1;
+          if (!grouped[semester]) {
+            grouped[semester] = { semester, courses: [] };
+          }
 
-        // Fetch academic records
-        const academicResponse = await fetch(`http://localhost:5000/students/academic-records/student/${studentId}`);
-        const academicRecords = academicResponse.ok ? await academicResponse.json() : [];
+          // Normalize course shape so RST fetch works reliably
+          grouped[semester].courses.push({
+            id: enrollment.course_id || enrollment.id, // used for RST fetch
+            courseCode: enrollment.course_code || `COURSE-${enrollment.course_id || enrollment.id}`,
+            name: enrollment.course_name || enrollment.name || "Course Name",
+            creditHours: enrollment.credit_hours || enrollment.credits || 3,
+            grade: enrollment.grade || "Result Awaited",
+          });
+        });
 
-        // Get current semester academic record
-        const currentRecord = academicRecords.find(r => r.semester === currentSemester);
+        const semestersArray = Object.values(grouped).sort((a, b) => b.semester - a.semester);
+
+        if (semestersArray.length === 0) {
+          setDashboardStats({ cgpa: "Result Awaited", gpa: "Result Awaited", enrolledCourses: 0 });
+          return;
+        }
+
+        // Fetch RST data for each course to get grade and status
+        for (const semester of semestersArray) {
+          for (const course of semester.courses) {
+            if (!course.id) continue; // skip if course id missing
+            try {
+              const rstResponse = await fetch(
+                `http://localhost:5000/rst/student/${studentId}/course/${course.id}`
+              );
+              if (rstResponse.ok) {
+                const rstData = await rstResponse.json();
+                course.grade = rstData.grade || "Result Awaited";
+              }
+            } catch (err) {
+              console.log(`No RST found for course ${course.id}`);
+            }
+          }
+        }
+
+        // Get current semester (most recent)
+        const currentSemester = semestersArray[0];
+        const currentEnrollments = currentSemester?.courses || [];
+
+        // Calculate current semester GPA
+        const currentGPA = calculateSemesterGPA(currentEnrollments);
+
+        // Calculate overall CGPA
+        const cgpa = calculateCGPA(semestersArray);
 
         setDashboardStats({
-          cgpa: currentRecord?.overall_grade || "Result Awaited",
-          gpa: currentRecord?.gpa || "Result Awaited",
+          cgpa: cgpa,
+          gpa: currentGPA,
           enrolledCourses: currentEnrollments.length,
         });
       } catch (error) {
@@ -262,6 +351,8 @@ export default function StudentDashboard() {
         return <Profile />;
       case "Courses / Enrollments":
         return <Courses />;
+      case "Course Materials":
+        return <CourseMaterials />;
       case "Assignments & Quizzes":
         return <AssignmentsQuizzes />;
       case "Requests / Messages":

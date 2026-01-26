@@ -76,9 +76,32 @@ export default function FacultyDashboard() {
         const coursesData = coursesResp.ok ? await coursesResp.json() : [];
 
         const coursesCount = Array.isArray(coursesData) ? coursesData.length : 0;
-        const studentsTotal = Array.isArray(coursesData)
-          ? coursesData.reduce((sum, c) => sum + (c.student_count || 0), 0)
-          : 0;
+        
+        // Calculate active (registered) students by fetching RST data for each course
+        let studentsTotal = 0;
+        if (Array.isArray(coursesData)) {
+          for (const course of coursesData) {
+            try {
+              const rstResp = await fetch(`http://localhost:5000/rst/course/${course.course.id}`);
+              const rstData = rstResp.ok ? await rstResp.json() : [];
+              
+              // Count students who don't have approved results
+              const activeStudents = Array.isArray(rstData)
+                ? rstData.filter(rst => rst.approval_status !== 'approved').length
+                : 0;
+              
+              // If no RST data, count total enrolled students
+              if (rstData.length === 0) {
+                studentsTotal += course.student_count || 0;
+              } else {
+                studentsTotal += activeStudents;
+              }
+            } catch (error) {
+              console.error(`Error fetching RST for course ${course.course.id}:`, error);
+              studentsTotal += course.student_count || 0;
+            }
+          }
+        }
 
         // 3) Announcements for faculty role
         let announcements = [];

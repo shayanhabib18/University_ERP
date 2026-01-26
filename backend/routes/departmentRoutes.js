@@ -8,9 +8,13 @@ import {
   getDepartmentById,
   getHODByDepartment,
   assignHOD,
+  hodLogin,
 } from "../controllers/DepartmentController.js";
 
 const router = express.Router();
+
+// HOD login route
+router.post("/hod-login", hodLogin);
 
 // Get all departments
 router.get("/", getAllDepartments);

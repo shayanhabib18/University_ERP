@@ -186,14 +186,18 @@ router.post('/reset-password', async (req, res) => {
   if (!supabaseClient) return res.status(500).json({ error: 'Supabase not configured' });
   
   const { accessToken, password } = req.body;
-  if (!accessToken || !password) {
-    return res.status(400).json({ error: 'Access token and password required' });
+  if (!password) {
+    return res.status(400).json({ error: 'Password required' });
   }
 
   try {
     // Decode token to get user ID
-    const jwtPayload = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64').toString());
-    const userId = jwtPayload.sub;
+    if (!accessToken || typeof accessToken !== 'string' || !accessToken.includes('.') || accessToken.split('.').length !== 3) {
+      return res.status(400).json({ error: 'Invalid access token format' });
+    }
+    const jwtPart = accessToken.split('.')[1];
+    const jwtPayload = JSON.parse(Buffer.from(jwtPart, 'base64').toString());
+    const userId = jwtPayload?.sub;
     
     if (!userId) {
       throw new Error('Invalid access token');
@@ -212,10 +216,7 @@ router.post('/reset-password', async (req, res) => {
     }
 
     // Update password
-    const { error: updateError } = await supabaseClient.auth.admin.updateUserById(
-      userId,
-      { password }
-    );
+    const { error: updateError } = await supabaseClient.auth.admin.updateUserById(userId, { password });
     
     if (updateError) throw new Error(updateError.message);
     

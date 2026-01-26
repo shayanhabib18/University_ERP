@@ -169,10 +169,41 @@ export const studentAPI = {
     }),
 };
 
+// Academic Records API
+export const academicRecordsAPI = {
+  // Get all records for a student
+  getByStudent: (studentId) => apiCall(`/academic-records/student/${studentId}`),
+
+  // Get specific semester record
+  getBySemester: (studentId, semester) =>
+    apiCall(`/academic-records/student/${studentId}/semester/${semester}`),
+
+  // Create academic record
+  create: (data) =>
+    apiCall("/academic-records", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Update academic record
+  update: (recordId, data) =>
+    apiCall(`/academic-records/${recordId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // Delete academic record
+  delete: (recordId) =>
+    apiCall(`/academic-records/${recordId}`, {
+      method: "DELETE",
+    }),
+};
+
 export default {
   departments: departmentAPI,
   semesters: semesterAPI,
   courses: courseAPI,
   faculties: facultyAPI,
   students: studentAPI,
+  academicRecords: academicRecordsAPI,
 };

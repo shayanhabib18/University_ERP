@@ -14,6 +14,8 @@ const ResetPassword = () => {
   const [success, setSuccess] = useState(false);
   const [validating, setValidating] = useState(true);
   const [isFacultyReset, setIsFacultyReset] = useState(false);
+  const [isHODReset, setIsHODReset] = useState(false);
+  const [tokenSource, setTokenSource] = useState(null); // 'hash' or 'query'
 
   // Extract token from URL hash (Supabase recovery link format) or search params
   useEffect(() => {
@@ -25,6 +27,23 @@ const ResetPassword = () => {
         const queryToken = searchParams.get('token');
         
         console.log("🔍 Token extraction:", { resetType, queryToken, hasToken: !!queryToken, urlHashData: location.hash });
+
+        // HOD reset takes priority (manual HOD assignment)
+        if (resetType === 'hod') {
+          if (!queryToken) {
+            console.error("❌ HOD reset but no token found");
+            setError('Invalid password reset link. No token found.');
+            setValidating(false);
+            return;
+          }
+          console.log("✅ HOD reset detected with token");
+          setToken(queryToken);
+          setIsHODReset(true);
+          setIsFacultyReset(false);
+          setTokenSource('query');
+          setValidating(false);
+          return;
+        }
 
         // Faculty reset takes priority
         if (resetType === 'faculty') {
@@ -47,6 +66,8 @@ const ResetPassword = () => {
           console.log("✅ Faculty reset detected with token");
           setToken(tokenToUse);
           setIsFacultyReset(true);
+          setIsHODReset(false);
+          setTokenSource(queryToken ? 'query' : 'hash');
           setValidating(false);
           return;
         }
@@ -60,12 +81,15 @@ const ResetPassword = () => {
           console.log("✅ Student reset detected (Supabase format)");
           setToken(extractedToken);
           setIsFacultyReset(false);
+          setTokenSource('hash');
           setValidating(false);
         } else if (queryToken) {
           // Fallback: check URL search params for student reset
-          console.log("✅ Student reset detected (query token)");
+          console.log("✅ Manual reset detected (query token)");
           setToken(queryToken);
-          setIsFacultyReset(false);
+          setIsFacultyReset(true); // treat manual (faculty/HOD) as faculty portal
+          setIsHODReset(false);
+          setTokenSource('query');
           setValidating(false);
         } else {
           console.error("❌ No token found");
@@ -86,17 +110,22 @@ const ResetPassword = () => {
   useEffect(() => {
     if (success) {
       console.log("🎯 SUCCESS detected, will redirect in 2 seconds");
-      console.log("📊 Current state:", { success, isFacultyReset });
+      console.log("📊 Current state:", { success, isHODReset, isFacultyReset });
       
       const redirectTimeout = setTimeout(() => {
-        const redirectPath = isFacultyReset ? '/login/faculty' : '/login/student';
-        console.log("🔄 NOW REDIRECTING:", { isFacultyReset, redirectPath });
+        let redirectPath = '/login/student';
+        if (isHODReset) {
+          redirectPath = '/login/chairman';
+        } else if (isFacultyReset) {
+          redirectPath = '/login/faculty';
+        }
+        console.log("🔄 NOW REDIRECTING:", { isHODReset, isFacultyReset, redirectPath });
         navigate(redirectPath);
       }, 2000);
       
       return () => clearTimeout(redirectTimeout);
     }
-  }, [success, isFacultyReset, navigate]);
+  }, [success, isHODReset, isFacultyReset, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -121,17 +150,18 @@ const ResetPassword = () => {
 
     try {
       let endpoint = 'http://localhost:5000/auth/reset-password';
-      let payload = { accessToken: token, password };
+      let payload;
 
-      console.log("📤 Submitting password reset with isFacultyReset:", isFacultyReset);
+      console.log("📤 Submitting password reset", { isFacultyReset, tokenSource });
 
-      // Use faculty endpoint if this is a faculty reset
-      if (isFacultyReset) {
-        endpoint = 'http://localhost:5000/faculties/set-password';
-        payload = { token, password };
-        console.log("📤 Using FACULTY endpoint:", endpoint);
+      // Hash-based token (Supabase recovery JWT)
+      if (tokenSource === 'hash') {
+        payload = { accessToken: token, password };
+        console.log("📤 Using JWT (hash) payload for /auth/reset-password");
       } else {
-        console.log("📤 Using STUDENT endpoint:", endpoint);
+        // Query token → manual flow (faculty/HOD invite)
+        payload = { token, password };
+        console.log("📤 Using manual token payload for /auth/reset-password");
       }
 
       const response = await axios.post(endpoint, payload);
@@ -190,7 +220,12 @@ const ResetPassword = () => {
   }
 
   if (success) {
-    const portalType = isFacultyReset ? 'Faculty' : 'Student';
+    let portalType = 'Student';
+    if (isHODReset) {
+      portalType = 'HOD (Chairman)';
+    } else if (isFacultyReset) {
+      portalType = 'Faculty';
+    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-4">
         <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md text-center">

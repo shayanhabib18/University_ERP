@@ -7,6 +7,7 @@ import {
   getAnnouncementById,
   uploadAttachment,
   getAnnouncementsBySender,
+  getAnnouncementsByDepartment,
 } from "../controllers/AnnouncementController.js";
 
 const router = express.Router();
@@ -19,6 +20,9 @@ router.get("/with-attachments", getAnnouncementsWithAttachments);
 
 // GET announcements by sender role
 router.get("/sender/:senderRole", getAnnouncementsBySender);
+
+// GET announcements by department
+router.get("/department/:departmentId", getAnnouncementsByDepartment);
 
 // GET single announcement by ID
 router.get("/:id", getAnnouncementById);

@@ -1,12 +1,79 @@
 // backend/controllers/DepartmentController.js
 import supabase from "../model/supabaseClient.js";
+import crypto from "crypto";
+import { sendHODCredentials, sendHODAssignmentNotification, sendHODRemovalNotification } from "../utils/mailer.js";
 
 // Get all departments
 export const getAllDepartments = async (req, res) => {
   try {
     const { data, error } = await supabase.from("departments").select("*");
     if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+    
+    // Fetch HOD information for each department from the new hods table
+    const departmentsWithHOD = await Promise.all(
+      (data || []).map(async (dept) => {
+        try {
+          const { data: hod } = await supabase
+            .from("hods")
+            .select(`
+              id,
+              faculty_id,
+              hod_full_name,
+              hod_email,
+              assignment_mode,
+              has_courses,
+              faculties(id, name, email)
+            `)
+            .eq("department_id", dept.id)
+            .eq("status", "ACTIVE")
+            .maybeSingle();
+          
+          // If no HOD found, return department without HOD info
+          if (!hod) {
+            return {
+              ...dept,
+              hodName: null,
+              hodEmail: null,
+              hodId: null,
+              hod_full_name: null,
+              hod_email: null,
+              assignment_mode: null,
+              has_courses: false,
+            };
+          }
+          
+          // Get HOD name from either faculty or manual entry
+          const hodName = hod?.faculties?.name || hod?.hod_full_name || null;
+          const hodEmail = hod?.faculties?.email || hod?.hod_email || null;
+          
+          return {
+            ...dept,
+            hodName,
+            hodEmail,
+            hodId: hod?.faculty_id || null,
+            hod_full_name: hod?.hod_full_name || null,
+            hod_email: hod?.hod_email || null,
+            assignment_mode: hod?.assignment_mode || null,
+            has_courses: hod?.has_courses || false,
+          };
+        } catch (err) {
+          console.error(`Error fetching HOD for department ${dept.id}:`, err);
+          // If hods table doesn't exist yet, just return department without HOD info
+          return {
+            ...dept,
+            hodName: null,
+            hodEmail: null,
+            hodId: null,
+            hod_full_name: null,
+            hod_email: null,
+            assignment_mode: null,
+            has_courses: false,
+          };
+        }
+      })
+    );
+    
+    res.json(departmentsWithHOD);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -80,26 +147,113 @@ export const getHODByDepartment = async (req, res) => {
   try {
     const { departmentId } = req.params;
     
-    // First check if the is_hod column exists, if not return null
-    let { data, error } = await supabase
-      .from("faculties")
-      .select("*")
+    // Get HOD from the new hods table
+    const { data, error } = await supabase
+      .from("hods")
+      .select(`
+        id,
+        faculty_id,
+        hod_full_name,
+        hod_email,
+        assignment_mode,
+        faculties(id, name, email)
+      `)
       .eq("department_id", departmentId)
-      .eq("is_hod", true)
+      .eq("status", "ACTIVE")
       .maybeSingle();
     
-    // If there's a column not found error, just return null (column doesn't exist yet)
-    if (error && error.message && error.message.includes("does not exist")) {
-      return res.json(null);
-    }
-    
     if (error && error.code !== "PGRST116") {
+      // If hods table doesn't exist, try old method with is_hod flag
+      if (error.message && error.message.includes("does not exist")) {
+        const { data: oldHod } = await supabase
+          .from("faculties")
+          .select("*")
+          .eq("department_id", departmentId)
+          .eq("is_hod", true)
+          .maybeSingle();
+        return res.json(oldHod || null);
+      }
       return res.status(500).json({ error: error.message });
     }
     
-    // PGRST116 means no rows found, which is fine
-    res.json(data || null);
+    // Format response with either faculty info or manual HOD info
+    if (data) {
+      const hod = data.faculties || {
+        name: data.hod_full_name,
+        email: data.hod_email,
+      };
+      return res.json(hod);
+    }
+    
+    res.json(null);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// HOD Login - for manually assigned HODs only
+export const hodLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    // Sign in with Supabase Auth
+    const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+
+    if (signInError) {
+      console.error("Auth sign-in error:", signInError);
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    // Get HOD details for this email
+    const { data: hod, error: hodError } = await supabase
+      .from("hods")
+      .select("id, hod_full_name, hod_email, department_id, assignment_mode, has_courses")
+      .eq("hod_email", email)
+      .eq("assignment_mode", "manual")
+      .eq("status", "ACTIVE")
+      .maybeSingle();
+
+    if (hodError) {
+      console.error("HOD query error:", hodError);
+      return res.status(404).json({ error: "HOD profile not found or not manually assigned" });
+    }
+
+    if (!hod) {
+      return res.status(404).json({ error: "HOD profile not found" });
+    }
+
+    // Get department info
+    const { data: department } = await supabase
+      .from("departments")
+      .select("id, name")
+      .eq("id", hod.department_id)
+      .single();
+
+    const hodResponse = {
+      id: hod.id,
+      email: hod.hod_email,
+      name: hod.hod_full_name,
+      department_id: hod.department_id,
+      department_name: department?.name || "Unknown",
+      role: "HOD",
+      assignment_mode: "manual",
+      has_courses: hod.has_courses || false,
+    };
+
+    res.json({
+      success: true,
+      user: hodResponse,
+      token: authData.session.access_token,
+    });
+  } catch (err) {
+    console.error("HOD Login error:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -112,35 +266,75 @@ export const assignHOD = async (req, res) => {
       mode = "select_faculty", 
       facultyId, 
       hodFullName, 
-      hodEmail, 
+      hodEmail,
       effectiveFrom 
     } = req.body;
-
-    if (!departmentId) {
-      return res.status(400).json({ error: "Department ID is required" });
-    }
 
     // Validate mode
     if (!["select_faculty", "manual"].includes(mode)) {
       return res.status(400).json({ error: "Invalid assignment mode. Must be 'select_faculty' or 'manual'" });
     }
 
-    // Remove HOD status from any existing HOD in the department
+    // Get current HOD before removing (to send notification)
+    let previousHOD = null;
     try {
-      const { error: removeError } = await supabase
-        .from("faculties")
-        .update({ is_hod: false })
+      const { data: currentHod } = await supabase
+        .from("hods")
+        .select(`
+          id,
+          faculty_id,
+          hod_full_name,
+          hod_email,
+          faculties(id, name, email)
+        `)
         .eq("department_id", departmentId)
-        .eq("is_hod", true);
-
-      if (removeError && !removeError.message.includes("does not exist")) {
-        console.log("Warning: Could not remove previous HOD:", removeError.message);
+        .eq("status", "ACTIVE")
+        .maybeSingle();
+      
+      if (currentHod) {
+        previousHOD = currentHod.faculties || {
+          name: currentHod.hod_full_name,
+          email: currentHod.hod_email,
+        };
       }
-    } catch (removeErr) {
-      console.log("Note: Could not remove previous HOD status");
+    } catch (err) {
+      // New table might not exist yet
     }
 
-    let updatedFaculty;
+    // Mark old HOD as inactive
+    if (previousHOD) {
+      try {
+        await supabase
+          .from("hods")
+          .update({ status: "INACTIVE" })
+          .eq("department_id", departmentId)
+          .eq("status", "ACTIVE");
+      } catch (err) {
+        console.log("Note: Could not mark previous HOD as inactive");
+      }
+
+      // Get department info for email
+      const { data: deptData } = await supabase
+        .from("departments")
+        .select("name")
+        .eq("id", departmentId)
+        .single();
+
+      const departmentNameForEmail = deptData?.name || "Unknown Department";
+
+      try {
+        await sendHODRemovalNotification({
+          toEmail: previousHOD.email,
+          fullName: previousHOD.name,
+          departmentName: departmentNameForEmail,
+        });
+        console.log(`✅ HOD removal notification sent to previous HOD (${previousHOD.email})`);
+      } catch (emailError) {
+        console.error(`⚠️ Failed to send HOD removal notification:`, emailError.message);
+      }
+    }
+
+    let hodResponse;
 
     if (mode === "select_faculty") {
       // Mode 1: Select from existing faculty
@@ -160,29 +354,48 @@ export const assignHOD = async (req, res) => {
         return res.status(400).json({ error: "Faculty not found in this department" });
       }
 
-      // Set the HOD with select_faculty mode
-      const { data: updated, error: updateError } = await supabase
-        .from("faculties")
-        .update({
-          is_hod: true,
+      // Create or update HOD record in hods table
+      const { data: hodData, error: hodError } = await supabase
+        .from("hods")
+        .upsert([{
+          department_id: departmentId,
+          faculty_id: facultyId,
           assignment_mode: "select_faculty",
           effective_from: effectiveFrom || null,
-          hod_full_name: null,
-          hod_email: null,
-        })
-        .eq("id", facultyId)
+          status: "ACTIVE",
+        }], { onConflict: "department_id" })
         .select();
 
-      if (updateError) {
-        if (updateError.message && updateError.message.includes("does not exist")) {
+      if (hodError) {
+        if (hodError.message && hodError.message.includes("does not exist")) {
           return res.status(500).json({
-            error: "Database schema needs to be updated. Please run the migration: add_hod_manual_assignment.sql"
+            error: "HOD table not initialized. Please run migration: create_hod_table.sql"
           });
         }
-        return res.status(500).json({ error: updateError.message });
+        return res.status(500).json({ error: hodError.message });
       }
 
-      updatedFaculty = updated[0];
+      hodResponse = { ...faculty, hodId: facultyId };
+
+      // Send notification email to the faculty member
+      const { data: deptData } = await supabase
+        .from("departments")
+        .select("name")
+        .eq("id", departmentId)
+        .single();
+
+      const departmentNameForEmail = deptData?.name || "Unknown Department";
+
+      try {
+        await sendHODAssignmentNotification({
+          toEmail: faculty.email,
+          fullName: faculty.name,
+          departmentName: departmentNameForEmail,
+        });
+        console.log(`✅ Existing faculty member (${faculty.email}) assigned as HOD - Notification email sent`);
+      } catch (emailError) {
+        console.error(`⚠️ HOD assigned but failed to send notification email:`, emailError.message);
+      }
     } else if (mode === "manual") {
       // Mode 2: Manual HOD assignment
       if (!hodFullName || !hodEmail) {
@@ -195,50 +408,89 @@ export const assignHOD = async (req, res) => {
         return res.status(400).json({ error: "Invalid email format" });
       }
 
-      // Create a new faculty record for manual HOD
-      const { data: newFaculty, error: createError } = await supabase
-        .from("faculties")
-        .insert([
-          {
-            department_id: departmentId,
-            name: hodFullName,
-            email: hodEmail,
-            is_hod: true,
-            assignment_mode: "manual",
-            hod_full_name: hodFullName,
-            hod_email: hodEmail,
-            effective_from: effectiveFrom || null,
-            status: "ACTIVE",
-            role: "FACULTY",
-          }
-        ])
+      // Generate reset token for new HOD
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const resetTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+
+      // Create HOD record with manual entry
+      const { data: hodData, error: hodError } = await supabase
+        .from("hods")
+        .upsert([{
+          department_id: departmentId,
+          hod_full_name: hodFullName,
+          hod_email: hodEmail,
+          assignment_mode: "manual",
+          effective_from: effectiveFrom || null,
+          status: "ACTIVE",
+          reset_token: resetToken,
+          reset_token_expiry: resetTokenExpiry,
+        }], { onConflict: "department_id" })
         .select();
 
-      if (createError) {
-        if (createError.message && createError.message.includes("does not exist")) {
+      if (hodError) {
+        if (hodError.message && hodError.message.includes("does not exist")) {
           return res.status(500).json({
-            error: "Database schema needs to be updated. Please run the migration: add_hod_manual_assignment.sql"
+            error: "HOD table not initialized. Please run migration: create_hod_table.sql"
           });
         }
-        return res.status(500).json({ error: createError.message });
+        return res.status(500).json({ error: hodError.message });
       }
 
-      updatedFaculty = newFaculty[0];
+      hodResponse = { name: hodFullName, email: hodEmail };
+
+      // Get department info for email
+      const { data: deptData } = await supabase
+        .from("departments")
+        .select("name")
+        .eq("id", departmentId)
+        .single();
+
+      const departmentNameForEmail = deptData?.name || "Unknown Department";
+
+      // Send email with password setup link (include type=hod so frontend knows to redirect to Chairman login)
+      const resetLink = `${process.env.FRONTEND_URL || "http://localhost:5173"}/reset-password?token=${resetToken}&type=hod`;
+      
+      try {
+        await sendHODCredentials({
+          toEmail: hodEmail,
+          fullName: hodFullName,
+          resetLink,
+          departmentName: departmentNameForEmail,
+        });
+        console.log(`✅ New HOD account created and email sent to ${hodEmail}`);
+      } catch (emailError) {
+        console.error(`⚠️ HOD created but failed to send email:`, emailError.message);
+      }
     }
 
     // Update department with HOD info
     try {
-      await supabase
-        .from("departments")
-        .update({ department_chair: updatedFaculty.id })
-        .eq("id", departmentId);
+      if (mode === "select_faculty" && faculty) {
+        // For faculty-based HODs, store their auth_user_id in department_chair
+        await supabase
+          .from("departments")
+          .update({ department_chair: faculty.auth_user_id })
+          .eq("id", departmentId);
+        console.log(`✅ Updated department_chair with faculty auth_user_id: ${faculty.auth_user_id}`);
+      } else {
+        // For manual HODs, set department_chair to null since they don't have auth yet
+        await supabase
+          .from("departments")
+          .update({ department_chair: null })
+          .eq("id", departmentId);
+        console.log("ℹ️  Set department_chair to null (manual HOD - auth created on password setup)");
+      }
     } catch (deptErr) {
-      console.log("Note: Could not update department_chair");
+      console.log("⚠️  Could not update department_chair:", deptErr.message);
     }
 
     res.json({
       message: `HOD assigned successfully (${mode})`,
-      data: updatedFaculty
+      data: hodResponse,
+      previousHOD: previousHOD ? {
+        name: previousHOD.name,
+        email: previousHOD.email,
+      } : null,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

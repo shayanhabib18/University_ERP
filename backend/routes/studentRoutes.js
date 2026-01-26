@@ -521,6 +521,52 @@ router.get("/:studentId", async (req, res) => {
   }
 });
 
+// GET student courses with grades for transcript
+router.get("/:studentId/courses", async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    
+    // Get course enrollments with course details and grades
+    const { data, error } = await supabase
+      .from("course_enrollments")
+      .select(`
+        id,
+        semester,
+        academic_year,
+        grade,
+        status,
+        courses (
+          id,
+          name,
+          code,
+          credit_hours
+        )
+      `)
+      .eq("student_id", studentId)
+      .order("academic_year", { ascending: false })
+      .order("semester", { ascending: false });
+
+    if (error) throw error;
+    
+    // Format response to include course details at top level
+    const formattedData = (data || []).map(enrollment => ({
+      id: enrollment.id,
+      course_id: enrollment.courses?.id,
+      course_name: enrollment.courses?.name || "Unknown Course",
+      course_code: enrollment.courses?.code,
+      credit_hours: enrollment.courses?.credit_hours || 3,
+      grade: enrollment.grade || "N/A",
+      semester: enrollment.semester,
+      academic_year: enrollment.academic_year,
+      status: enrollment.status,
+    }));
+    
+    res.json(formattedData);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // CREATE new student with Supabase Auth account and send reset link
 // Primary endpoint: POST /students (from admin panel)
 router.post("/", async (req, res) => {
@@ -1298,6 +1344,105 @@ router.post("/enrollments/auto-enroll/:studentId", async (req, res) => {
       success: true,
       message: `Student enrolled in ${enrollmentResult.count} courses`,
       enrollments: enrollmentResult.enrollments
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// ENROLL student in NEXT semester
+router.post("/enrollments/enroll-next-semester/:studentId", async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    // Get student info
+    const { data: student, error: studentError } = await supabase
+      .from("students")
+      .select("id, department_id, joining_date")
+      .eq("id", studentId)
+      .single();
+
+    if (studentError || !student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    // Get current highest semester number
+    const { data: currentEnrollments } = await supabase
+      .from("course_enrollments")
+      .select("semester")
+      .eq("student_id", studentId)
+      .order("semester", { ascending: false })
+      .limit(1);
+
+    if (!currentEnrollments || currentEnrollments.length === 0) {
+      return res.status(400).json({ 
+        error: "No existing enrollments found",
+        message: "Student must be enrolled in at least one semester first"
+      });
+    }
+
+    const nextSemester = (currentEnrollments[0].semester || 1) + 1;
+
+    // Get semester info for next semester
+    const { data: semesterData, error: semesterError } = await supabase
+      .from("semesters")
+      .select("id")
+      .eq("department_id", student.department_id)
+      .eq("number", nextSemester)
+      .single();
+
+    if (semesterError || !semesterData) {
+      return res.status(404).json({ 
+        error: "Next semester not found",
+        message: `No semester ${nextSemester} found for this department`
+      });
+    }
+
+    // Get all courses for the next semester
+    const { data: courses, error: coursesError } = await supabase
+      .from("courses")
+      .select("id, code, name, credit_hours")
+      .eq("semester_id", semesterData.id);
+
+    if (coursesError || !courses || courses.length === 0) {
+      return res.status(404).json({ 
+        error: "No courses found",
+        message: `No courses found for semester ${nextSemester}`
+      });
+    }
+
+    // Determine academic year
+    const year = new Date().getFullYear();
+    const academicYear = `${year}-${year + 1}`;
+
+    // Create enrollment records
+    const enrollments = courses.map(course => ({
+      student_id: studentId,
+      course_id: course.id,
+      semester: nextSemester,
+      academic_year: academicYear,
+      credit_hours: course.credit_hours,
+      status: "ongoing"
+    }));
+
+    const { data, error } = await supabase
+      .from("course_enrollments")
+      .insert(enrollments)
+      .select();
+
+    if (error) {
+      return res.status(400).json({ 
+        error: "Enrollment failed",
+        message: error.message
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Student enrolled in semester ${nextSemester} with ${data.length} courses`,
+      semester: nextSemester,
+      count: data.length,
+      enrollments: data
     });
   } catch (error) {
     res.status(400).json({ error: error.message });

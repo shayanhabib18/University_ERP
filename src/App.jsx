@@ -8,6 +8,7 @@ import AdminLogin from './pages/login/AdminLogin';
 import AdminForgotPassword from './pages/login/AdminForgotPassword';
 import AdminResetPassword from './pages/login/AdminResetPassword';
 import ChairmanLogin from './pages/login/ChairmanLogin';
+import ChairmanForgotPassword from './pages/login/ChairmanForgotPassword';
 import StudentLogin from './pages/login/StudentLogin';
 import FacultyLogin from './pages/login/FacultyLogin';
 import FacultyForgotPassword from './pages/login/FacultyForgotPassword';
@@ -26,10 +27,10 @@ import HandleRequests from './pages/admin/HandleRequests';
 // Student Dashboard Pages
 import StudentDashboard from './pages/students/StudentDashboard';
 import Profile from './pages/students/Profile';
-import AttendancePage from './pages/students/AttendencePage';
 import Courses from './pages/students/Courses';
 import Notifications from './pages/students/Notifications';
 import Requests from './pages/students/Requests';
+import CourseResult from './pages/students/CourseResult';
 
 // Faculty Dashboard
 import FacultyDashboard from './pages/faculty/FacultyDashboard';
@@ -55,6 +56,7 @@ function App() {
         {/* Login Pages */}
         <Route path="/login/admin" element={<AdminLogin />} />
         <Route path="/login/chairman" element={<ChairmanLogin />} />
+        <Route path="/login/chairman/forgot-password" element={<ChairmanForgotPassword />} />
         <Route path="/login/student" element={<StudentLogin />} />
         <Route path="/login/faculty" element={<FacultyLogin />} />
         <Route path="/login/faculty/forgot-password" element={<FacultyForgotPassword />} />
@@ -81,9 +83,9 @@ function App() {
         <Route path="/student/dashboard" element={<StudentDashboard />} />
         <Route path="/student/profile" element={<Profile />} />
         <Route path="/student/courses" element={<Courses />} />
+        <Route path="/course-result/:courseId" element={<CourseResult />} />
         <Route path="/student/notifications" element={<Notifications />} />
         <Route path="/student/requests" element={<Requests />} />
-        <Route path="/attendance" element={<AttendancePage />} />
 
         {/* Faculty Dashboard */}
         <Route path="/faculty/dashboard" element={<FacultyDashboard />} />

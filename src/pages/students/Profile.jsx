@@ -204,17 +204,6 @@ export default function Profile() {
         </button>
       </div>
 
-      {/* Profile Picture */}
-      <div className="flex flex-col items-center mb-6">
-        <div className="relative w-36 h-36">
-          <img
-            src="/images/profiles/profileimg.jpeg"
-            alt="Profile"
-            className="w-36 h-36 rounded-full object-cover ring-4 ring-indigo-500 shadow-md"
-          />
-        </div>
-      </div>
-
       {/* Student Details */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-700 text-sm sm:text-base">
         <div>

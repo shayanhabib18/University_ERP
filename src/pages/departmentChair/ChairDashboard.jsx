@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import FacultyManagement from "./FacultyManagement";
 import ChairApprovals from "./ChairApprovals";
 import ChairAnalytics from "./ChairAnalytics";
 import ChairTranscripts from "./ChairTranscripts";
 import ChairAnnouncements from "./ChairAnnouncements";
+import ApproveResults from "./ApproveResults";
 import {
   Menu,
   X,
@@ -16,17 +17,110 @@ import {
   FileText,
   LogOut,
   Home,
+  Award,
 } from "lucide-react";
 
 export default function ChairDashboard() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Dashboard");
+  const [chairName, setChairName] = useState("Department Chair");
+  const [stats, setStats] = useState({
+    facultyCount: 0,
+    studentCount: 0,
+    pendingApprovals: 0,
+    announcements: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  // Fetch real data on component mount
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const token = localStorage.getItem("facultyToken");
+        const email = localStorage.getItem("facultyEmail");
+        
+        if (!token || !email) {
+          navigate("/");
+          return;
+        }
+
+        // Get faculty profile to get department_id
+        const profileRes = await fetch("http://localhost:5000/faculties/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (!profileRes.ok) {
+          console.error("Failed to fetch profile");
+          setLoading(false);
+          return;
+        }
+
+        const profile = await profileRes.json();
+        setChairName(profile.name || "Department Chair");
+        const departmentId = profile.department_id;
+
+        // Fetch faculty count
+        const facultyRes = await fetch(
+          `http://localhost:5000/faculties/department/${departmentId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const faculties = facultyRes.ok ? await facultyRes.json() : [];
+
+        // Fetch student count
+        const studentsRes = await fetch(
+          `http://localhost:5000/students/department/${departmentId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const students = studentsRes.ok ? await studentsRes.json() : [];
+
+        // Fetch pending requests (only if user has permission)
+        let pendingCount = 0;
+        const requestsRes = await fetch(
+          "http://localhost:5000/requests/coordinator/requests",
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (requestsRes.ok) {
+          const requests = await requestsRes.json();
+          pendingCount = requests.filter((r) => r.status === "PENDING").length;
+        } else if (requestsRes.status === 403) {
+          // HOD doesn't have access to coordinator requests, set to 0
+          pendingCount = 0;
+        }
+
+        // Fetch announcements (handle errors gracefully)
+        let announcementCount = 0;
+        const announcementsRes = await fetch(
+          `http://localhost:5000/announcements`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (announcementsRes.ok) {
+          const announcements = await announcementsRes.json();
+          announcementCount = announcements.length;
+        }
+
+        setStats({
+          facultyCount: faculties.length,
+          studentCount: students.length,
+          pendingApprovals: pendingCount,
+          announcements: announcementCount,
+        });
+
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [navigate]);
 
   const sidebarLinks = [
     { name: "Dashboard", icon: <Home size={18} /> },
     { name: "Faculty Management", icon: <Users size={18} /> },
     { name: "Approvals", icon: <ClipboardList size={18} /> },
+    { name: "Approve Results", icon: <Award size={18} /> },
     { name: "Analytics", icon: <BarChart3 size={18} /> },
     { name: "Transcripts", icon: <FileText size={18} /> },
     { name: "Announcements", icon: <Megaphone size={18} /> },
@@ -43,7 +137,7 @@ export default function ChairDashboard() {
                 <h1 className="text-3xl font-extrabold text-gray-800">
                   Welcome,{" "}
                   <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                    Department Chair
+                    {chairName}
                   </span>
                 </h1>
                 <p className="text-gray-500 mt-1 text-sm md:text-base">
@@ -62,25 +156,25 @@ export default function ChairDashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <StatCard
                 title="Faculty Members"
-                value="12"
+                value={stats.facultyCount}
                 icon={<Users size={26} />}
                 color="from-blue-500 to-indigo-500"
               />
               <StatCard
                 title="Active Students"
-                value="280"
+                value={stats.studentCount}
                 icon={<Users size={26} />}
                 color="from-teal-500 to-cyan-500"
               />
               <StatCard
                 title="Pending Approvals"
-                value="4"
+                value={stats.pendingApprovals}
                 icon={<ClipboardList size={26} />}
                 color="from-orange-500 to-rose-500"
               />
               <StatCard
                 title="Announcements"
-                value="6"
+                value={stats.announcements}
                 icon={<Megaphone size={26} />}
                 color="from-purple-500 to-pink-500"
               />
@@ -112,6 +206,8 @@ export default function ChairDashboard() {
         return <FacultyManagement />;
       case "Approvals":
         return <ChairApprovals />;
+      case "Approve Results":
+        return <ApproveResults />;
       case "Analytics":
         return <ChairAnalytics />;
       case "Transcripts":

@@ -25,6 +25,28 @@ export const assignCoursesToFaculty = async (req, res) => {
 
     if (error) return res.status(500).json({ error: error.message });
     
+    // Check if this faculty_id belongs to a manually assigned HOD and mark them as having courses
+    try {
+      const { data: hodData } = await supabase
+        .from("hods")
+        .select("id")
+        .eq("hod_email", faculty_id) // If faculty_id is an email (for manual HODs)
+        .eq("assignment_mode", "manual")
+        .eq("status", "ACTIVE")
+        .maybeSingle();
+      
+      if (hodData) {
+        // Update the HOD record to mark has_courses as true
+        await supabase
+          .from("hods")
+          .update({ has_courses: true })
+          .eq("id", hodData.id);
+        console.log(`✅ Updated HOD with courses assigned`);
+      }
+    } catch (hodErr) {
+      console.log("Note: Could not update HOD has_courses flag", hodErr);
+    }
+    
     res.json({ 
       message: "Courses assigned successfully", 
       data 

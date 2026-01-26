@@ -396,6 +396,47 @@ const getAnnouncementsBySender = async (req, res) => {
   }
 };
 
+// Get announcements for a specific department
+const getAnnouncementsByDepartment = async (req, res) => {
+  try {
+    const { departmentId } = req.params;
+
+    if (!departmentId) {
+      return res.status(400).json({ error: "Department ID is required" });
+    }
+
+    // Get announcements that are meant for department chairs
+    const { data, error } = await supabase
+      .from("announcements")
+      .select(`
+        id,
+        title,
+        message,
+        sender_id,
+        sender_role,
+        sender_name,
+        created_at
+      `)
+      .eq("recipient_role", "department_chair")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json({
+      success: true,
+      count: data.length,
+      data: data,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: "Failed to fetch announcements",
+      message: error.message,
+    });
+  }
+};
+
 export {
   getAnnouncements,
   getAnnouncementsWithAttachments,
@@ -404,4 +445,5 @@ export {
   getAnnouncementById,
   uploadAttachment,
   getAnnouncementsBySender,
+  getAnnouncementsByDepartment,
 };

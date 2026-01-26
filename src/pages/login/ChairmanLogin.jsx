@@ -1,5 +1,6 @@
   import { useState } from "react";
-  import { useNavigate, Link } from "react-router-dom";
+  import { useNavigate } from "react-router-dom";
+  import axios from "axios";
 
   export default function ChairmanLogin() {
     const [email, setEmail] = useState("");
@@ -7,18 +8,79 @@
     const [error, setError] = useState("");
     const navigate = useNavigate();
 
-    const handleSubmit = (e) => {
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async (e) => {
       e.preventDefault();
+      setError("");
+      setLoading(true);
 
-      // Hardcoded credentials
-      const hardcodedEmail = "chair@university.edu";
-      const hardcodedPassword = "12345";
+      try {
+        // 1) First try manual HOD login (for manually assigned HODs)
+        let user = null;
+        let token = null;
+        let isManualHOD = false;
 
-      if (email === hardcodedEmail && password === hardcodedPassword) {
-        // Successful login → redirect to dashboard
+        try {
+          const hodLoginRes = await axios.post("http://localhost:5000/departments/hod-login", {
+            email,
+            password,
+          });
+          
+          user = hodLoginRes.data?.user;
+          token = hodLoginRes.data?.token;
+          isManualHOD = true;
+        } catch (hodError) {
+          console.log("HOD login attempt failed, trying faculty login...", hodError.message);
+          // If HOD login fails, try faculty login for faculty-linked HODs
+          try {
+            const loginRes = await axios.post("http://localhost:5000/faculties/login", {
+              email,
+              password,
+            });
+
+            user = loginRes.data?.user;
+            token = loginRes.data?.token;
+          } catch (facultyError) {
+            // Both failed - throw the faculty error as it's the final attempt
+            throw facultyError;
+          }
+        }
+
+        if (!user || !token) throw new Error("Login failed");
+
+        // Persist token for subsequent API calls
+        localStorage.setItem("facultyToken", token);
+        localStorage.setItem("facultyEmail", user.email);
+        localStorage.setItem("facultyName", user.name || "");
+
+        // If it was a manual HOD login, we're already verified
+        if (isManualHOD) {
+          navigate("/chair/dashboard");
+          return;
+        }
+
+        // 2) For faculty login, verify this faculty is the current HOD for their department
+        const hodRes = await axios.get(`http://localhost:5000/departments/${user.department_id}/hod`);
+        const hod = hodRes.data; // { name, email } or null
+
+        if (!hod || !hod.email) {
+          throw new Error("You are not currently assigned as HOD.");
+        }
+
+        // Match by email (case-insensitive)
+        const isHOD = String(hod.email).toLowerCase() === String(user.email).toLowerCase();
+        if (!isHOD) {
+          throw new Error("You are not currently assigned as HOD.");
+        }
+
+        // Success → redirect to HOD dashboard
         navigate("/chair/dashboard");
-      } else {
-        setError("Invalid email or password. Please try again.");
+      } catch (err) {
+        const msg = err.response?.data?.error || err.message || "Invalid email or password";
+        setError(msg);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -40,8 +102,9 @@
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out"
-                placeholder="chair@university.edu"
+                placeholder="Enter your HOD email"
                 required
+                disabled={loading}
               />
             </div>
 
@@ -55,8 +118,9 @@
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out"
-                placeholder="Password:12345 "
+                placeholder="Enter your password"
                 required
+                disabled={loading}
               />
             </div>
 
@@ -67,8 +131,9 @@
             <button
               type="submit"
               className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition duration-300"
+              disabled={loading}
             >
-              Login
+              {loading ? "Logging in..." : "Login"}
             </button>
           </form>
 
@@ -76,7 +141,8 @@
             <button
               type="button"
               className="text-sm text-blue-600 hover:underline focus:outline-none"
-              onClick={() => navigate("/forgot-password")}
+              onClick={() => navigate("/login/chairman/forgot-password")}
+              disabled={loading}
             >
               Forgot Password?
             </button>

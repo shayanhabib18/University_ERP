@@ -88,7 +88,28 @@ export default function Courses() {
         studentRSTs: {},
       }));
       
-      setCourses(transformedCourses);
+      // Fetch RST data for all courses to get approval status
+      const coursesWithRST = await Promise.all(
+        transformedCourses.map(async (course) => {
+          try {
+            const rstResp = await fetch(`${API_URL}/rst/course/${course.id}`);
+            const rstData = rstResp.ok ? await rstResp.json() : [];
+            
+            // Create a map of student IDs to full RST records
+            const studentRSTsMap = {};
+            rstData.forEach(rst => {
+              studentRSTsMap[rst.student_id] = rst;
+            });
+            
+            return { ...course, studentRSTs: studentRSTsMap };
+          } catch (error) {
+            console.error(`Error fetching RST for course ${course.id}:`, error);
+            return course;
+          }
+        })
+      );
+      
+      setCourses(coursesWithRST);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching faculty courses:", error);
@@ -145,10 +166,28 @@ export default function Courses() {
         return;
       }
       const details = await resp.json();
+      
+      // Fetch RST status for all students in this course
+      const rstResp = await fetch(`${API_URL}/rst/course/${courseId}`);
+      const rstData = rstResp.ok ? await rstResp.json() : [];
+      
+      // Create a map of student IDs to full RST records (includes approval_status, etc.)
+      const studentRSTsMap = {};
+      rstData.forEach(rst => {
+        studentRSTsMap[rst.student_id] = rst;
+      });
+      
+        // Normalize student objects to ensure roll numbers are available for UI
+        const normalizedStudents = (details.students || []).map((s) => ({
+          ...s,
+          roll_number: s.roll_number || s.enrollment || s.rollNo || s.rollno || s.id,
+        }));
+
       setCourses(prev => prev.map(c => c.id === courseId ? {
         ...c,
         studentCount: details.students_count ?? c.studentCount,
-        students: details.students || [],
+        students: normalizedStudents,
+        studentRSTs: studentRSTsMap,
       } : c));
     } catch (error) {
       console.error("Error loading course details", error);
@@ -167,6 +206,7 @@ export default function Courses() {
       { id: 'a4', name: 'Assignments4', maxMarks: 10, weightage: 5 },
       { id: 'q1', name: 'Quizes1', maxMarks: 10, weightage: 2 },
       { id: 'q2', name: 'Quizes2', maxMarks: 10, weightage: 4 },
+      { id: 'q4', name: 'Quizes4', maxMarks: 10, weightage: 4 },
       { id: 'q3', name: 'Quizes3', maxMarks: 10, weightage: 4 },
       { id: 'mt', name: 'Mid Term', maxMarks: 50, weightage: 20 },
       { id: 'ft', name: 'Final Term', maxMarks: 50, weightage: 30 },
@@ -188,43 +228,80 @@ export default function Courses() {
     setShowRSTModal(true);
   };
 
-  const viewRST = (student) => {
+  const viewRST = async (student) => {
     if (!activeCourse || !student) return;
     
-    // Get existing RST data for this student
-    const existingRST = activeCourse.studentRSTs[student.id];
-    
-    if (!existingRST) {
+    const rstRecord = getStudentRST(student.id);
+    if (!rstRecord) {
       alert('No RST found for this student');
       return;
     }
 
     setSelectedStudent(student);
-    setRstData(existingRST);
-    setIsEditMode(false);
+    setRstData(rstRecord.rst_data);
+    
+    // Allow editing only if rejected; view-only if approved or pending
+    const canEdit = rstRecord.approval_status === 'rejected';
+    setIsEditMode(canEdit);
     setShowRSTModal(true);
   };
 
-  const saveRST = () => {
+  const saveRST = async () => {
     if (!selectedStudent || !rstData || !activeCourseId) return;
 
-    setCourses(prev =>
-      prev.map(c =>
-        c.id === activeCourseId
-          ? {
-              ...c,
-              studentRSTs: {
-                ...c.studentRSTs,
-                [selectedStudent.id]: rstData
-              }
-            }
-          : c
-      )
-    );
+    try {
+      // Calculate final grade
+      const finalGrade = calculateGrade();
 
-    alert('RST saved successfully!');
-    setShowRSTModal(false);
-    setIsEditMode(false);
+      // Prepare data for backend
+      const rstPayload = {
+        student_id: selectedStudent.id,
+        course_id: activeCourseId,
+        faculty_id: facultyId,
+        rst_data: rstData,
+        grade: finalGrade,
+        approval_status: "pending" // flag for dept chair approval
+      };
+
+      // Save to backend
+      const response = await fetch(`${API_URL}/rst`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(rstPayload)
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        const message = errorBody?.error || 'Failed to save RST to server';
+        throw new Error(message);
+      }
+
+      const result = await response.json();
+
+      // Update local state with the full returned record
+      setCourses(prev =>
+        prev.map(c =>
+          c.id === activeCourseId
+            ? {
+                ...c,
+                studentRSTs: {
+                  ...c.studentRSTs,
+                  [selectedStudent.id]: result.data
+                }
+              }
+            : c
+        )
+      );
+
+      alert('RST saved successfully and submitted for approval!');
+      setShowRSTModal(false);
+      setIsEditMode(false);
+    } catch (error) {
+      console.error('Error saving RST:', error);
+      alert('Failed to save RST: ' + error.message);
+    }
   };
 
   const enableEditMode = () => {
@@ -303,9 +380,14 @@ export default function Courses() {
     }
   };
 
+  // Get RST record for student (if exists)
+  const getStudentRST = (studentId) => {
+    return activeCourse?.studentRSTs?.[studentId];
+  };
+
   // Check if student has RST
   const hasRST = (studentId) => {
-    return activeCourse?.studentRSTs?.[studentId] !== undefined;
+    return getStudentRST(studentId) !== undefined;
   };
 
   if (loading) {
@@ -360,7 +442,11 @@ export default function Courses() {
               <div className="flex items-center justify-between text-sm text-gray-600 mb-6">
                 <div className="flex items-center gap-1">
                   <Users size={14} />
-                  <span>{course.studentCount} Students</span>
+                  <span>
+                    {Object.keys(course.studentRSTs).length > 0 
+                      ? Object.entries(course.studentRSTs).filter(([_, rst]) => !rst || rst.approval_status !== 'approved').length 
+                      : course.studentCount} Students
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <FileText size={14} />
@@ -427,9 +513,9 @@ export default function Courses() {
             <div className="flex overflow-x-auto px-6">
               {[
                 { id: "overview", label: "Overview", icon: <Eye size={16} /> },
-                { id: "students", label: "Students", icon: <Users size={16} /> },
+                { id: "students", label: "Registered Students", icon: <Users size={16} /> },
+                { id: "past-students", label: "Past Students", icon: <UserCheck size={16} /> },
                 { id: "materials", label: "Materials", icon: <FileText size={16} /> },
-                { id: "attendance", label: "Attendance", icon: <Clock size={16} /> },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -461,11 +547,14 @@ export default function Courses() {
                       <h3 className="text-lg font-semibold text-gray-800">
                         Students
                       </h3>
-                      <p className="text-sm text-gray-500">Total enrolled</p>
+                      <p className="text-sm text-gray-500">Students Enrolled</p>
                     </div>
                   </div>
                   <p className="text-3xl font-bold text-gray-800">
-                    {activeCourse.studentCount}
+                    {activeCourse.students.filter(s => {
+                      const rstRecord = getStudentRST(s.id);
+                      return (s.enrollment_status === 'active' || !s.enrollment_status) && (!rstRecord || rstRecord.approval_status !== 'approved');
+                    }).length}
                   </p>
                   <button
                     onClick={() => setActiveTab("students")}
@@ -505,7 +594,10 @@ export default function Courses() {
             {activeTab === "students" && (
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                  Registered Students ({activeCourse.studentCount})
+                  Registered Students ({activeCourse.students.filter(s => {
+                    const rstRecord = getStudentRST(s.id);
+                    return (s.enrollment_status === 'active' || !s.enrollment_status) && (!rstRecord || rstRecord.approval_status !== 'approved');
+                  }).length})
                 </h3>
                 <div className="overflow-x-auto border border-gray-200 rounded-lg">
                   <table className="w-full">
@@ -515,7 +607,7 @@ export default function Courses() {
                           Student Name
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Enrollment ID
+                          Roll No
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Email
@@ -529,7 +621,10 @@ export default function Courses() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {activeCourse.students.map((student) => (
+                      {activeCourse.students.filter(s => {
+                        const rstRecord = getStudentRST(s.id);
+                        return (s.enrollment_status === 'active' || !s.enrollment_status) && (!rstRecord || rstRecord.approval_status !== 'approved');
+                      }).map((student) => (
                         <tr key={student.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
@@ -546,7 +641,7 @@ export default function Courses() {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {student.enrollment}
+                            {student.roll_number || student.rollNo || student.enrollment}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {student.email}
@@ -557,29 +652,161 @@ export default function Courses() {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            {hasRST(student.id) ? (
-                              <button
-                                onClick={() => viewRST(student)}
-                                className="text-sm text-blue-600 hover:text-blue-900 font-medium hover:underline flex items-center gap-1"
-                              >
-                                <Eye size={14} />
-                                View RST
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => createRST(student)}
-                                className="text-sm text-indigo-600 hover:text-indigo-900 font-medium hover:underline flex items-center gap-1"
-                              >
-                                <Plus size={14} />
-                                Create RST
-                              </button>
-                            )}
+                            {(() => {
+                              const rstRecord = getStudentRST(student.id);
+                              if (!rstRecord) {
+                                return (
+                                  <button
+                                    onClick={() => createRST(student)}
+                                    className="text-sm text-indigo-600 hover:text-indigo-900 font-medium hover:underline flex items-center gap-1"
+                                  >
+                                    <Plus size={14} />
+                                    Create RST
+                                  </button>
+                                );
+                              }
+                              
+                              const status = rstRecord.approval_status;
+                              if (status === 'approved') {
+                                return (
+                                  <div className="space-y-1">
+                                    <button
+                                      onClick={() => viewRST(student)}
+                                      className="text-sm text-green-600 hover:text-green-900 font-medium hover:underline flex items-center gap-1"
+                                    >
+                                      <CheckCircle size={14} />
+                                      View (Approved)
+                                    </button>
+                                  </div>
+                                );
+                              } else if (status === 'rejected') {
+                                return (
+                                  <div className="space-y-1">
+                                    <button
+                                      onClick={() => viewRST(student)}
+                                      className="text-sm text-orange-600 hover:text-orange-900 font-medium hover:underline flex items-center gap-1"
+                                    >
+                                      <Edit size={14} />
+                                      Edit (Rejected)
+                                    </button>
+                                    {rstRecord.rejection_reason && (
+                                      <p className="text-xs text-gray-500">Reason: {rstRecord.rejection_reason}</p>
+                                    )}
+                                  </div>
+                                );
+                              } else {
+                                // pending
+                                return (
+                                  <button
+                                    onClick={() => viewRST(student)}
+                                    className="text-sm text-blue-600 hover:text-blue-900 font-medium hover:underline flex items-center gap-1"
+                                  >
+                                    <Eye size={14} />
+                                    View (Pending)
+                                  </button>
+                                );
+                              }
+                            })()}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {/* Past Students Tab */}
+            {activeTab === "past-students" && (
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Past Students ({activeCourse.students.filter(s => {
+                    const rstRecord = getStudentRST(s.id);
+                    return (s.enrollment_status === 'active' || !s.enrollment_status) && rstRecord && rstRecord.approval_status === 'approved';
+                  }).length})
+                </h3>
+                {activeCourse.students.filter(s => {
+                  const rstRecord = getStudentRST(s.id);
+                  return (s.enrollment_status === 'active' || !s.enrollment_status) && rstRecord && rstRecord.approval_status === 'approved';
+                }).length === 0 ? (
+                  <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-xl">
+                    <UserCheck className="mx-auto mb-3 text-gray-300" size={48} />
+                    <p className="text-gray-500">No completed students yet</p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Students with approved results will appear here
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Student Name
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Roll No
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Email
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Result
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {activeCourse.students.filter(s => {
+                          const rstRecord = getStudentRST(s.id);
+                          return (s.enrollment_status === 'active' || !s.enrollment_status) && rstRecord && rstRecord.approval_status === 'approved';
+                        }).map((student) => {
+                          const rstRecord = getStudentRST(student.id);
+                          return (
+                            <tr key={student.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <div className="flex-shrink-0 h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
+                                    <span className="text-sm font-medium text-green-700">
+                                      {student.name.charAt(0)}
+                                    </span>
+                                  </div>
+                                  <div className="ml-4">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {student.name}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {student.roll_number || student.rollNo || student.enrollment}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {student.email}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                                  Completed
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <button
+                                  onClick={() => viewRST(student)}
+                                  className="text-sm text-green-600 hover:text-green-900 font-medium hover:underline flex items-center gap-1"
+                                >
+                                  <CheckCircle size={14} />
+                                  View Result
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 
@@ -655,111 +882,6 @@ export default function Courses() {
               </div>
             )}
 
-            {/* Attendance Tab */}
-            {activeTab === "attendance" && (
-              <div className="space-y-6">
-                {/* Date Picker */}
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-gray-800">Mark Attendance</h3>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-
-                <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll No</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attendance</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {activeCourse.students.map(student => {
-                        const status = activeCourse.attendance[selectedDate]?.[student.id] || "Absent";
-                        return (
-                          <tr key={student.id}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{student.enrollment}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <select
-                                value={status}
-                                onChange={(e) => markAttendance(student.id, e.target.value)}
-                                className="border border-gray-300 rounded-lg px-3 py-1 text-sm"
-                              >
-                                <option value="Present">Present</option>
-                                <option value="Absent">Absent</option>
-                              </select>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Attendance Summary */}
-                <div className="mt-8">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Attendance Summary</h3>
-                  <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Classes</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Present</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Absent</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attendance %</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {activeCourse.students.map(student => {
-                          const allDates = Object.keys(activeCourse.attendance);
-                          const presentCount = allDates.filter(date => 
-                            activeCourse.attendance[date]?.[student.id] === "Present"
-                          ).length;
-                          const totalClasses = allDates.length;
-                          const absentCount = totalClasses - presentCount;
-                          const percentage = totalClasses > 0 ? ((presentCount / totalClasses) * 100).toFixed(1) : 0;
-                          
-                          return (
-                            <tr key={student.id}>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.name}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{totalClasses}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">{presentCount}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">{absentCount}</td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-sm font-medium ${
-                                    percentage >= 75 ? 'text-green-600' : 
-                                    percentage >= 50 ? 'text-yellow-600' : 'text-red-600'
-                                  }`}>
-                                    {percentage}%
-                                  </span>
-                                  <div className="w-24 bg-gray-200 rounded-full h-2">
-                                    <div 
-                                      className={`h-2 rounded-full ${
-                                        percentage >= 75 ? 'bg-green-500' : 
-                                        percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                                      }`}
-                                      style={{ width: `${percentage}%` }}
-                                    ></div>
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -773,17 +895,26 @@ export default function Courses() {
               <div>
                 <div className="flex items-center gap-3">
                   <h2 className="text-2xl font-bold text-gray-800">Result Summary Table - {selectedStudent.name}</h2>
-                  {!isEditMode && (
-                    <button
-                      onClick={enableEditMode}
-                      className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 font-medium transition-colors flex items-center gap-2"
-                    >
-                      <Edit size={16} />
-                      Edit
-                    </button>
-                  )}
+                  {!isEditMode && selectedStudent && (() => {
+                    const rstRecord = getStudentRST(selectedStudent.id);
+                    const isApproved = rstRecord?.approval_status === 'approved';
+                    return !isApproved ? (
+                      <button
+                        onClick={enableEditMode}
+                        className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 font-medium transition-colors flex items-center gap-2"
+                      >
+                        <Edit size={16} />
+                        Edit
+                      </button>
+                    ) : (
+                      <span className="px-4 py-2 bg-green-100 text-green-700 rounded-lg font-medium flex items-center gap-2">
+                        <CheckCircle size={16} />
+                        Approved (Read-Only)
+                      </span>
+                    );
+                  })()}
                 </div>
-                <p className="text-sm text-gray-500 mt-1">{activeCourse.name} - {activeCourse.code} | {selectedStudent.enrollment}</p>
+                <p className="text-sm text-gray-500 mt-1">{activeCourse.name} - {activeCourse.code} | Roll No: {selectedStudent.roll_number || selectedStudent.rollNo || selectedStudent.enrollment}</p>
               </div>
               <button
                 onClick={() => {
@@ -865,7 +996,7 @@ export default function Courses() {
                   <tbody>
                     {/* Student Row */}
                     <tr className="bg-white">
-                      <td className="border border-gray-300 px-4 py-2 font-medium">{selectedStudent.enrollment}</td>
+                      <td className="border border-gray-300 px-4 py-2 font-medium">{selectedStudent.roll_number || selectedStudent.rollNo || selectedStudent.enrollment}</td>
                       {rstData.components.map(comp => (
                         <td key={comp.id} className="border border-gray-300 px-2 py-2">
                           <input

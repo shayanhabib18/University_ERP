@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { departmentAPI, studentAPI } from "../../services/api";
+import { departmentAPI, studentAPI, academicRecordsAPI } from "../../services/api";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const StudentManagement = () => {
   const [selectedDept, setSelectedDept] = useState(null);
@@ -282,55 +284,118 @@ const StudentManagement = () => {
     setShowAcademicRecordsModal(true);
   };
 
-  const generateTranscript = (student) => {
+  const generateTranscript = async (student) => {
     const normalized = normalizeStudent(student);
-    // Generate transcript content
-    const transcriptContent = `
-═══════════════════════════════════════════════════════════════
-                    OFFICIAL ACADEMIC TRANSCRIPT
-═══════════════════════════════════════════════════════════════
 
-Student Name: ${normalized.fullName}
-Father's Name: ${normalized.fatherName}
-Roll Number: ${normalized.rollNo}
-CNIC: ${normalized.cnic}
-Department: ${selectedDeptName}
-Date of Birth: ${normalized.dob}
+    try {
+      // Fetch real academic records for this student
+      const records = await academicRecordsAPI.getByStudent(student.id);
+      const courses = Array.isArray(records) ? records : [];
 
-───────────────────────────────────────────────────────────────
-                      ACADEMIC PERFORMANCE
-───────────────────────────────────────────────────────────────
+      // Build course rows from real data; fall back to placeholders when missing
+      const tableRows = courses.map((c) => [
+        c.course_code || c.courseCode || "N/A",
+        c.course_name || c.courseName || "N/A",
+        c.grade || "N/A",
+        c.credit_hours != null ? String(c.credit_hours) : "3",
+      ]);
 
-Overall Grade: ${normalized.grades}
-Attendance: ${normalized.attendance}
+      const totalCredits = courses.reduce(
+        (sum, c) => sum + (Number(c.credit_hours) || 0),
+        0
+      );
 
-───────────────────────────────────────────────────────────────
-                      CONTACT INFORMATION
-───────────────────────────────────────────────────────────────
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPosition = 15;
 
-Personal Email: ${normalized.personalEmail || 'N/A'}
-Student Phone: ${normalized.studentPhone || 'N/A'}
-Parent/Guardian Phone: ${normalized.parentPhone || 'N/A'}
+      // Title
+      doc.setFontSize(16);
+      doc.setFont(undefined, "bold");
+      doc.text("OFFICIAL ACADEMIC TRANSCRIPT", pageWidth / 2, yPosition, { align: "center" });
+      yPosition += 10;
 
-Permanent Address: ${normalized.permanentAddress || 'N/A'}
-Current Address: ${normalized.currentAddress || 'N/A'}
+      // Student Information Header
+      doc.setFontSize(10);
+      doc.setFont(undefined, "normal");
+      doc.text(`Student Name: ${normalized.fullName}`, 20, yPosition);
+      doc.text(`Roll Number: ${normalized.rollNo}`, 130, yPosition);
+      yPosition += 6;
+      doc.text(`Father's Name: ${normalized.fatherName}`, 20, yPosition);
+      doc.text(`CNIC: ${normalized.cnic}`, 130, yPosition);
+      yPosition += 6;
+      doc.text(`Department: ${selectedDeptName}`, 20, yPosition);
+      doc.text(`Date of Birth: ${normalized.dob}`, 130, yPosition);
+      yPosition += 12;
 
-───────────────────────────────────────────────────────────────
-Generated on: ${new Date().toLocaleDateString()}
-This is an official document from the University ERP System
-═══════════════════════════════════════════════════════════════
-    `;
+      // Semester section header (generic)
+      doc.setFontSize(12);
+      doc.setFont(undefined, "bold");
+      doc.text("SEMESTER 01", 20, yPosition);
+      yPosition += 8;
 
-    // Create and download the transcript
-    const blob = new Blob([transcriptContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Transcript_${normalized.rollNo}_${normalized.fullName.replace(/\s+/g, '_')}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      // Course Grades Table (real data)
+      const tableColumn = ["Course Code", "Course Name", "Grade", "Credit Hours"];
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: yPosition,
+        theme: "grid",
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: "bold",
+          fontSize: 10,
+        },
+        bodyStyles: { fontSize: 9 },
+        alternateRowStyles: { fillColor: [240, 240, 240] },
+        margin: { left: 20, right: 20 },
+      });
+
+      yPosition = (doc.lastAutoTable?.finalY || yPosition + 40) + 10;
+
+      // Credits Completed Section (real total)
+      doc.setFont(undefined, "bold");
+      doc.setFontSize(11);
+      doc.setFillColor(220, 240, 255);
+      doc.rect(20, yPosition, 170, 25, "F");
+      
+      doc.setTextColor(0, 0, 0);
+      doc.text(`CREDITS COMPLETED: ${totalCredits || "0"}`, 30, yPosition + 8);
+      doc.text(`Overall Grade: ${normalized.grades || "N/A"}`, 30, yPosition + 16);
+
+      yPosition += 35;
+
+      // Academic Summary
+      doc.setFont(undefined, "bold");
+      doc.setFontSize(10);
+      doc.text("ACADEMIC SUMMARY", 20, yPosition);
+      yPosition += 6;
+
+      doc.setFont(undefined, "normal");
+      doc.setFontSize(9);
+      doc.text(`Attendance: ${normalized.attendance || "N/A"}`, 20, yPosition);
+      yPosition += 5;
+      doc.text(`Joining Session: ${normalized.joiningSession || "N/A"}`, 20, yPosition);
+      yPosition += 5;
+      doc.text(`Joining Date: ${normalized.joiningDate || "N/A"}`, 20, yPosition);
+      
+      // Footer
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, pageHeight - 15);
+      doc.text("This is an official document from the University ERP System", pageWidth / 2, pageHeight - 10, { align: "center" });
+
+      // Save PDF
+      const filename = `Transcript_${normalized.rollNo}_${normalized.fullName.replace(/\s+/g, "_")}.pdf`;
+      doc.save(filename);
+      alert("Transcript generated successfully!");
+    } catch (err) {
+      console.error("Error generating transcript:", err);
+      alert("Error generating transcript. Please try again.");
+    }
   };
 
   const studentsInDept = students;

@@ -156,8 +156,40 @@ const DepartmentManagement = () => {
         payload.hodEmail = manualHODData.hodEmail.trim();
       }
 
-      await departmentAPI.assignHOD(selectedDept.id, payload);
-      alert(`HOD assigned successfully!`);
+      const response = await departmentAPI.assignHOD(selectedDept.id, payload);
+      
+      // Show different alerts based on mode and whether there was a previous HOD
+      if (hodAssignmentMode === "select_faculty") {
+        const selectedFacultyMember = facultyList.find(f => f.id === selectedHOD);
+        let alertMessage = `✓ HOD Assigned Successfully!\n\n` +
+          `${selectedFacultyMember?.name || 'Faculty member'} can now use their existing faculty login credentials to access the Department Chair portal.\n\n` +
+          `✓ No new password required\n` +
+          `✓ Same email and password\n` +
+          `✓ Access to both Faculty and HOD features\n\n` +
+          `A notification email has been sent to ${selectedFacultyMember?.email || 'the faculty member'}.`;
+        
+        // Add info about previous HOD if one existed
+        if (response.previousHOD) {
+          alertMessage += `\n\n⚠ Previous HOD Update:\n` +
+            `${response.previousHOD.name} (${response.previousHOD.email}) has been removed from the HOD role.\n` +
+            `They can no longer access the Department Chair portal but retain their faculty access.\n` +
+            `A notification email has been sent to them.`;
+        }
+        
+        alert(alertMessage);
+      } else {
+        let alertMessage = `✓ HOD Assigned Successfully!\n\nAn email with login credentials has been sent to ${manualHODData.hodEmail}.`;
+        
+        // Add info about previous HOD if one existed
+        if (response.previousHOD) {
+          alertMessage += `\n\n⚠ Previous HOD Update:\n` +
+            `${response.previousHOD.name} (${response.previousHOD.email}) has been removed from the HOD role.\n` +
+            `They can no longer access the Department Chair portal but retain their faculty access.\n` +
+            `A notification email has been sent to them.`;
+        }
+        
+        alert(alertMessage);
+      }
 
       // Reload departments to update the UI
       await loadDepartments();
@@ -517,12 +549,7 @@ const DepartmentManagement = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {dept.chair ||
-                        dept.chairName ||
-                        dept.hod ||
-                        dept.hodName ||
-                        dept.department_chair ||
-                        "Not assigned"}
+                      {dept.hodName || "Not assigned"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {editingDept?.id === dept.id ? (
@@ -909,7 +936,7 @@ const DepartmentManagement = () => {
             <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
               <div>
                 <h3 className="text-2xl font-bold text-gray-800">
-                  Assign Head of Department
+                  {currentHOD ? "Change Head of Department" : "Assign Head of Department"}
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">
                   {selectedDept.name} • {selectedDept.code}
@@ -936,33 +963,11 @@ const DepartmentManagement = () => {
             {/* Current HOD Display */}
             {currentHOD && (
               <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl">
-                <div className="flex items-start">
-                  <div className="bg-blue-100 p-2 rounded-lg mr-3">
-                    <svg
-                      className="w-6 h-6 text-blue-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-blue-800 mb-1">
-                      Current HOD
-                    </p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {currentHOD.name}
-                    </p>
-                    <p className="text-sm text-blue-700 flex items-center gap-1">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start flex-1">
+                    <div className="bg-blue-100 p-2 rounded-lg mr-3">
                       <svg
-                        className="w-4 h-4"
+                        className="w-6 h-6 text-blue-600"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -972,11 +977,38 @@ const DepartmentManagement = () => {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={2}
-                          d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                         />
                       </svg>
-                      {currentHOD.email}
-                    </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-blue-800 mb-1">
+                        Current HOD (Will be replaced)
+                      </p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {currentHOD.name}
+                      </p>
+                      <p className="text-sm text-blue-700 flex items-center gap-1">
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                          />
+                        </svg>
+                        {currentHOD.email}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="ml-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
+                    Being Replaced
                   </div>
                 </div>
               </div>
@@ -1334,7 +1366,7 @@ const DepartmentManagement = () => {
                 {hodLoading ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                    Assigning...
+                    {currentHOD ? "Changing..." : "Assigning..."}
                   </>
                 ) : (
                   <>
@@ -1352,7 +1384,7 @@ const DepartmentManagement = () => {
                         d="M5 13l4 4L19 7"
                       />
                     </svg>
-                    Assign HOD
+                    {currentHOD ? "Change HOD" : "Assign HOD"}
                   </>
                 )}
               </button>

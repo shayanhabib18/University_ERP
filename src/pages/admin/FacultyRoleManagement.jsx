@@ -12,6 +12,7 @@ const roleOptions = [
 const FacultyRoleManagement = () => {
   const [faculties, setFaculties] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [manualHODs, setManualHODs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -41,6 +42,12 @@ const FacultyRoleManagement = () => {
   const [selectedCourseIds, setSelectedCourseIds] = useState([]);
   const [assignCoursesLoading, setAssignCoursesLoading] = useState(false);
 
+  // Manage Courses Modal States (View and Unassign)
+  const [showManageCoursesModal, setShowManageCoursesModal] = useState(false);
+  const [selectedFacultyForManage, setSelectedFacultyForManage] = useState(null);
+  const [assignedCourses, setAssignedCourses] = useState([]);
+  const [manageCoursesLoading, setManageCoursesLoading] = useState(false);
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -54,6 +61,23 @@ const FacultyRoleManagement = () => {
         setFaculties(facultyRes || []);
         setDepartments(deptRes || []);
         setCurrentExecutive(executiveRes || null);
+
+        // Extract manually assigned HODs from departments with assignment_mode='manual'
+        if (deptRes && Array.isArray(deptRes)) {
+          const manually = deptRes
+            .filter(dept => dept.assignment_mode === 'manual' && dept.hod_full_name && dept.hod_email)
+            .map(dept => ({
+              id: `hod-${dept.id}`, // Unique ID for HOD entries
+              name: dept.hod_full_name,
+              email: dept.hod_email,
+              department_id: dept.id,
+              role: "HOD", // Initially just HOD, will be updated to "HOD & Faculty" when courses assigned
+              is_hod: true,
+              isManualHOD: true,
+              has_courses: dept.has_courses || false, // Track if courses are assigned
+            }));
+          setManualHODs(manually);
+        }
       } catch (err) {
         setError("Failed to load faculty data.");
         console.error(err);
@@ -73,7 +97,10 @@ const FacultyRoleManagement = () => {
   }, [departments]);
 
   const filteredFaculties = useMemo(() => {
-    return faculties
+    // Combine faculties and manual HODs
+    const allEntries = [...faculties, ...manualHODs];
+    
+    return allEntries
       .filter((f) => {
         const matchesSearch = `${f.name || ""} ${f.email || ""}`
           .toLowerCase()
@@ -85,7 +112,7 @@ const FacultyRoleManagement = () => {
         return matchesSearch && matchesRole && matchesDept;
       })
       .sort((a, b) => (a.id || 0) - (b.id || 0));
-  }, [faculties, search, roleFilter, deptFilter]);
+  }, [faculties, manualHODs, search, roleFilter, deptFilter]);
 
   const handleAssignExecutive = async (faculty) => {
     setSelectedFacultyForExecutive(faculty);
@@ -175,7 +202,24 @@ const FacultyRoleManagement = () => {
 
   const isRoleProhibitsCourses = (f) => {
     const role = (f.role || "").toUpperCase();
-    return role === "EXECUTIVE" || role === "DEPT_CHAIR" || f.is_hod === true;
+    return role === "EXECUTIVE" || role === "COORDINATOR";
+  };
+
+  const getDisplayRole = (f) => {
+    // For manually assigned HODs
+    if (f.isManualHOD) {
+      if (f.has_courses) {
+        return "HOD & Faculty"; // They now teach courses
+      }
+      return "HOD"; // Just HOD without faculty role
+    }
+    
+    // For faculty assigned as HOD
+    if (f.is_hod === true) {
+      return "Faculty and HOD";
+    }
+    
+    return f.role || "Unassigned";
   };
 
   const toggleCourseSelection = (courseId) => {
@@ -207,6 +251,61 @@ const FacultyRoleManagement = () => {
       console.error(err);
     } finally {
       setAssignCoursesLoading(false);
+    }
+  };
+
+  const handleManageCourses = async (faculty) => {
+    try {
+      setSelectedFacultyForManage(faculty);
+      setShowManageCoursesModal(true);
+      setAssignedCourses([]);
+      setManageCoursesLoading(true);
+      
+      // Get assigned courses for this faculty
+      const courses = await facultyAPI.getFacultyCourses(faculty.id);
+      setAssignedCourses(courses || []);
+      setManageCoursesLoading(false);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load assigned courses");
+      setManageCoursesLoading(false);
+    }
+  };
+
+  const handleUnassignCourse = async (courseId, courseName) => {
+    if (!selectedFacultyForManage?.id) return;
+    
+    // Show confirmation alert
+    const confirmed = window.confirm(
+      `Are you sure you want to unassign "${courseName}" from ${selectedFacultyForManage.name}?\n\nThis course will be removed from the faculty's portal immediately.`
+    );
+    
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setManageCoursesLoading(true);
+      setError("");
+      
+      // Remove the course assignment
+      await facultyAPI.removeCourse(selectedFacultyForManage.id, courseId);
+      
+      // Refresh the assigned courses list to update the UI
+      const updatedCourses = await facultyAPI.getFacultyCourses(selectedFacultyForManage.id);
+      setAssignedCourses(updatedCourses || []);
+      
+      // Show success alert
+      alert(`✓ Course "${courseName}" has been successfully unassigned from ${selectedFacultyForManage.name}.\n\nThe course has been removed from the faculty portal.`);
+      
+      setStatusMessage(`Course "${courseName}" unassigned successfully`);
+    } catch (err) {
+      // Show error alert
+      alert(`✗ Failed to unassign course: ${err.message || 'Unknown error'}`);
+      setError(err.message || "Failed to unassign course");
+      console.error(err);
+    } finally {
+      setManageCoursesLoading(false);
     }
   };
 
@@ -269,7 +368,7 @@ const FacultyRoleManagement = () => {
 
       {/* Info note about course assignment restrictions */}
       <div className="text-xs text-gray-600 mb-2">
-        Note: Assign Courses is only available for regular faculty. For Executive, Department Chair, and HOD roles, the button is disabled.
+        Note: Course assignment and management are available for Faculty and HOD members. These buttons are disabled for Executive and Coordinator roles.
       </div>
 
       <div className="overflow-x-auto bg-white shadow rounded-lg">
@@ -310,23 +409,37 @@ const FacultyRoleManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">{f.name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-gray-700">{f.email}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-700">{f.role || "Unassigned"}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-gray-700">{getDisplayRole(f)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-gray-700">
                     {departmentById[f.department_id] || "-"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <button
-                      onClick={() => handleAssignCourses(f)}
-                      disabled={isRoleProhibitsCourses(f)}
-                      title={isRoleProhibitsCourses(f) ? "Courses can be assigned only to regular faculty" : "Assign courses"}
-                      className={`px-4 py-2 rounded transition ${
-                        isRoleProhibitsCourses(f)
-                          ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                          : "bg-teal-600 text-white hover:bg-teal-700"
-                      }`}
-                    >
-                      Assign Courses
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleAssignCourses(f)}
+                        disabled={isRoleProhibitsCourses(f)}
+                        title={isRoleProhibitsCourses(f) ? "Courses cannot be assigned to Executive or Coordinator" : "Assign courses"}
+                        className={`px-3 py-1.5 text-sm rounded transition ${
+                          isRoleProhibitsCourses(f)
+                            ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                            : "bg-teal-600 text-white hover:bg-teal-700"
+                        }`}
+                      >
+                        Assign Courses
+                      </button>
+                      <button
+                        onClick={() => handleManageCourses(f)}
+                        disabled={isRoleProhibitsCourses(f)}
+                        title={isRoleProhibitsCourses(f) ? "Course management only available for Faculty and HOD" : "View and unassign courses"}
+                        className={`px-3 py-1.5 text-sm rounded transition ${
+                          isRoleProhibitsCourses(f)
+                            ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                            : "bg-blue-600 text-white hover:bg-blue-700"
+                        }`}
+                      >
+                        Manage Courses
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -420,6 +533,103 @@ const FacultyRoleManagement = () => {
                 }`}
               >
                 {assignCoursesLoading ? "Assigning..." : `Assign ${selectedCourseIds.length} Course(s)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Courses Modal */}
+      {showManageCoursesModal && selectedFacultyForManage && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 overflow-y-auto p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-3xl shadow-2xl my-8 transform transition-all duration-300 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-2xl font-bold text-gray-800">Manage Courses</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Faculty: {selectedFacultyForManage.name} ({selectedFacultyForManage.email})
+                </p>
+                <p className="text-sm text-gray-500">
+                  Department: {departmentById[selectedFacultyForManage.department_id] || "-"}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowManageCoursesModal(false);
+                  setSelectedFacultyForManage(null);
+                  setAssignedCourses([]);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Assigned Courses List */}
+            {manageCoursesLoading ? (
+              <div className="text-center py-8 text-gray-600">Loading assigned courses...</div>
+            ) : assignedCourses.length === 0 ? (
+              <div className="text-center py-8 bg-yellow-50 border border-yellow-200 rounded text-yellow-800">
+                No courses assigned to this faculty yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center mb-3">
+                  <p className="text-sm font-medium text-gray-700">
+                    Assigned Courses ({assignedCourses.length})
+                  </p>
+                </div>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {assignedCourses.map((item) => {
+                    const course = item.course;
+                    if (!course) return null;
+                    
+                    return (
+                      <div key={item.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900">{course.name}</p>
+                          <div className="flex gap-4 mt-1">
+                            <p className="text-sm text-gray-600">Code: {course.code || "N/A"}</p>
+                            <p className="text-sm text-gray-600">Credit Hours: {course.credit_hours}</p>
+                            {course.semester?.number && (
+                              <p className="text-sm text-gray-600">Semester: {course.semester.number}</p>
+                            )}
+                          </div>
+                          {item.student_count !== undefined && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Enrolled Students: {item.student_count}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-400 mt-1">
+                            Assigned on: {new Date(item.assigned_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleUnassignCourse(course.id, course.name)}
+                          disabled={manageCoursesLoading}
+                          className="ml-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
+                        >
+                          Unassign
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  setShowManageCoursesModal(false);
+                  setSelectedFacultyForManage(null);
+                  setAssignedCourses([]);
+                }}
+                className="px-5 py-2.5 rounded-lg font-medium text-gray-700 hover:bg-gray-100 transition-colors border border-gray-300"
+              >
+                Close
               </button>
             </div>
           </div>

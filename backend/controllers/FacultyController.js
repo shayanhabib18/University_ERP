@@ -308,8 +308,12 @@ export const login = async (req, res) => {
       .eq("auth_user_id", authData.user.id)
       .single();
 
-    if (facultyError || !faculty) {
-      console.error("Faculty not found:", facultyError);
+    if (facultyError) {
+      console.error("Faculty query error:", facultyError);
+      return res.status(404).json({ error: "Faculty profile not found. Please use the correct login portal." });
+    }
+
+    if (!faculty) {
       return res.status(404).json({ error: "Faculty profile not found" });
     }
 
@@ -377,65 +381,133 @@ export const forgotPassword = async (req, res) => {
       return res.status(400).json({ error: "Email is required" });
     }
 
-    // Find faculty by email
+    // First, try to find faculty by email
     const { data: faculty, error: findErr } = await supabase
       .from("faculties")
       .select("id, name, email, designation, department_id")
       .eq("email", email)
       .maybeSingle();
 
-    if (findErr) {
+    if (findErr && findErr.code !== "PGRST116") {
       return res.status(500).json({ error: findErr.message });
     }
-    if (!faculty) {
-      return res.status(404).json({ error: "No faculty found with this email" });
+
+    // If faculty found, handle faculty password reset
+    if (faculty) {
+      // Generate new reset token
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const resetTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+      // Update token on faculty
+      const { error: upErr } = await supabase
+        .from("faculties")
+        .update({
+          reset_token: resetToken,
+          reset_token_expiry: resetTokenExpiry.toISOString(),
+        })
+        .eq("id", faculty.id);
+
+      if (upErr) {
+        return res.status(500).json({ error: upErr.message });
+      }
+
+      // Get department name for email context
+      let departmentName = null;
+      if (faculty.department_id) {
+        const { data: deptData } = await supabase
+          .from("departments")
+          .select("name, department_name, title")
+          .eq("id", faculty.department_id)
+          .maybeSingle();
+        departmentName = deptData?.name || deptData?.department_name || deptData?.title || null;
+      }
+
+      const resetLink = `http://localhost:5173/reset-password?token=${resetToken}&type=faculty`;
+
+      // Send reset email
+      try {
+        await sendPasswordResetEmail({
+          toEmail: faculty.email,
+          fullName: faculty.name,
+          resetLink,
+          designation: faculty.designation,
+          departmentName,
+        });
+      } catch (mailErr) {
+        // Continue even if email fails, token is updated
+        console.warn("Email send failed:", mailErr?.message || mailErr);
+      }
+
+      return res.json({ success: true, message: "Password reset link sent" });
     }
 
-    // Generate new reset token
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    const resetTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-    // Update token on faculty
-    const { error: upErr } = await supabase
-      .from("faculties")
-      .update({
-        reset_token: resetToken,
-        reset_token_expiry: resetTokenExpiry.toISOString(),
-      })
-      .eq("id", faculty.id);
-
-    if (upErr) {
-      return res.status(500).json({ error: upErr.message });
-    }
-
-    // Get department name for email context
-    let departmentName = null;
-    if (faculty.department_id) {
-      const { data: deptData } = await supabase
-        .from("departments")
-        .select("name, department_name, title")
-        .eq("id", faculty.department_id)
-        .maybeSingle();
-      departmentName = deptData?.name || deptData?.department_name || deptData?.title || null;
-    }
-
-    const resetLink = `http://localhost:5173/reset-password?token=${resetToken}&type=faculty`;
-
-    // Send reset email
+    // If faculty not found, check if it's a manually assigned HOD
     try {
-      await sendPasswordResetEmail({
-        toEmail: faculty.email,
-        fullName: faculty.name,
-        resetLink,
-        designation: faculty.designation,
-        departmentName,
-      });
-    } catch (mailErr) {
-      // Continue even if email fails, token is updated
-      console.warn("Email send failed:", mailErr?.message || mailErr);
+      const { data: hod, error: hodErr } = await supabase
+        .from("hods")
+        .select("id, hod_full_name, hod_email, department_id, assignment_mode")
+        .eq("hod_email", email)
+        .eq("assignment_mode", "manual")
+        .eq("status", "ACTIVE")
+        .maybeSingle();
+
+      if (hodErr && hodErr.code !== "PGRST116") {
+        return res.status(500).json({ error: hodErr.message });
+      }
+
+      if (hod) {
+        // Generate new reset token for HOD
+        const resetToken = crypto.randomBytes(32).toString("hex");
+        const resetTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+        // Update token on HOD record
+        const { error: upErr } = await supabase
+          .from("hods")
+          .update({
+            reset_token: resetToken,
+            reset_token_expiry: resetTokenExpiry.toISOString(),
+          })
+          .eq("id", hod.id);
+
+        if (upErr) {
+          return res.status(500).json({ error: upErr.message });
+        }
+
+        // Get department name for email context
+        let departmentName = null;
+        if (hod.department_id) {
+          const { data: deptData } = await supabase
+            .from("departments")
+            .select("name, department_name, title")
+            .eq("id", hod.department_id)
+            .maybeSingle();
+          departmentName = deptData?.name || deptData?.department_name || deptData?.title || null;
+        }
+
+        const resetLink = `http://localhost:5173/reset-password?token=${resetToken}&type=hod`;
+
+        // Send reset email
+        try {
+          await sendPasswordResetEmail({
+            toEmail: hod.hod_email,
+            fullName: hod.hod_full_name,
+            resetLink,
+            designation: "Department Chair",
+            departmentName,
+          });
+        } catch (mailErr) {
+          // Continue even if email fails, token is updated
+          console.warn("Email send failed:", mailErr?.message || mailErr);
+        }
+
+        return res.json({ success: true, message: "Password reset link sent" });
+      }
+    } catch (hodCheckErr) {
+      console.log("Note: Could not check HOD table", hodCheckErr);
     }
 
-    return res.json({ success: true, message: "Password reset link sent" });
+    // If neither faculty nor manual HOD found
+    return res.status(404).json({ error: "No faculty or department chair found with this email" });
   } catch (err) {
     console.error("forgotPassword error:", err);
     return res.status(500).json({ error: err.message });

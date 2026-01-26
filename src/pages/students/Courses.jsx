@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { enrollmentsAPI } from '../../services/studentAPI';
 
@@ -9,7 +9,82 @@ export default function Courses() {
   const [error, setError] = useState(null);
   const [activeSemester, setActiveSemester] = useState(0);
   const [enrolling, setEnrolling] = useState(false);
+  const [canEnrollNext, setCanEnrollNext] = useState(false);
+  const autoEnrollAttempted = useRef(false); // gate auto-enroll to once per load
+  const alertShown = useRef(false); // gate alert to once per load
   const navigate = useNavigate();
+
+  // Function to convert grade letter to grade points
+  const getGradePoints = (grade) => {
+    if (!grade || grade === "Result Awaited" || grade === "F") return 0;
+    const gradeMap = {
+      'A': 4.0,
+      'A-': 3.7,
+      'B+': 3.3,
+      'B': 3.0,
+      'B-': 2.7,
+      'C+': 2.3,
+      'C': 2.0,
+      'C-': 1.7,
+      'D': 1.0,
+      'F': 0.0
+    };
+    return gradeMap[grade] || 0;
+  };
+
+  // Function to calculate GPA for a semester
+  const calculateSemesterGPA = (courses) => {
+    if (!courses || courses.length === 0) return "Result Awaited";
+    
+    let totalGradePoints = 0;
+    let totalCredits = 0;
+    let hasGrades = false;
+
+    courses.forEach(course => {
+      if (course.grade && course.grade !== "Result Awaited") {
+        hasGrades = true;
+        const gradePoints = getGradePoints(course.grade);
+        const credits = course.creditHours || 0;
+        totalGradePoints += gradePoints * credits;
+        totalCredits += credits;
+      }
+    });
+
+    if (!hasGrades) return "Result Awaited";
+    if (totalCredits === 0) return "Result Awaited";
+
+    const gpa = (totalGradePoints / totalCredits).toFixed(2);
+    return gpa;
+  };
+
+  // Function to calculate CGPA across all semesters
+  const calculateCGPA = (enrollmentsList) => {
+    if (!enrollmentsList || enrollmentsList.length === 0) return "Result Awaited";
+
+    let totalGradePoints = 0;
+    let totalCredits = 0;
+    let hasGrades = false;
+
+    enrollmentsList.forEach(semester => {
+      if (semester.courses && Array.isArray(semester.courses)) {
+        semester.courses.forEach(course => {
+          if (course.grade && course.grade !== "Result Awaited") {
+            hasGrades = true;
+            const gradePoints = getGradePoints(course.grade);
+            const credits = course.creditHours || 0;
+            totalGradePoints += gradePoints * credits;
+            totalCredits += credits;
+          }
+        });
+      }
+    });
+
+    if (!hasGrades) return "Result Awaited";
+    if (totalCredits === 0) return "Result Awaited";
+
+    const cgpa = (totalGradePoints / totalCredits).toFixed(2);
+    return cgpa;
+  };
 
   // Function to get semester name from joining info
   const getSemesterName = (joiningSession, joiningDate) => {
@@ -55,6 +130,48 @@ export default function Courses() {
     return "Current Session";
   };
 
+  const handleEnrollNextSemester = async () => {
+    try {
+      setEnrolling(true);
+      setError(null);
+      
+      const studentInfo = localStorage.getItem("student_info");
+      if (!studentInfo) {
+        throw new Error("Student information not found. Please log in again.");
+      }
+
+      const student = JSON.parse(studentInfo);
+      const studentId = student.id;
+
+      if (!studentId) {
+        throw new Error("Student ID not found.");
+      }
+
+      // Call next semester enrollment endpoint
+      const response = await fetch(`http://localhost:5000/students/enrollments/enroll-next-semester/${studentId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || result.message || 'Failed to enroll in next semester');
+      }
+
+      // Refresh the page to show new enrollments
+      window.location.reload();
+      
+    } catch (err) {
+      console.error("Failed to enroll in next semester:", err);
+      setError(err.message || "Failed to enroll in next semester");
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
   const handleAutoEnroll = async () => {
     try {
       setEnrolling(true);
@@ -83,7 +200,13 @@ export default function Courses() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || result.message || 'Failed to enroll in courses');
+        // If backend reports existing enrollments, just skip quietly
+        const message = result.error || result.message || 'Failed to enroll in courses';
+        if (typeof message === 'string' && message.toLowerCase().includes('already has enrollments')) {
+          setError(null);
+          return;
+        }
+        throw new Error(message);
       }
 
       // Refresh enrollments
@@ -218,6 +341,62 @@ export default function Courses() {
             semester.standing = academicRecord.remarks || "Result Awaited";
           }
         });
+
+        // Fetch RST data for each course to get grade and status
+        for (const semester of semestersArray) {
+          for (const course of semester.courses) {
+            try {
+              const rstResponse = await fetch(
+                `http://localhost:5000/rst/student/${studentId}/course/${course.id}`
+              );
+              if (rstResponse.ok) {
+                const rstData = await rstResponse.json();
+                // Update grade and status from RST
+                course.grade = rstData.grade || "Result Awaited";
+                // Determine status based on grade
+                course.rstStatus = rstData.grade === 'F' ? 'FAIL' : 'PASS';
+              }
+              // Silently ignore 404s - RST not published yet for this course
+            } catch (err) {
+              // Keep default "Result Awaited" values if RST not found
+            }
+          }
+        }
+
+        // Calculate GPA and CGPA based on uploaded grades
+        semestersArray.forEach((semester) => {
+          const gpa = calculateSemesterGPA(semester.courses);
+          semester.gpa = gpa;
+        });
+
+        // Calculate CGPA across all semesters
+        const cgpa = calculateCGPA(semestersArray);
+        semestersArray.forEach((semester) => {
+          semester.cgpa = cgpa;
+        });
+
+        // Decide auto-enroll or alert based on grades
+        // Only attempt this logic for students who have completed at least one semester
+        const cgpaValue = cgpa !== "Result Awaited" ? parseFloat(cgpa) : null;
+        const allCoursesGraded = semestersArray.every((sem) =>
+          sem.courses.every((c) => c.grade && c.grade !== "Result Awaited")
+        );
+        const hasFailure = semestersArray.some((sem) =>
+          sem.courses.some((c) => c.grade === "F")
+        );
+
+        // Determine if student can enroll in next semester
+        if (allCoursesGraded && semestersArray.length > 0) {
+          if (!hasFailure && cgpaValue !== null && cgpaValue >= 2) {
+            setCanEnrollNext(true); // Enable "Enroll in Next Semester" button
+          } else if (!alertShown.current && (hasFailure || (cgpaValue !== null && cgpaValue < 2))) {
+            alertShown.current = true;
+            setCanEnrollNext(false);
+            alert("You have failed courses or your CGPA is below 2.00. Please contact the coordinator for further assistance regarding next semester registration.");
+          }
+        } else {
+          setCanEnrollNext(false);
+        }
         
         setEnrollments(semestersArray);
         setActiveSemester(0);
@@ -290,7 +469,30 @@ export default function Courses() {
     <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-md">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h2 className="text-xl sm:text-2xl font-semibold text-indigo-700">📚 Enrolled Courses</h2>
-
+        
+        {/* Enroll in Next Semester Button */}
+        {canEnrollNext && (
+          <button
+            onClick={handleEnrollNextSemester}
+            disabled={enrolling}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+              enrolling 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-green-600 hover:bg-green-700 text-white shadow-md'
+            }`}
+          >
+            {enrolling ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Enrolling...
+              </>
+            ) : (
+              <>
+                📝 Enroll in Next Semester
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Student Summary Cards */}
@@ -355,21 +557,6 @@ export default function Courses() {
         </div>
       )}
 
-      {current.courses.length > 0 && (
-        <div className="flex flex-wrap justify-end gap-3 mb-6">
-          <button
-            onClick={() =>
-              navigate("/attendance", {
-                state: { courses: current.courses, session: current.session },
-              })
-            }
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm sm:text-base font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition"
-          >
-            View All Attendance
-          </button>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-indigo-50 p-3 rounded-lg">
           <div className="text-xs text-indigo-600 font-medium">Enrolled Courses</div>
@@ -415,13 +602,13 @@ export default function Courses() {
                   </td>
                   <td className="px-3 py-3">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      course.status === "ongoing" 
-                        ? "bg-green-100 text-green-700"
-                        : course.status === "dropped"
+                      course.rstStatus === 'FAIL'
                         ? "bg-red-100 text-red-700"
+                        : course.rstStatus === 'PASS'
+                        ? "bg-green-100 text-green-700"
                         : "bg-gray-100 text-gray-700"
                     }`}>
-                      {course.status || "ongoing"}
+                      {course.rstStatus || "Awaiting Result"}
                     </span>
                   </td>
                   <td className="px-3 py-3">
