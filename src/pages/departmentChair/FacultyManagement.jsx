@@ -17,19 +17,52 @@ export default function FacultyManagement() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [viewFaculty, setViewFaculty] = useState(null);
   const [assignFaculty, setAssignFaculty] = useState(null);
-  const [selectedCourse, setSelectedCourse] = useState("");
-  const [courseWorkload, setCourseWorkload] = useState("");
   const [confirmRemove, setConfirmRemove] = useState(null);
+  const [departmentCourses, setDepartmentCourses] = useState([]);
+  const [departmentId, setDepartmentId] = useState(null);
+  const [courseSelectionOpen, setCourseSelectionOpen] = useState(false);
+  const [selectedCourseIds, setSelectedCourseIds] = useState([]);
+  const [coursesLoading, setCoursesLoading] = useState(false);
+  const [assignLoading, setAssignLoading] = useState(false);
 
-  const availableCourses = [
-    "Principles of Management",
-    "Business Communication",
-    "Marketing 101",
-    "Financial Accounting",
-    "Business Ethics",
-    "Corporate Finance",
-    "Organizational Behavior",
-  ];
+  // Fetch assigned courses with normalized shape and workload total
+  const fetchAssignedCourses = async (facultyId, tokenOverride) => {
+    const token = tokenOverride || localStorage.getItem("facultyToken");
+    if (!token) throw new Error("Missing auth token");
+
+    const res = await fetch(
+      `http://localhost:5000/faculty-courses/faculty/${facultyId}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (!res.ok) {
+      const msg = await res.text();
+      throw new Error(msg || "Failed to fetch assigned courses");
+    }
+
+    const data = await res.json();
+    const list = Array.isArray(data)
+      ? data
+          .map((c) => {
+            const courseObj = c.course || c;
+            return {
+              id: courseObj?.id || c.id,
+              name: courseObj?.name || c.course_name || c.name || "",
+              code: courseObj?.code || c.code || "",
+              creditHours:
+                courseObj?.credit_hours ||
+                courseObj?.crhr ||
+                c.credit_hours ||
+                c.crhr ||
+                0,
+            };
+          })
+          .filter((c) => c.name)
+      : [];
+
+    const workload = list.reduce((sum, c) => sum + (c.creditHours || 0), 0);
+    return { list, workload };
+  };
 
   // Fetch faculty on component mount
   useEffect(() => {
@@ -65,6 +98,7 @@ export default function FacultyManagement() {
         const profile = await profileRes.json();
         console.log("✅ Profile fetched:", profile.name, profile.department_id);
         const departmentId = profile.department_id;
+        setDepartmentId(departmentId);
 
         // Fetch department name for display
         let departmentName = "";
@@ -111,27 +145,11 @@ export default function FacultyManagement() {
         const facultyWithCourses = await Promise.all(
           faculties.map(async (faculty) => {
             try {
-              const coursesRes = await fetch(
-                `http://localhost:5000/faculty-courses/faculty/${faculty.id}`,
-                { headers: { Authorization: `Bearer ${token}` } }
+              const { list, workload } = await fetchAssignedCourses(
+                faculty.id,
+                token
               );
-              const courses = coursesRes.ok ? await coursesRes.json() : [];
-              console.log(`  📚 ${faculty.name}: ${courses.length} courses`);
-              const assigned = Array.isArray(courses)
-                ? courses
-                    .map((c) => ({
-                      id: c.course?.id || c.id,
-                      name: c.course?.name || c.course_name || c.name || "",
-                      creditHours: c.course?.credit_hours || c.credit_hours || 0,
-                    }))
-                    .filter((c) => c.name)
-                : [];
-              const workload = Array.isArray(courses)
-                ? courses.reduce(
-                    (sum, c) => sum + (c.course?.credit_hours || c.credit_hours || 0),
-                    0
-                  )
-                : 0;
+              console.log(`  📚 ${faculty.name}: ${list.length} courses`);
               return {
                 ...faculty,
                 department:
@@ -139,9 +157,9 @@ export default function FacultyManagement() {
                 joinDate:
                   faculty.joining_date || faculty.joinDate || faculty.joiningDate || "N/A",
                 designation: faculty.designation || "N/A",
-                courses: Array.isArray(courses) ? courses.length : 0,
+                courses: list.length,
                 workload,
-                assignedCourses: assigned,
+                assignedCourses: list,
               };
             } catch (error) {
               console.error("Error fetching courses for", faculty.name, ":", error);
@@ -173,40 +191,171 @@ export default function FacultyManagement() {
     fetchFaculty();
   }, []);
 
+  // Fetch courses for the department
+  const fetchDepartmentCourses = async () => {
+    setCoursesLoading(true);
+    try {
+      const token = localStorage.getItem("facultyToken");
+      console.log("🔍 fetchDepartmentCourses called");
+      console.log("📋 departmentId:", departmentId);
+
+      if (!token || !departmentId) {
+        console.warn("⚠️ Missing token or departmentId");
+        return [];
+      }
+
+      // Get semesters for this department
+      const semestersRes = await fetch(
+        `http://localhost:5000/semesters/department/${departmentId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (!semestersRes.ok) {
+        console.error("❌ Failed to fetch semesters:", semestersRes.status);
+        setDepartmentCourses([]);
+        return [];
+      }
+
+      const semesters = await semestersRes.json();
+      const semesterIds = Array.isArray(semesters) ? semesters.map((s) => s.id) : [];
+
+      const courseLists = await Promise.all(
+        semesterIds.map(async (semId) => {
+          const res = await fetch(
+            `http://localhost:5000/courses/semester/${semId}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          if (!res.ok) return [];
+          return res.json();
+        })
+      );
+
+      const flatCourses = courseLists
+        .flat()
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          code: c.code,
+          creditHours: c.credit_hours || c.crhr || 0,
+          semesterId: c.semester_id,
+        }))
+        .filter((c) => c.id && c.name);
+
+      // Ensure uniqueness by course id
+      const uniqueById = Object.values(
+        flatCourses.reduce((acc, c) => {
+          acc[c.id] = c;
+          return acc;
+        }, {})
+      );
+
+      console.log("✅ Department courses loaded:", uniqueById.length);
+      setDepartmentCourses(uniqueById);
+      return uniqueById;
+    } catch (error) {
+      console.error("💥 Error fetching department courses:", error);
+      setDepartmentCourses([]);
+      return [];
+    } finally {
+      setCoursesLoading(false);
+    }
+  };
+
+  // Open manage modal and fetch courses
+  const handleManageClick = (faculty) => {
+    setAssignFaculty(faculty);
+    setCourseSelectionOpen(false);
+    setSelectedCourseIds([]);
+    fetchDepartmentCourses();
+  };
+
   const filteredFaculty = facultyList.filter(
     (f) =>
       f.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       f.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // ✅ Assign course
-  const handleAssignCourse = () => {
-    if (!selectedCourse.trim() || !courseWorkload.trim()) return;
+  const assignedCourseIds = assignFaculty
+    ? (assignFaculty.assignedCourses || []).map((c) => c.id ?? c)
+    : [];
 
-    setFacultyList((prev) =>
-      prev.map((f) =>
-        f.id === assignFaculty.id
+  const availableCoursesForFaculty = assignFaculty
+    ? departmentCourses.filter((course) => !assignedCourseIds.includes(course.id))
+    : [];
+
+  const closeAssignModal = () => {
+    setAssignFaculty(null);
+    setCourseSelectionOpen(false);
+    setSelectedCourseIds([]);
+  };
+
+  // ✅ Assign selected courses via API
+  const handleAssignCourse = async () => {
+    if (!assignFaculty) return;
+    if (selectedCourseIds.length === 0) {
+      alert("Select at least one course to assign.");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("facultyToken");
+      if (!token) throw new Error("Missing auth token");
+
+      setAssignLoading(true);
+
+      const res = await fetch(`http://localhost:5000/faculty-courses/assign`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          faculty_id: assignFaculty.id,
+          course_ids: selectedCourseIds,
+        }),
+      });
+
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || "Failed to assign courses");
+      }
+
+      const { list, workload } = await fetchAssignedCourses(assignFaculty.id, token);
+
+      setFacultyList((prev) =>
+        prev.map((f) =>
+          f.id === assignFaculty.id
+            ? {
+                ...f,
+                assignedCourses: list,
+                courses: list.length,
+                workload,
+              }
+            : f
+        )
+      );
+
+      setAssignFaculty((prev) =>
+        prev
           ? {
-              ...f,
-              assignedCourses: [...f.assignedCourses, selectedCourse],
-              courses: f.courses + 1,
-              workload: f.workload + Number(courseWorkload),
+              ...prev,
+              assignedCourses: list,
+              courses: list.length,
+              workload,
             }
-          : f
-      )
-    );
+          : prev
+      );
 
-    setAssignFaculty((prev) => ({
-      ...prev,
-      assignedCourses: [...prev.assignedCourses, selectedCourse],
-      courses: prev.courses + 1,
-      workload: prev.workload + Number(courseWorkload),
-    }));
-
-    setSelectedCourse("");
-    setCourseWorkload("");
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 2000);
+      setSelectedCourseIds([]);
+      setCourseSelectionOpen(false);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 2000);
+    } catch (err) {
+      console.error("Assign failed:", err);
+      alert("Failed to assign course: " + (err.message || "Unknown error"));
+    } finally {
+      setAssignLoading(false);
+    }
   };
 
   // ✅ Unassign course
@@ -226,30 +375,32 @@ export default function FacultyManagement() {
         throw new Error(msg || "Failed to unassign course");
       }
 
-      // Update local state
+      // Refresh assigned courses to keep workload accurate
+      const { list, workload } = await fetchAssignedCourses(assignFaculty.id, token);
+
       setFacultyList((prev) =>
         prev.map((f) =>
           f.id === assignFaculty.id
             ? {
                 ...f,
-                assignedCourses: (f.assignedCourses || []).filter(
-                  (c) => (c.id ?? c) !== course.id
-                ),
-                courses: Math.max(f.courses - 1, 0),
-                workload: Math.max(f.workload - (course.creditHours || 0), 0),
+                assignedCourses: list,
+                courses: list.length,
+                workload,
               }
             : f
         )
       );
 
-      setAssignFaculty((prev) => ({
-        ...prev,
-        assignedCourses: (prev.assignedCourses || []).filter(
-          (c) => (c.id ?? c) !== course.id
-        ),
-        courses: Math.max(prev.courses - 1, 0),
-        workload: Math.max(prev.workload - (course.creditHours || 0), 0),
-      }));
+      setAssignFaculty((prev) =>
+        prev
+          ? {
+              ...prev,
+              assignedCourses: list,
+              courses: list.length,
+              workload,
+            }
+          : prev
+      );
 
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 2000);
@@ -356,7 +507,7 @@ export default function FacultyManagement() {
                       <Eye size={14} /> View
                     </button>
                     <button
-                      onClick={() => setAssignFaculty(faculty)}
+                      onClick={() => handleManageClick(faculty)}
                       className="flex items-center gap-1 bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-xs shadow-sm transition-all"
                     >
                       <BookOpen size={14} /> Manage
@@ -403,7 +554,7 @@ export default function FacultyManagement() {
       {assignFaculty && (
         <Modal
           title={`Manage Courses for ${assignFaculty.name}`}
-          onClose={() => setAssignFaculty(null)}
+          onClose={closeAssignModal}
         >
           <div className="space-y-5 text-gray-800">
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-lg border">
@@ -418,66 +569,109 @@ export default function FacultyManagement() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-semibold text-gray-700">
-                  Select Course
-                </label>
-                <select
-                  value={selectedCourse}
-                  onChange={(e) => setSelectedCourse(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
+            <div className="border rounded-lg p-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-bold text-gray-900">Assign Course</h3>
+                <button
+                  onClick={async () => {
+                    setCourseSelectionOpen((prev) => !prev);
+                    setSelectedCourseIds([]);
+                    await fetchDepartmentCourses();
+                  }}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm"
                 >
-                  <option value="">-- Choose a course --</option>
-                  {availableCourses.map((course, i) => (
-                    <option key={i} value={course}>
-                      {course}
-                    </option>
-                  ))}
-                </select>
+                  {courseSelectionOpen ? "Close" : "Assign Course"}
+                </button>
               </div>
 
-              <div>
-                <label className="text-sm font-semibold text-gray-700">
-                  Workload (CrHr)
-                </label>
-                <input
-                  type="number"
-                  value={courseWorkload}
-                  onChange={(e) => setCourseWorkload(e.target.value)}
-                  placeholder="e.g., 3"
-                  className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            </div>
+              {courseSelectionOpen && (
+                <div className="mt-3 space-y-3">
+                  {coursesLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Loader className="animate-spin" size={16} /> Loading department courses...
+                    </div>
+                  ) : availableCoursesForFaculty.length > 0 ? (
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                      {availableCoursesForFaculty.map((course) => {
+                        const checked = selectedCourseIds.includes(course.id);
+                        return (
+                          <label
+                            key={course.id}
+                            className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-200 rounded-md p-2 cursor-pointer hover:border-indigo-300"
+                          >
+                            <div>
+                              <p className="font-semibold text-gray-800">{course.name}</p>
+                              <p className="text-xs text-gray-500">
+                                {course.code || "—"} • {course.creditHours || 0} CrHr
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setSelectedCourseIds((prev) =>
+                                  checked
+                                    ? prev.filter((id) => id !== course.id)
+                                    : [...prev, course.id]
+                                );
+                              }}
+                              className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No additional courses available in this department to assign.
+                    </p>
+                  )}
 
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setAssignFaculty(null)}
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAssignCourse}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm"
-              >
-                Assign
-              </button>
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => {
+                        setCourseSelectionOpen(false);
+                        setSelectedCourseIds([]);
+                      }}
+                      className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 rounded-md text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAssignCourse}
+                      disabled={assignLoading || selectedCourseIds.length === 0 || coursesLoading}
+                      className={`px-3 py-1.5 rounded-md text-sm text-white ${
+                        assignLoading || selectedCourseIds.length === 0 || coursesLoading
+                          ? "bg-indigo-300 cursor-not-allowed"
+                          : "bg-indigo-600 hover:bg-indigo-700"
+                      }`}
+                    >
+                      {assignLoading ? "Saving..." : "Save Assignment"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="border-t pt-3 mt-4">
               <h3 className="font-bold text-gray-900 mb-2">
                 Assigned Courses:
               </h3>
-              {assignFaculty.assignedCourses.length > 0 ? (
+              {(assignFaculty.assignedCourses || []).length > 0 ? (
                 <ul className="space-y-2">
-                  {assignFaculty.assignedCourses.map((course, i) => (
+                  {(assignFaculty.assignedCourses || []).map((course, i) => (
                     <li
                       key={i}
                       className="flex justify-between items-center bg-gray-50 border border-gray-200 rounded-md p-2"
                     >
-                      <span>{typeof course === "string" ? course : course.name}</span>
+                      <div>
+                        <p className="font-semibold text-gray-800">
+                          {typeof course === "string" ? course : course.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {(course.code || "—") + " • " + ((course.creditHours || 0) + " CrHr")}
+                        </p>
+                      </div>
                       <button
                         onClick={() => handleUnassignCourse(course)}
                         className="text-red-500 text-xs hover:underline"
@@ -562,7 +756,7 @@ export default function FacultyManagement() {
 function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 animate__animated animate__fadeIn">
-      <div className="bg-white rounded-xl p-6 w-full max-w-md relative shadow-lg animate__animated animate__zoomIn">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md relative shadow-lg animate__animated animate__zoomIn max-h-[85vh] overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-500 hover:text-gray-800"

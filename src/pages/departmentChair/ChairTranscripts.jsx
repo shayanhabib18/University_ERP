@@ -9,6 +9,7 @@ export default function ChairTranscripts() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [departmentName, setDepartmentName] = useState("N/A");
 
   // Fetch students from department on component mount
   useEffect(() => {
@@ -40,6 +41,30 @@ export default function ChairTranscripts() {
         const profile = await profileRes.json();
         console.log("✅ Profile fetched:", profile.name);
         const departmentId = profile.department_id;
+
+        // Fetch department name for display
+        console.log("📡 Fetching department details for:", departmentId);
+        let fetchedDeptName = "N/A";
+        try {
+          const deptRes = await fetch(
+            `http://localhost:5000/departments/${departmentId}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          console.log("📊 Department response status:", deptRes.status);
+          
+          if (deptRes.ok) {
+            const dept = await deptRes.json();
+            console.log("✅ Department data:", dept);
+            fetchedDeptName = dept?.name || dept?.department_name || dept?.title || "N/A";
+            console.log("✅ Department name extracted:", fetchedDeptName);
+            setDepartmentName(fetchedDeptName);
+          } else {
+            const errText = await deptRes.text();
+            console.error("❌ Department fetch failed:", deptRes.status, errText);
+          }
+        } catch (deptErr) {
+          console.error("❌ Department fetch error:", deptErr);
+        }
 
         // Get all students in department
         console.log("📡 Fetching students for department:", departmentId);
@@ -81,22 +106,64 @@ export default function ChairTranscripts() {
                 const courses = await coursesRes.json();
                 courseData = Array.isArray(courses) ? courses : [];
                 
+                // Fetch RST data (grades) for each course
+                console.log(`📊 Fetching RST/grades for ${studentName}...`);
+                const courseDataWithGrades = await Promise.all(
+                  courseData.map(async (course) => {
+                    try {
+                      const rstRes = await fetch(
+                        `http://localhost:5000/rst/student/${student.id}/course/${course.course_id || course.id}`,
+                        { headers: { Authorization: `Bearer ${token}` } }
+                      );
+                      
+                      if (rstRes.ok) {
+                        const rst = await rstRes.json();
+                        return {
+                          ...course,
+                          grade: rst.grade || "N/A",
+                          approval_status: rst.approval_status || "N/A",
+                        };
+                      }
+                      return { ...course, grade: "N/A", approval_status: "N/A" };
+                    } catch (err) {
+                      console.warn(`Failed to fetch RST for course ${course.course_id}:`, err);
+                      return { ...course, grade: "N/A", approval_status: "N/A" };
+                    }
+                  })
+                );
+
+                courseData = courseDataWithGrades;
+                
                 // Calculate GPA if grades are available
                 if (courseData.length > 0) {
-                  const validGrades = courseData.filter(c => c.grade && c.grade !== 'N/A');
+                  const gradePoints = {
+                    A: 4.0,
+                    "A-": 3.7,
+                    "B+": 3.3,
+                    B: 3.0,
+                    "B-": 2.7,
+                    "C+": 2.3,
+                    C: 2.0,
+                    "C-": 1.7,
+                    D: 1.0,
+                    F: 0.0,
+                  };
+                  const validGrades = courseData
+                    .filter((c) => c.grade && c.grade !== "N/A" && gradePoints[c.grade] !== undefined)
+                    .map((c) => ({
+                      grade: c.grade,
+                      creditHours: c.credit_hours || 3,
+                    }));
+
                   if (validGrades.length > 0) {
-                    const gradePoints = {
-                      'A': 4.0, 'A-': 3.7,
-                      'B+': 3.3, 'B': 3.0, 'B-': 2.7,
-                      'C+': 2.3, 'C': 2.0, 'C-': 1.7,
-                      'D': 1.0, 'F': 0.0
-                    };
                     const totalPoints = validGrades.reduce((sum, c) => {
                       const points = gradePoints[c.grade] || 0;
-                      const credits = c.credit_hours || 3;
-                      return sum + (points * credits);
+                      return sum + points * (c.creditHours || 3);
                     }, 0);
-                    const totalCredits = validGrades.reduce((sum, c) => sum + (c.credit_hours || 3), 0);
+                    const totalCredits = validGrades.reduce(
+                      (sum, c) => sum + (c.creditHours || 3),
+                      0
+                    );
                     gpa = totalCredits > 0 ? (totalPoints / totalCredits).toFixed(2) : 0;
                   }
                 }
@@ -106,12 +173,29 @@ export default function ChairTranscripts() {
                 ...student,
                 name: student.full_name || student.name || "Unknown",
                 rollNo: student.roll_number || "N/A",
-                transcript: courseData.map(c => ({
-                  course: c.course_name || c.course_code || 'Unknown Course',
-                  grade: c.grade || 'N/A',
-                  creditHours: c.credit_hours || 3,
-                })),
+                transcript: courseData.map((c) => {
+                  return {
+                    course: c.course_name || c.course_code || "Unknown Course",
+                    code: c.course_code || "",
+                    grade: c.grade || "N/A",
+                    creditHours: c.credit_hours || 3,
+                    semester: c.semester || "N/A",
+                    academicYear: c.academic_year || "",
+                    approvalStatus: c.approval_status || "N/A",
+                  };
+                }),
                 gpa: gpa || 0,
+                email: student.personal_email || student.email || "N/A",
+                phone: student.student_phone || student.mobile || "N/A",
+                dob: student.date_of_birth || "N/A",
+                cnic: student.cnic || "N/A",
+                fatherName: student.father_name || "N/A",
+                address: student.permanent_address || student.address || "N/A",
+                departmentName:
+                  fetchedDeptName ||
+                  student.department_name ||
+                  student.department ||
+                  "N/A",
               };
             } catch (err) {
               const studentName = student.full_name || student.name || "Unknown";
@@ -122,6 +206,17 @@ export default function ChairTranscripts() {
                 rollNo: student.roll_number || "N/A",
                 transcript: [],
                 gpa: 0,
+                email: student.personal_email || student.email || "N/A",
+                phone: student.student_phone || student.mobile || "N/A",
+                dob: student.date_of_birth || "N/A",
+                cnic: student.cnic || "N/A",
+                fatherName: student.father_name || "N/A",
+                address: student.permanent_address || student.address || "N/A",
+                departmentName:
+                  fetchedDeptName ||
+                  student.department_name ||
+                  student.department ||
+                  "N/A",
               };
             }
           })
@@ -153,100 +248,99 @@ export default function ChairTranscripts() {
       console.log("🔄 Generating PDF for student:", student.name);
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
-      let yPosition = 15;
-      
-      // Title
-      doc.setFontSize(18);
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 14;
+      let y = 18;
+
+      // Use monospaced font for aligned columns
+      doc.setFont("courier", "normal");
+      const line = (text = "") => {
+        doc.text(text, margin, y, { maxWidth: pageWidth - margin * 2 });
+        y += 7;
+        if (y > pageHeight - 20) {
+          doc.addPage();
+          y = 18;
+        }
+      };
+
+      const sep = (char = "=", len = 60) => char.repeat(len);
+
+      // Header
+      doc.setFontSize(14);
       doc.setFont(undefined, "bold");
-      doc.text("Academic Transcript", pageWidth / 2, yPosition, { align: "center" });
-      yPosition += 15;
-      
-      // Student Info
-      doc.setFontSize(11);
+      line(sep("="));
+      line("STUDENT TRANSCRIPT");
+      line(sep("="));
+      line("");
+
+      // Personal Information
+      doc.setFontSize(12);
+      doc.setFont(undefined, "bold");
+      line("PERSONAL INFORMATION");
       doc.setFont(undefined, "normal");
-      doc.text(`Student Name: ${student.name || "N/A"}`, 20, yPosition);
-      yPosition += 7;
-      doc.text(`Roll Number: ${student.rollNo || "N/A"}`, 20, yPosition);
-      yPosition += 7;
-      doc.text(`Department: ${student.department_id || "N/A"}`, 20, yPosition);
-      yPosition += 7;
-      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, yPosition);
-      yPosition += 12;
+      line(sep("-"));
+      line(`Name: ${student.name || "N/A"}`);
+      line(`Email: ${student.email || "N/A"}`);
+      line(`Phone: ${student.phone || "N/A"}`);
+      line(`Date of Birth: ${student.dob || "N/A"}`);
+      line(`CNIC: ${student.cnic || "N/A"}`);
+      line(`Father's Name: ${student.fatherName || "N/A"}`);
+      line(`Address: ${student.address || "N/A"}`);
+      line(`Roll No: ${student.rollNo || "N/A"}`);
+      line(`Department: ${student.departmentName || "N/A"}`);
+      line("");
 
-      // Courses Section
-      if (student.transcript && Array.isArray(student.transcript) && student.transcript.length > 0) {
-        doc.setFont(undefined, "bold");
-        doc.setFontSize(12);
-        doc.text("Course Details:", 20, yPosition);
-        yPosition += 8;
+      // Academic History
+      doc.setFont(undefined, "bold");
+      line("ACADEMIC HISTORY");
+      doc.setFont(undefined, "normal");
+      line(sep("-"));
 
-        // Manual table header
-        doc.setFontSize(10);
-        doc.setFont(undefined, "bold");
-        doc.setFillColor(41, 128, 185);
-        doc.setTextColor(255, 255, 255);
-        
-        const colWidths = [80, 30, 40];
-        const cols = ["Course", "Grade", "Credit Hours"];
-        let xPos = 20;
-        
-        cols.forEach((col, idx) => {
-          doc.rect(xPos, yPosition - 6, colWidths[idx], 7, "F");
-          doc.text(col, xPos + 2, yPosition, { maxWidth: colWidths[idx] - 4 });
-          xPos += colWidths[idx];
-        });
-        
-        yPosition += 10;
-        doc.setTextColor(0, 0, 0);
-        doc.setFont(undefined, "normal");
+      const transcript = Array.isArray(student.transcript) ? student.transcript : [];
+      const grouped = transcript.reduce((acc, item) => {
+        const semKey = item.semester ?? "N/A";
+        if (!acc[semKey]) acc[semKey] = [];
+        acc[semKey].push(item);
+        return acc;
+      }, {});
 
-        // Table rows
-        student.transcript.forEach((item, idx) => {
-          if (yPosition > 270) {
-            doc.addPage();
-            yPosition = 20;
-          }
-          
-          const bgColor = idx % 2 === 0 ? [240, 240, 240] : [255, 255, 255];
-          xPos = 20;
-          doc.setFillColor(...bgColor);
-          
-          const rowData = [
-            item.course || "Unknown",
-            item.grade || "N/A",
-            item.creditHours?.toString() || "3",
-          ];
-          
-          rowData.forEach((data, colIdx) => {
-            doc.rect(xPos, yPosition - 6, colWidths[colIdx], 7, "F");
-            doc.text(data, xPos + 2, yPosition, { maxWidth: colWidths[colIdx] - 4 });
-            xPos += colWidths[colIdx];
-          });
-          
-          yPosition += 7;
-        });
+      const sortedSemesters = Object.keys(grouped).sort((a, b) => {
+        const na = Number(a);
+        const nb = Number(b);
+        if (Number.isNaN(na) || Number.isNaN(nb)) return a > b ? -1 : 1;
+        return nb - na; // descending
+      });
 
-        yPosition += 5;
+      let totalCredits = 0;
+
+      if (sortedSemesters.length === 0) {
+        line("No courses enrolled yet.");
       } else {
-        doc.setFont(undefined, "normal");
-        doc.setFontSize(10);
-        doc.text("No courses enrolled yet.", 20, yPosition);
-        yPosition += 10;
+        sortedSemesters.forEach((sem) => {
+          line("");
+          doc.setFont(undefined, "bold");
+          line(`Semester ${sem}`);
+          doc.setFont(undefined, "normal");
+          line(sep("-"));
+
+          grouped[sem].forEach((c) => {
+            const code = (c.code || "").padEnd(8, " ");
+            const title = (c.course || "Unknown").padEnd(32, " ");
+            const grade = (c.grade || "N/A").padEnd(4, " ");
+            const credits = `${c.creditHours || 0} Credits`;
+            totalCredits += c.creditHours || 0;
+            line(`${code} | ${title} | ${grade} | ${credits}`);
+          });
+        });
       }
 
-      // GPA Section
-      doc.setFillColor(220, 240, 255);
-      doc.rect(20, yPosition, 170, 12, "F");
-      doc.setFont(undefined, "bold");
-      doc.setFontSize(12);
-      doc.text(`CGPA: ${student.gpa || "0.00"}`, 25, yPosition + 8);
-      yPosition += 20;
-
-      // Footer
-      doc.setFontSize(9);
-      doc.setFont(undefined, "normal");
-      doc.setTextColor(100, 100, 100);
-      doc.text("This is an official transcript issued by the Department", pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: "center" });
+      line("");
+      line(sep("="));
+      line("SUMMARY");
+      line(sep("="));
+      line(`Total Credits: ${totalCredits}`);
+      line(`CGPA: ${student.gpa || 0}`);
+      line(`Generated on: ${new Date().toLocaleDateString()}`);
 
       // Save PDF
       const filename = `${student.rollNo || student.id}_Transcript_${new Date().getTime()}.pdf`;
@@ -257,6 +351,77 @@ export default function ChairTranscripts() {
       console.error("❌ Error stack:", err.stack);
       alert(`Error generating PDF: ${err.message}`);
     }
+  };
+
+  const buildTranscriptText = (student) => {
+    const lines = [];
+    const sep = (char = "=", len = 40) => char.repeat(len);
+    const dashSep = (len = 40) => "-".repeat(len);
+
+    lines.push(sep());
+    lines.push("STUDENT TRANSCRIPT");
+    lines.push(sep());
+    lines.push("");
+
+    lines.push("PERSONAL INFORMATION");
+    lines.push(dashSep());
+    lines.push(`Name: ${student.name || "N/A"}`);
+    lines.push(`Email: ${student.email || "N/A"}`);
+    lines.push(`Phone: ${student.phone || "N/A"}`);
+    lines.push(`Date of Birth: ${student.dob || "N/A"}`);
+    lines.push(`CNIC: ${student.cnic || "N/A"}`);
+    lines.push(`Father's Name: ${student.fatherName || "N/A"}`);
+    lines.push(`Address: ${student.address || "N/A"}`);
+    lines.push(`Roll No: ${student.rollNo || "N/A"}`);
+    lines.push(`Department: ${student.departmentName || "N/A"}`);
+    lines.push(" ");
+
+    lines.push("ACADEMIC HISTORY");
+    lines.push(dashSep());
+    lines.push("");
+
+    const transcript = Array.isArray(student.transcript) ? student.transcript : [];
+    const grouped = transcript.reduce((acc, item) => {
+      const key = item.semester ?? "N/A";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(item);
+      return acc;
+    }, {});
+
+    const sortedSemesters = Object.keys(grouped).sort((a, b) => {
+      const na = Number(a);
+      const nb = Number(b);
+      if (Number.isNaN(na) || Number.isNaN(nb)) return a > b ? -1 : 1;
+      return nb - na;
+    });
+
+    let totalCredits = 0;
+
+    if (sortedSemesters.length === 0) {
+      lines.push("No courses enrolled yet.");
+    } else {
+      sortedSemesters.forEach((sem) => {
+        lines.push(`Semester ${sem}`);
+        lines.push(dashSep());
+        grouped[sem].forEach((c) => {
+          const code = (c.code || "").padEnd(8, " ");
+          const title = (c.course || "Unknown Course").padEnd(32, " ");
+          const grade = (c.grade || "N/A").padEnd(4, " ");
+          const credits = `${c.creditHours || 0} Credits`;
+          totalCredits += c.creditHours || 0;
+          lines.push(`${code} | ${title} | ${grade} | ${credits}`);
+        });
+        lines.push("");
+      });
+    }
+
+    lines.push(sep());
+    lines.push("SUMMARY");
+    lines.push(sep());
+    lines.push(`Total Credits: ${totalCredits}`);
+    lines.push(`Generated on: ${new Date().toLocaleDateString()}`);
+
+    return lines.join("\n");
   };
 
   return (
@@ -370,42 +535,13 @@ export default function ChairTranscripts() {
               Roll No: <span className="font-semibold">{selectedStudent.rollNo || "N/A"}</span>
             </p>
             <p className="text-sm text-gray-600 mb-4">
-              Department: <span className="font-semibold">{selectedStudent.department_id || "N/A"}</span>
+              Department: <span className="font-semibold">{selectedStudent.departmentName || "N/A"}</span>
             </p>
 
-            {/* Courses Table */}
-            {selectedStudent.transcript && selectedStudent.transcript.length > 0 ? (
-              <div className="mb-4 border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-blue-100">
-                      <th className="p-3 text-left font-semibold">Course</th>
-                      <th className="p-3 text-center font-semibold">Grade</th>
-                      <th className="p-3 text-center font-semibold">Credit Hours</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedStudent.transcript.map((item, idx) => (
-                      <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                        <td className="p-3 border-t">{item.course}</td>
-                        <td className="p-3 border-t text-center font-semibold">{item.grade}</td>
-                        <td className="p-3 border-t text-center">{item.creditHours}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                <p className="text-yellow-800">No courses enrolled yet.</p>
-              </div>
-            )}
-
-            {/* GPA */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <p className="text-lg font-bold text-blue-900">
-                CGPA: <span className="text-2xl text-blue-600">{selectedStudent.gpa || 0}</span>
-              </p>
+            <div className="bg-gray-900 text-green-100 rounded-lg p-4 mb-6 border border-gray-800 max-h-[70vh] overflow-y-auto">
+              <pre className="whitespace-pre-wrap font-mono text-sm">
+{buildTranscriptText(selectedStudent)}
+              </pre>
             </div>
 
             {/* Action Buttons */}
