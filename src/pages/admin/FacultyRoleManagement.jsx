@@ -310,7 +310,7 @@ const FacultyRoleManagement = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 w-full h-full overflow-y-auto p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-2xl font-bold text-gray-800">Faculty Role Management</h2>
         <div className="flex gap-2 items-center">
@@ -371,8 +371,8 @@ const FacultyRoleManagement = () => {
         Note: Course assignment and management are available for Faculty and HOD members. These buttons are disabled for Executive and Coordinator roles.
       </div>
 
-      <div className="overflow-x-auto bg-white shadow rounded-lg">
-        <table className="min-w-full divide-y divide-gray-200">
+      <div className="overflow-x-auto bg-white shadow rounded-lg w-full">
+        <table className="w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">ID</th>

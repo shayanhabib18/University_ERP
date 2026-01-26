@@ -359,7 +359,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Main content area */}
-      <main className="flex-1 ml-0 md:ml-64 p-6">{renderContent()}</main>
+      <main className="flex-1 ml-0 md:ml-64 overflow-hidden w-full">{renderContent()}</main>
     </div>
   );
 }
