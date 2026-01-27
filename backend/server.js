@@ -18,6 +18,7 @@ import resultsRoutes from "./routes/resultsRoutes.js"; // Results approval route
 import assignmentRoutes from "./routes/assignmentRoutes.js"; // assignment routes
 import facultyMessageRoutes from "./routes/facultyMessageRoutes.js"; // faculty messaging routes
 import quizRoutes from "./routes/quizRoutes.js"; // quiz routes
+import loginActivityRoutes from "./routes/loginActivityRoutes.js"; // login activity tracking routes
 import { initializeStorage } from "./controllers/CourseMaterialsController.js"; // course materials storage initialization
 import { initializeAssignmentStorage } from "./controllers/AssignmentController.js"; // assignments storage initialization
 import { initializeFacultyMessageStorage } from "./controllers/FacultyMessageController.js"; // faculty messages storage initialization
@@ -58,6 +59,7 @@ app.use("/api/course-materials", materialRoutes);
 app.use("/assignments", assignmentRoutes); // assignment routes
 app.use("/faculty-messages", facultyMessageRoutes); // faculty messaging routes
 app.use("/quizzes", quizRoutes); // quiz routes
+app.use("/login-activities", loginActivityRoutes); // login activity tracking routes
 
 // Default route (optional)
 app.get("/", (req, res) => {

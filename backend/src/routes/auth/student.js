@@ -1,5 +1,6 @@
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { trackLoginActivity } from '../../../utils/loginTracker.js';
 
 const router = express.Router();
 
@@ -87,7 +88,16 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ error: 'Invalid email or password' });
   }
   
-  console.log(`✅ Student login successful: ${student.email}`);
+  console.log(`✅ Student login successful: ${student.personal_email}`);
+  
+  // Track login activity
+  await trackLoginActivity({
+    user_id: student.id,
+    user_type: 'student',
+    user_email: student.personal_email,
+    user_name: student.roll_number,
+  }, req, 'success');
+  
   res.json({
     access_token: data.session.access_token,
     user: data.user,

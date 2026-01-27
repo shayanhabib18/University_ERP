@@ -7,6 +7,7 @@ const roleOptions = [
   { value: "DEPT_CHAIR", label: "Department Chair" },
   { value: "COORDINATOR", label: "Coordinator" },
   { value: "FACULTY", label: "Faculty" },
+  { value: "HOD", label: "HOD" },
 ];
 
 const FacultyRoleManagement = () => {
@@ -338,7 +339,7 @@ const FacultyRoleManagement = () => {
             }}
             className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition font-medium whitespace-nowrap"
           >
-            Assign Executive
+            Assign/Change Executive
           </button>
         </div>
       </div>

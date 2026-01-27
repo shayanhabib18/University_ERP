@@ -3,6 +3,7 @@ import supabase from "../model/supabaseClient.js";
 import crypto from "crypto";
 import multer from "multer";
 import { sendFacultyCredentials, sendPasswordResetEmail, sendCoordinatorCredentials, sendExecutiveCredentials } from "../utils/mailer.js";
+import { trackLoginActivity } from "../utils/loginTracker.js";
 
 const FACULTY_DOCS_BUCKET = "faculty-documents";
 export const facultyDocsUpload = multer({
@@ -555,6 +556,14 @@ export const coordinatorLogin = async (req, res) => {
 
     console.log(`✅ Coordinator logged in: ${faculty.email}`);
     
+    // Track login activity
+    await trackLoginActivity({
+      user_id: faculty.id,
+      user_type: 'coordinator',
+      user_email: faculty.email,
+      user_name: faculty.name
+    }, req, 'success');
+
     res.json({
       success: true,
       user: {
@@ -646,6 +655,14 @@ export const executiveLogin = async (req, res) => {
     const executiveEmail = isManual ? executive.executive_email : executive.faculty?.email;
 
     console.log(`✅ Executive logged in: ${executiveEmail}`);
+    
+    // Track login activity
+    await trackLoginActivity({
+      user_id: executive.id,
+      user_type: 'executive',
+      user_email: executiveEmail,
+      user_name: executiveName
+    }, req, 'success');
     
     res.json({
       success: true,
@@ -743,6 +760,59 @@ export const getProfile = async (req, res) => {
   } catch (err) {
     console.error("getProfile error:", err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+// Coordinator-specific profile endpoint
+export const getCoordinatorProfile = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: "No authorization token provided" });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      console.error("Coordinator token verification error:", authError);
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const { data: coordinator, error: coordinatorError } = await supabase
+      .from("faculties")
+      .select("id, name, email, department_id, role")
+      .eq("auth_user_id", user.id)
+      .eq("role", "COORDINATOR")
+      .single();
+
+    if (coordinatorError || !coordinator) {
+      console.error("Coordinator profile not found or not coordinator:", coordinatorError);
+      return res.status(404).json({ error: "Coordinator profile not found" });
+    }
+
+    let departmentName = "";
+    if (coordinator.department_id) {
+      const { data: dept } = await supabase
+        .from("departments")
+        .select("name")
+        .eq("id", coordinator.department_id)
+        .maybeSingle();
+      departmentName = dept?.name || "";
+    }
+
+    res.json({
+      id: coordinator.id,
+      name: coordinator.name,
+      full_name: coordinator.name,
+      email: coordinator.email,
+      department_id: coordinator.department_id,
+      department_name: departmentName,
+      role: coordinator.role,
+    });
+  } catch (error) {
+    console.error("Get coordinator profile error:", error);
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -938,8 +1008,60 @@ export const forgotPassword = async (req, res) => {
       console.log("Note: Could not check HOD table", hodCheckErr);
     }
 
-    // If neither faculty nor manual HOD found
-    return res.status(404).json({ error: "No faculty or department chair found with this email" });
+    // If faculty/HOD not found, check if it's an executive
+    try {
+      const { data: executive, error: execErr } = await supabase
+        .from("executives")
+        .select("id, executive_full_name, executive_email, assignment_mode")
+        .eq("executive_email", email)
+        .maybeSingle();
+
+      if (execErr && execErr.code !== "PGRST116") {
+        return res.status(500).json({ error: execErr.message });
+      }
+
+      if (executive) {
+        // Generate new reset token for Executive
+        const resetToken = crypto.randomBytes(32).toString("hex");
+        const resetTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+        // Update token on Executive record
+        const { error: upErr } = await supabase
+          .from("executives")
+          .update({
+            reset_token: resetToken,
+            reset_token_expiry: resetTokenExpiry.toISOString(),
+          })
+          .eq("id", executive.id);
+
+        if (upErr) {
+          return res.status(500).json({ error: upErr.message });
+        }
+
+        const resetLink = `http://localhost:5173/reset-password?token=${resetToken}&type=executive`;
+
+        // Send reset email
+        try {
+          await sendPasswordResetEmail({
+            toEmail: executive.executive_email,
+            fullName: executive.executive_full_name,
+            resetLink,
+            designation: "Executive",
+            departmentName: null,
+          });
+        } catch (mailErr) {
+          // Continue even if email fails, token is updated
+          console.warn("Email send failed:", mailErr?.message || mailErr);
+        }
+
+        return res.json({ success: true, message: "Password reset link sent" });
+      }
+    } catch (execCheckErr) {
+      console.log("Note: Could not check executives table", execCheckErr);
+    }
+
+    // If neither faculty, manual HOD, nor executive found
+    return res.status(404).json({ error: "No faculty, department chair, or executive found with this email" });
   } catch (err) {
     console.error("forgotPassword error:", err);
     return res.status(500).json({ error: err.message });
@@ -1319,9 +1441,10 @@ export const removeCoordinator = async (req, res) => {
 // Get Coordinator's Department Faculty
 export const getCoordinatorDepartmentFaculty = async (req, res) => {
   try {
-    const coordinatorId = req.user?.id;
+    const coordinatorFacultyId = req.user?.faculty_id || req.user?.id;
+    const authUserId = req.user?.auth_user_id;
     
-    if (!coordinatorId) {
+    if (!authUserId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
@@ -1329,7 +1452,7 @@ export const getCoordinatorDepartmentFaculty = async (req, res) => {
     const { data: coordinator, error: coordErr } = await supabase
       .from("coordinators")
       .select("department_id, faculty_id")
-      .eq("faculty_id", coordinatorId)
+      .eq("faculty_id", coordinatorFacultyId)
       .maybeSingle();
 
     if (coordErr) return res.status(500).json({ error: coordErr.message });
@@ -1339,7 +1462,7 @@ export const getCoordinatorDepartmentFaculty = async (req, res) => {
       const { data: faculty, error: facultyErr } = await supabase
         .from("faculties")
         .select("department_id")
-        .eq("id", coordinatorId)
+        .eq("id", coordinatorFacultyId)
         .eq("role", "COORDINATOR")
         .maybeSingle();
       
@@ -1356,7 +1479,7 @@ export const getCoordinatorDepartmentFaculty = async (req, res) => {
         .order("name");
       
       if (listErr) return res.status(500).json({ error: listErr.message });
-      return res.json({ faculty: facultyList || [] });
+      return res.json(facultyList || []);
     }
 
     // Get faculty in coordinator's department
@@ -1368,7 +1491,7 @@ export const getCoordinatorDepartmentFaculty = async (req, res) => {
 
     if (listErr) return res.status(500).json({ error: listErr.message });
 
-    return res.json({ faculty: facultyList || [] });
+    return res.json(facultyList || []);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -1377,9 +1500,10 @@ export const getCoordinatorDepartmentFaculty = async (req, res) => {
 // Get Coordinator's Department Students
 export const getCoordinatorDepartmentStudents = async (req, res) => {
   try {
-    const coordinatorId = req.user?.id;
+    const coordinatorFacultyId = req.user?.faculty_id || req.user?.id;
+    const authUserId = req.user?.auth_user_id;
     
-    if (!coordinatorId) {
+    if (!authUserId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
@@ -1387,7 +1511,7 @@ export const getCoordinatorDepartmentStudents = async (req, res) => {
     const { data: coordinator, error: coordErr } = await supabase
       .from("coordinators")
       .select("department_id, faculty_id")
-      .eq("faculty_id", coordinatorId)
+      .eq("faculty_id", coordinatorFacultyId)
       .maybeSingle();
 
     if (coordErr) return res.status(500).json({ error: coordErr.message });
@@ -1397,7 +1521,7 @@ export const getCoordinatorDepartmentStudents = async (req, res) => {
       const { data: faculty, error: facultyErr } = await supabase
         .from("faculties")
         .select("department_id")
-        .eq("id", coordinatorId)
+        .eq("id", coordinatorFacultyId)
         .eq("role", "COORDINATOR")
         .maybeSingle();
       
@@ -1409,24 +1533,24 @@ export const getCoordinatorDepartmentStudents = async (req, res) => {
       // Get students in this department
       const { data: studentList, error: listErr } = await supabase
         .from("students")
-        .select("id, name, email, roll_number, registration_number, department_id, semester, status")
+        .select("id, full_name, personal_email, roll_number, department_id, status")
         .eq("department_id", faculty.department_id)
-        .order("name");
+        .order("full_name");
       
       if (listErr) return res.status(500).json({ error: listErr.message });
-      return res.json({ students: studentList || [] });
+      return res.json(studentList || []);
     }
 
     // Get students in coordinator's department
     const { data: studentList, error: listErr } = await supabase
       .from("students")
-      .select("id, name, email, roll_number, registration_number, department_id, semester, status")
+      .select("id, full_name, personal_email, roll_number, department_id, status")
       .eq("department_id", coordinator.department_id)
-      .order("name");
+      .order("full_name");
 
     if (listErr) return res.status(500).json({ error: listErr.message });
 
-    return res.json({ students: studentList || [] });
+    return res.json(studentList || []);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -1435,9 +1559,10 @@ export const getCoordinatorDepartmentStudents = async (req, res) => {
 // Get Coordinator Overview (Department info + counts)
 export const getCoordinatorOverview = async (req, res) => {
   try {
-    const coordinatorId = req.user?.id;
+    const coordinatorFacultyId = req.user?.faculty_id || req.user?.id;
+    const authUserId = req.user?.auth_user_id;
     
-    if (!coordinatorId) {
+    if (!authUserId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
@@ -1445,7 +1570,7 @@ export const getCoordinatorOverview = async (req, res) => {
     const { data: coordinator, error: coordErr } = await supabase
       .from("coordinators")
       .select("department_id, coordinator_full_name, coordinator_email")
-      .eq("faculty_id", coordinatorId)
+      .eq("faculty_id", coordinatorFacultyId)
       .maybeSingle();
 
     let departmentId;
@@ -1457,7 +1582,7 @@ export const getCoordinatorOverview = async (req, res) => {
       const { data: faculty, error: facultyErr } = await supabase
         .from("faculties")
         .select("department_id")
-        .eq("id", coordinatorId)
+        .eq("id", coordinatorFacultyId)
         .eq("role", "COORDINATOR")
         .maybeSingle();
       

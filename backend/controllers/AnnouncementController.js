@@ -432,6 +432,7 @@ const uploadAttachment = async (req, res) => {
     const publicUrl = urlData?.publicUrl || null;
 
     // Insert attachment metadata
+    // Insert attachment metadata (with size/type now ensured via migration)
     const { data, error } = await supabase
       .from("announcement_attachments")
       .insert([
@@ -446,6 +447,7 @@ const uploadAttachment = async (req, res) => {
       .select();
 
     if (error) {
+      console.error("Attachment insert RLS error:", error?.message || error);
       return res.status(400).json({ error: error.message });
     }
 

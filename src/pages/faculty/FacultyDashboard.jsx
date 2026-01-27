@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import Courses from "./Courses";
 import AiQuizAssignmentForm from "./AiQuizAssignmentForm";
 import ViewSubmissions from "./ViewSubmissions";
+import ViewQuizSubmissions from "./ViewQuizSubmissions";
 import ContactFaculty from "./ContactFaculty";
 import FacultyAnnouncements from "./FacultyAnnouncements";
 import FacultyProfile from "./FacultyProfile";
@@ -31,6 +32,7 @@ const sidebarLinks = [
   "My Courses", 
   "Assignments & Quiz",
   "View Submissions",
+  "Quiz Submissions",
   "Contact Faculty",
   "Announcements",
   "Requests",
@@ -174,6 +176,8 @@ export default function FacultyDashboard() {
         return <AiQuizAssignmentForm />;
       case "View Submissions":
         return <ViewSubmissions />;
+      case "Quiz Submissions":
+        return <ViewQuizSubmissions />;
       case "Contact Faculty":
         return <ContactFaculty />;
       case "Announcements":

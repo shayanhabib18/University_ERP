@@ -18,6 +18,7 @@ const ResetPassword = () => {
   const [isCoordinatorReset, setIsCoordinatorReset] = useState(false);
   const [isExecutiveReset, setIsExecutiveReset] = useState(false);
   const [tokenSource, setTokenSource] = useState(null); // 'hash' or 'query'
+  const [isAdminReset, setIsAdminReset] = useState(false);
 
   // Extract token from URL hash (Supabase recovery link format) or search params
   useEffect(() => {
@@ -43,6 +44,27 @@ const ResetPassword = () => {
           setIsCoordinatorReset(true);
           setIsHODReset(false);
           setIsFacultyReset(false);
+          setIsAdminReset(false);
+          setTokenSource('query');
+          setValidating(false);
+          return;
+        }
+
+        // Admin reset
+        if (resetType === 'admin') {
+          if (!queryToken) {
+            console.error("❌ Admin reset but no token found");
+            setError('Invalid password reset link. No token found.');
+            setValidating(false);
+            return;
+          }
+          console.log("✅ Admin reset detected with token");
+          setToken(queryToken);
+          setIsAdminReset(true);
+          setIsHODReset(false);
+          setIsFacultyReset(false);
+          setIsCoordinatorReset(false);
+          setIsExecutiveReset(false);
           setTokenSource('query');
           setValidating(false);
           return;
@@ -152,7 +174,7 @@ const ResetPassword = () => {
   useEffect(() => {
     if (success) {
       console.log("🎯 SUCCESS detected, will redirect in 2 seconds");
-      console.log("📊 Current state:", { success, isHODReset, isFacultyReset, isCoordinatorReset });
+      console.log("📊 Current state:", { success, isHODReset, isFacultyReset, isCoordinatorReset, isAdminReset });
       
       const redirectTimeout = setTimeout(() => {
         let redirectPath = '/login/student';
@@ -164,14 +186,16 @@ const ResetPassword = () => {
           redirectPath = '/login/faculty';
         } else if (isExecutiveReset) {
           redirectPath = '/login/executive';
+        } else if (isAdminReset) {
+          redirectPath = '/login/admin';
         }
-        console.log("🔄 NOW REDIRECTING:", { isHODReset, isFacultyReset, isCoordinatorReset, isExecutiveReset, redirectPath });
+        console.log("🔄 NOW REDIRECTING:", { isHODReset, isFacultyReset, isCoordinatorReset, isExecutiveReset, isAdminReset, redirectPath });
         navigate(redirectPath);
       }, 2000);
       
       return () => clearTimeout(redirectTimeout);
     }
-  }, [success, isHODReset, isFacultyReset, isCoordinatorReset, isExecutiveReset, navigate]);
+  }, [success, isHODReset, isFacultyReset, isCoordinatorReset, isExecutiveReset, isAdminReset, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -198,10 +222,16 @@ const ResetPassword = () => {
       let endpoint = 'http://localhost:5000/auth/reset-password';
       let payload;
 
-      console.log("📤 Submitting password reset", { isFacultyReset, isExecutiveReset, tokenSource });
+      console.log("📤 Submitting password reset", { isFacultyReset, isExecutiveReset, isAdminReset, tokenSource });
 
+      // Admin reset password
+      if (isAdminReset) {
+        endpoint = 'http://localhost:5000/admin/auth/reset-password';
+        payload = { token, password };
+        console.log("📤 Using admin reset password:", endpoint);
+      }
       // Faculty/Executive manual password setup
-      if (isFacultyReset || isExecutiveReset) {
+      else if (isFacultyReset || isExecutiveReset) {
         endpoint = 'http://localhost:5000/faculties/set-password';
         payload = { 
           token, 
@@ -265,6 +295,8 @@ const ResetPassword = () => {
                   navigate('/login/faculty/forgot-password');
                 } else if (isExecutiveReset) {
                   navigate('/login/executive');
+                } else if (isAdminReset) {
+                  navigate('/admin/forgot-password');
                 } else {
                   navigate('/forgot-password');
                 }
@@ -283,6 +315,8 @@ const ResetPassword = () => {
                   window.location.href = '/login/faculty';
                 } else if (isExecutiveReset) {
                   window.location.href = '/login/executive';
+                } else if (isAdminReset) {
+                  window.location.href = '/login/admin';
                 } else {
                   window.location.href = '/login/student';
                 }
@@ -307,6 +341,8 @@ const ResetPassword = () => {
       portalType = 'Faculty';
     } else if (isExecutiveReset) {
       portalType = 'Executive';
+    } else if (isAdminReset) {
+      portalType = 'Admin';
     }
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-4">

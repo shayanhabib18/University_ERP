@@ -76,7 +76,7 @@ export default function AdminResetPassword() {
 
       setSuccess(true);
       setTimeout(() => {
-        navigate('/admin/login');
+        navigate('/login/admin');
       }, 2000);
     } catch (err) {
       console.error('Reset password error:', err);
@@ -184,7 +184,7 @@ export default function AdminResetPassword() {
         <p className="text-center text-sm text-gray-600 mt-6">
           <button
             type="button"
-            onClick={() => navigate('/admin/login')}
+            onClick={() => navigate('/login/admin')}
             className="text-blue-600 hover:underline"
           >
             Back to Login

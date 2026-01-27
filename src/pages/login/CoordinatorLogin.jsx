@@ -27,17 +27,35 @@ export default function CoordinatorLogin() {
         
         // Store auth token and basic identity info if provided
         if (response.data?.token) {
+          // Store under coordinator-specific key, keep old key for backward compatibility
+          localStorage.setItem('coordinator_token', response.data.token);
           localStorage.setItem('facultyToken', response.data.token);
         }
-        if (response.data?.user?.email || email) {
-          localStorage.setItem('facultyEmail', response.data.user?.email || email);
+        const userObj = response.data?.user || {};
+        const emailToStore = userObj.email || email;
+        const nameToStore = userObj.name || userObj.full_name || "Coordinator";
+        const deptIdToStore = userObj.department_id || userObj.departmentId || "";
+        const deptNameToStore = userObj.department_name || userObj.departmentName || "";
+
+        if (emailToStore) {
+          localStorage.setItem('facultyEmail', emailToStore);
         }
-        if (response.data?.user?.name) {
-          localStorage.setItem('facultyName', response.data.user.name);
+        if (nameToStore) {
+          localStorage.setItem('facultyName', nameToStore);
         }
-        if (response.data?.user?.department_id) {
-          localStorage.setItem('departmentId', response.data.user.department_id);
+        if (deptIdToStore) {
+          localStorage.setItem('departmentId', deptIdToStore);
         }
+
+        // Store consolidated coordinator info for dashboard usage
+        localStorage.setItem('coordinator_info', JSON.stringify({
+          email: emailToStore,
+          name: nameToStore,
+          full_name: nameToStore,
+          department_id: deptIdToStore,
+          department_name: deptNameToStore,
+          role: 'COORDINATOR'
+        }));
         
         navigate("/coordinator/dashboard");
       }

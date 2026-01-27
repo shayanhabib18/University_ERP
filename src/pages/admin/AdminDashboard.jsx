@@ -22,6 +22,7 @@ import FacultyRoleManagement from "./FacultyRoleManagement";
 import StudentManagement from "./StudentManagement";
 import HandleRequests from "./HandleRequests";
 import AdminAnnouncements from "./AdminAnnouncement";
+import LoginHeatmap from "../../components/LoginHeatmap";
 import { departmentAPI, courseAPI, facultyAPI, studentAPI } from "../../services/api";
 
 const sidebarLinks = [
@@ -194,22 +195,9 @@ export default function AdminDashboard() {
 
             {/* Dashboard Sections */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* System Analytics Placeholder */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-                    <BarChart2 className="text-indigo-600" size={20} />
-                    System Analytics
-                  </h2>
-                  <select className="text-sm border rounded px-2 py-1">
-                    <option>Last 30 days</option>
-                    <option>This Semester</option>
-                    <option>This Year</option>
-                  </select>
-                </div>
-                <div className="h-60 bg-gray-50 rounded-lg flex items-center justify-center text-gray-400 border border-dashed">
-                  [Interactive Chart Placeholder]
-                </div>
+              {/* Login Activity Heatmap */}
+              <div className="lg:col-span-2">
+                <LoginHeatmap />
               </div>
 
               {/* Incoming Requests Section */}
@@ -359,7 +347,11 @@ export default function AdminDashboard() {
       </div>
 
       {/* Main content area */}
-      <main className="flex-1 ml-0 md:ml-64 overflow-hidden w-full">{renderContent()}</main>
+      <main className="flex-1 ml-0 md:ml-64 min-h-screen overflow-y-auto w-full bg-gray-50">
+        <div className="max-w-7xl mx-auto w-full p-4 sm:p-6 md:p-8">
+          {renderContent()}
+        </div>
+      </main>
     </div>
   );
 }

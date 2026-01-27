@@ -60,6 +60,24 @@ export const createRequest = async (req, res) => {
       return res.status(400).json({ error: 'request_type and title are required' });
     }
 
+    const normalizedType = String(request_type).trim().toUpperCase();
+    const forbiddenTargets = new Set([
+      'ADMIN',
+      'EXECUTIVE',
+      'HOD',
+      'DEPTCHAIR',
+      'DEPARTMENT_CHAIR',
+      'DEPARTMENT CHAIR',
+      'CHAIRMAN',
+      'CHAIRPERSON',
+    ]);
+
+    if (forbiddenTargets.has(normalizedType)) {
+      return res.status(400).json({
+        error: 'Students can only submit requests to the coordinator or faculty. Requests to admin/executive/department chair are not allowed.',
+      });
+    }
+
     // Get student info
     const student = await getStudentByAuthId(userId);
 
@@ -166,6 +184,7 @@ export const getAllStudentRequestsForAdmin = async (req, res) => {
           full_name
         )
       `)
+      .eq('request_type', 'PROFILE_EDIT')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -287,8 +306,9 @@ export const getCoordinatorRequests = async (req, res) => {
     }
 
     const { status, request_type } = req.query;
+    // Fallback to student_requests table (coordinator-specific view was missing)
     let query = supabase
-      .from('coordinator_student_requests')
+      .from('student_requests')
       .select('*')
       .eq('department_id', coordinator.department_id);
 
@@ -413,6 +433,105 @@ export const updateRequestStatus = async (req, res) => {
     res.json({ message: 'Request updated', request: data });
   } catch (error) {
     console.error('Update request status error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * DELETE /coordinator/requests/:id
+ * Delete a request from coordinator's department
+ */
+export const deleteCoordinatorRequest = async (req, res) => {
+  try {
+    const userId = extractUserIdFromToken(req.headers.authorization);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const coordinator = await isCoordinator(userId);
+    if (!coordinator) {
+      return res.status(403).json({ error: 'Not a coordinator' });
+    }
+
+    const { id } = req.params;
+
+    // Verify request belongs to coordinator's department
+    const { data: request, error: reqError } = await supabase
+      .from('student_requests')
+      .select('id')
+      .eq('id', id)
+      .eq('department_id', coordinator.department_id)
+      .single();
+
+    if (reqError || !request) {
+      return res.status(404).json({ error: 'Request not found or access denied' });
+    }
+
+    // Delete the request
+    const { error } = await supabase
+      .from('student_requests')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    res.json({ message: 'Request deleted successfully' });
+  } catch (error) {
+    console.error('Delete request error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * POST /coordinator/create-request
+ * Create a request on behalf of a student
+ */
+export const createRequestByCoordinator = async (req, res) => {
+  try {
+    const userId = extractUserIdFromToken(req.headers.authorization);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const coordinator = await isCoordinator(userId);
+    if (!coordinator) {
+      return res.status(403).json({ error: 'Not a coordinator' });
+    }
+
+    const { student_roll_no, request_type, description } = req.body;
+
+    if (!student_roll_no || !request_type || !description) {
+      return res.status(400).json({ error: 'student_roll_no, request_type, and description are required' });
+    }
+
+    // Get student by roll number in coordinator's department
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('id, department_id')
+      .eq('roll_number', student_roll_no)
+      .eq('department_id', coordinator.department_id)
+      .single();
+
+    if (studentError || !student) {
+      return res.status(404).json({ error: 'Student not found in your department' });
+    }
+
+    // Create the request
+    const { data, error } = await supabase
+      .from('student_requests')
+      .insert({
+        student_id: student.id,
+        department_id: student.department_id,
+        request_type,
+        description,
+        status: 'pending',
+        created_by_coordinator: true,
+        coordinator_id: coordinator.id,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.status(201).json({ message: 'Request created successfully', request: data });
+  } catch (error) {
+    console.error('Create request by coordinator error:', error);
     res.status(500).json({ error: error.message });
   }
 };

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   BarChart,
   Bar,
@@ -21,43 +21,342 @@ import {
   Download,
   Share2,
   CheckCircle,
+  Loader,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
 export default function ChairAnalytics() {
-  const [view, setView] = useState("students");
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareTarget, setShareTarget] = useState("");
   const [sharedSuccess, setSharedSuccess] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [departmentName, setDepartmentName] = useState("Software Engineering");
+  const [studentPerformanceData, setStudentPerformanceData] = useState([]);
+  const [passFailData, setPassFailData] = useState([]);
+  const [allPerformanceData, setAllPerformanceData] = useState([]);
+  const [allPassFailData, setAllPassFailData] = useState([]);
+  const [selectedSemester, setSelectedSemester] = useState("all");
+  const [analytics, setAnalytics] = useState({
+    avgGPA: "0.00",
+    totalStudents: 0,
+    coursesOffered: 0,
+  });
   const reportRef = useRef(null);
 
-  // ======= Student Analytics Data =======
-  const studentPerformanceData = [
-    { course: "Marketing", avgGPA: 3.6 },
-    { course: "Accounting", avgGPA: 3.2 },
-    { course: "Economics", avgGPA: 2.9 },
-    { course: "Finance", avgGPA: 3.8 },
-    { course: "Management", avgGPA: 3.5 },
-  ];
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        setLoading(true);
+        const token = localStorage.getItem("facultyToken");
+        
+        if (!token) {
+          console.error("No faculty token found");
+          setLoading(false);
+          return;
+        }
 
-  const passFailData = [
-    { name: "Passed", value: 86 },
-    { name: "Failed", value: 14 },
-  ];
+        const headers = { Authorization: `Bearer ${token}` };
 
-  // ======= Faculty Analytics Data =======
-  const facultyPerformanceData = [
-    { name: "Dr. Sarah Khan", avgRating: 4.8 },
-    { name: "Prof. Ali Raza", avgRating: 4.5 },
-    { name: "Dr. Ayesha Malik", avgRating: 4.7 },
-    { name: "Mr. Imran", avgRating: 4.2 },
-  ];
+        // Fetch profile to get department
+        const profileRes = await fetch("http://localhost:5000/faculties/profile", { headers });
+        if (!profileRes.ok) {
+          console.error("Profile fetch error:", profileRes.status, profileRes.statusText);
+          setLoading(false);
+          return;
+        }
 
-  const researchData = [
-    { name: "Published Papers", value: 65 },
-    { name: "Ongoing Research", value: 35 },
-  ];
+        const profile = await profileRes.json();
+        const departmentId = profile.department_id;
+        console.log("Department ID:", departmentId);
+
+        if (departmentId) {
+          try {
+            const deptRes = await fetch(`http://localhost:5000/departments/${departmentId}`, {
+              headers,
+            });
+            if (deptRes.ok) {
+              const dept = await deptRes.json();
+              setDepartmentName(dept.name || "Software Engineering");
+            }
+          } catch (err) {
+            console.error("Error fetching department:", err);
+          }
+        }
+
+        // Fetch department students
+        const studentsRes = await fetch(
+          `http://localhost:5000/students/department/${departmentId}`,
+          { headers }
+        );
+
+        if (!studentsRes.ok) {
+          console.error("Students fetch error:", studentsRes.status);
+          setLoading(false);
+          return;
+        }
+
+        const studentsData = await studentsRes.json();
+        const totalStudents = studentsData.length;
+        console.log("Total students:", totalStudents, "Students:", studentsData);
+
+        // Fetch courses for the department
+        const coursesRes = await fetch("http://localhost:5000/courses", { headers });
+        const coursesData = coursesRes.ok ? await coursesRes.json() : [];
+        const departmentCourses = coursesData.filter((c) => c.department_id === departmentId);
+        const coursesOffered = departmentCourses.length;
+        console.log("Courses offered:", coursesOffered);
+        console.log("Department Courses with semester info:", departmentCourses);
+
+        // Create a map of course name/title to semester
+        const courseToSemesterMap = {};
+        departmentCourses.forEach(course => {
+          const courseName = course.course_title || course.title || course.name || course.course_name;
+          const semester = course.semester || course.semester_id || course.semester_number;
+          if (courseName && semester) {
+            courseToSemesterMap[courseName.toLowerCase().trim()] = semester;
+          }
+        });
+        console.log("Course to Semester Map:", courseToSemesterMap);
+
+        // Calculate GPA by course and overall statistics
+        const courseGPAMap = {};
+        let totalGPASum = 0;
+        let studentsWithGPA = 0;
+        let passedCount = 0;
+        let failedCount = 0;
+
+        await Promise.all(
+          studentsData.map(async (student) => {
+            try {
+              // Skip academic-records (404 endpoint), go straight to RST which works
+              let transcriptData = [];
+              
+              try {
+                const rstRes = await fetch(
+                  `http://localhost:5000/rst/student/${student.id}/transcript`,
+                  { headers }
+                );
+                if (rstRes.ok) {
+                  transcriptData = await rstRes.json();
+                }
+              } catch (err) {
+                console.warn("RST fetch failed:", err);
+              }
+              
+              console.log(`Transcript for student ${student.id}:`, transcriptData);
+
+              transcriptData.forEach((record) => {
+                const { courseName, grade, creditHours, semester } = mapRSTRecord(record, courseToSemesterMap);
+                const gradePoint = getGradePoint(grade);
+
+                console.log(`  Course: ${courseName}, Grade: ${grade}, Point: ${gradePoint}, Credits: ${creditHours}, Semester: ${semester}`);
+
+                // Only count courses with valid grades
+                if (gradePoint !== null && creditHours > 0) {
+                  // Use course name + semester as unique key
+                  const courseKey = `${courseName}|${semester}`;
+                  if (!courseGPAMap[courseKey]) {
+                    courseGPAMap[courseKey] = { totalPoints: 0, totalCredits: 0, course: courseName, semester };
+                  }
+                  courseGPAMap[courseKey].totalPoints += gradePoint * creditHours;
+                  courseGPAMap[courseKey].totalCredits += creditHours;
+
+                  // Count pass/fail
+                  if (gradePoint > 0) {
+                    passedCount++;
+                  } else {
+                    failedCount++;
+                  }
+                }
+              });
+
+              // Calculate student GPA
+              const studentGPA = calculateStudentGPA(transcriptData, courseToSemesterMap);
+              if (studentGPA > 0) {
+                totalGPASum += studentGPA;
+                studentsWithGPA++;
+              }
+            } catch (err) {
+              console.error("Error fetching student records:", err);
+            }
+          })
+        );
+
+        // Convert course GPA map to chart data with semester info
+        const performanceData = Object.entries(courseGPAMap).map(([key, data]) => ({
+          course: data.course,
+          semester: data.semester,
+          avgGPA: Number((data.totalPoints / data.totalCredits).toFixed(2)),
+        }));
+
+        // Calculate overall average GPA - only if we have valid courses
+        let avgGPA = "N/A";
+        if (studentsWithGPA > 0) {
+          avgGPA = (totalGPASum / studentsWithGPA).toFixed(2);
+        }
+
+        // Set pass/fail data
+        const totalGrades = passedCount + failedCount;
+        const passFailStats = totalGrades > 0 
+          ? [
+              { name: "Passed", value: Math.round((passedCount / totalGrades) * 100) },
+              { name: "Failed", value: Math.round((failedCount / totalGrades) * 100) },
+            ]
+          : [
+              { name: "Passed", value: 0 },
+              { name: "Failed", value: 0 },
+            ];
+
+        setStudentPerformanceData(performanceData);
+        setPassFailData(passFailStats);
+        setAnalytics({
+          avgGPA,
+          totalStudents,
+          coursesOffered,
+        });
+        console.log("Analytics loaded successfully:", {
+          performanceData,
+          passFailStats,
+          avgGPA,
+          totalStudents,
+          coursesOffered,
+        });
+        setAllPerformanceData(performanceData);
+        setAllPassFailData(passFailStats);
+        setStudentPerformanceData(performanceData);
+        setPassFailData(passFailStats);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error loading analytics:", err);
+        alert("Error loading analytics: " + err.message);
+        setLoading(false);
+      }
+    };
+
+    fetchAnalytics();
+  }, []);
+
+  // Filter data based on selected semester
+  useEffect(() => {
+    if (selectedSemester === "all") {
+      setStudentPerformanceData(allPerformanceData);
+      setPassFailData(allPassFailData);
+    } else {
+      const filteredPerformance = allPerformanceData.filter(
+        (item) => String(item.semester) === selectedSemester
+      );
+      const filteredPassFail = allPassFailData.filter(
+        (item) => String(item.semester) === selectedSemester
+      );
+      setStudentPerformanceData(filteredPerformance);
+      setPassFailData(filteredPassFail);
+    }
+  }, [selectedSemester, allPerformanceData, allPassFailData]);
+
+  const getGradePoint = (grade) => {
+    const gradePoints = {
+      "A+": 4.0, A: 4.0, "A-": 3.7,
+      "B+": 3.3, B: 3.0, "B-": 2.7,
+      "C+": 2.3, C: 2.0, "C-": 1.7,
+      "D+": 1.3, D: 1.0,
+      F: 0.0,
+    };
+    if (!grade) return null;
+    const key = String(grade).trim().toUpperCase();
+    return gradePoints[key] ?? null;
+  };
+
+  const mapRSTRecord = (record, courseToSemesterMap = {}) => {
+    // Debug: Log the entire record to see available fields
+    console.log("🔍 Full RST Record:", record);
+    
+    // Handle RST data structure - grades ARE stored in the database
+    const courseInfo = record.course || record.course_info || record.course_details || {};
+    
+    const courseName =
+      courseInfo.course_title ||
+      courseInfo.title ||
+      courseInfo.name ||
+      record.course_title ||
+      record.course_name ||
+      record.courseName ||
+      record.course ||
+      record.title ||
+      "Unknown Course";
+
+    // Extract grade - the database has it in the 'grade' column
+    let grade = record.grade || null;
+    
+    // If still no grade, try alternative fields
+    if (!grade || grade === "N/A") {
+      grade =
+        record.overall_grade ||
+        record.final_grade ||
+        record.result_grade ||
+        record.letter_grade ||
+        record.grade_letter ||
+        record.result ||
+        record.marks ||
+        record.total_marks ||
+        null;
+    }
+
+    // Ensure grade is a clean string
+    grade = grade ? String(grade).trim() : null;
+
+    const creditHours =
+      Number(
+        record.credit_hours ||
+        record.creditHours ||
+        record.credit ||
+        courseInfo.credit_hours ||
+        courseInfo.creditHours ||
+        courseInfo.credit ||
+        0
+      ) || 0;
+
+    // Extract semester - try from record first, then map from course name
+    let semester =
+      record.semester ||
+      record.semester_id ||
+      record.semester_number ||
+      courseInfo.semester ||
+      courseInfo.semester_id ||
+      courseInfo.semester_number;
+
+    // If semester not found in record, look it up from course name mapping
+    if (!semester || semester === "N/A") {
+      const courseKey = String(courseName).toLowerCase().trim();
+      semester = courseToSemesterMap[courseKey] || "1"; // Default to semester 1 if not found
+    }
+
+    console.log(`🔍 RST Record: course="${courseName}", grade="${grade}", credits=${creditHours}, semester=${semester}`);
+
+    return {
+      courseName: String(courseName).trim(),
+      grade: grade || "N/A",
+      creditHours,
+      semester,
+    };
+  };
+
+  const calculateStudentGPA = (transcript, courseToSemesterMap = {}) => {
+    let totalPoints = 0;
+    let totalCredits = 0;
+
+    transcript.forEach((record) => {
+      const { grade, creditHours } = mapRSTRecord(record, courseToSemesterMap);
+      const gradePoint = getGradePoint(grade);
+
+      if (gradePoint !== null && creditHours > 0) {
+        totalPoints += gradePoint * creditHours;
+        totalCredits += creditHours;
+      }
+    });
+
+    return totalCredits > 0 ? totalPoints / totalCredits : 0;
+  };
 
   const COLORS = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b"];
 
@@ -77,13 +376,7 @@ export default function ChairAnalytics() {
     let heightLeft = imgHeight;
     let position = 10;
 
-    pdf.text(
-      view === "students"
-        ? "Student Analytics Report"
-        : "Faculty Analytics Report",
-      14,
-      10
-    );
+    pdf.text("Student Analytics Report", 14, 10);
     pdf.addImage(imgData, "PNG", 10, position + 10, imgWidth, imgHeight);
     heightLeft -= pageHeight;
 
@@ -94,11 +387,7 @@ export default function ChairAnalytics() {
       heightLeft -= pageHeight;
     }
 
-    pdf.save(
-      view === "students"
-        ? "Student_Analytics_Report.pdf"
-        : "Faculty_Analytics_Report.pdf"
-    );
+    pdf.save("Student_Analytics_Report.pdf");
   };
 
   // ======= Simulated Share Function =======
@@ -115,33 +404,15 @@ export default function ChairAnalytics() {
     <div className="p-8 bg-gray-50 min-h-screen">
       {/* ===== Header ===== */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4">
-        <h1 className="text-3xl font-semibold text-gray-800 flex items-center gap-3">
-          <BarChart3 className="text-blue-600" />
-          Department Chair Analytics
-        </h1>
+        <div>
+          <h1 className="text-3xl font-semibold text-gray-800 flex items-center gap-3">
+            <BarChart3 className="text-blue-600" />
+            {departmentName} Analytics
+          </h1>
+          <p className="text-gray-600 mt-1 text-sm">Department Chair Dashboard</p>
+        </div>
 
         <div className="flex flex-wrap justify-center gap-3">
-          <button
-            onClick={() => setView("students")}
-            className={`px-5 py-2 rounded-lg border text-sm font-medium shadow-sm transition-all ${
-              view === "students"
-                ? "bg-blue-600 text-white"
-                : "bg-white text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            Student Analytics
-          </button>
-          <button
-            onClick={() => setView("faculty")}
-            className={`px-5 py-2 rounded-lg border text-sm font-medium shadow-sm transition-all ${
-              view === "faculty"
-                ? "bg-blue-600 text-white"
-                : "bg-white text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            Faculty Analytics
-          </button>
-
           <button
             onClick={handleDownloadPDF}
             className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-medium shadow-md transition"
@@ -160,22 +431,28 @@ export default function ChairAnalytics() {
         </div>
       </div>
 
-      {/* ===== Analytics Content ===== */}
-      <div ref={reportRef}>
-        {view === "students" ? (
-          <StudentAnalyticsView
-            studentPerformanceData={studentPerformanceData}
-            passFailData={passFailData}
-            COLORS={COLORS}
-          />
-        ) : (
-          <FacultyAnalyticsView
-            facultyPerformanceData={facultyPerformanceData}
-            researchData={researchData}
-            COLORS={COLORS}
-          />
-        )}
-      </div>
+      {loading ? (
+        <div className="flex justify-center items-center py-20">
+          <div className="text-center">
+            <Loader className="animate-spin text-blue-600 mx-auto mb-4" size={40} />
+            <p className="text-gray-600">Loading analytics...</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* ===== Analytics Content ===== */}
+          <div ref={reportRef}>
+            <StudentAnalyticsView
+              studentPerformanceData={studentPerformanceData}
+              passFailData={passFailData}
+              COLORS={COLORS}
+              analytics={analytics}
+              selectedSemester={selectedSemester}
+              onSemesterChange={setSelectedSemester}
+            />
+          </div>
+        </>
+      )}
 
       {/* ===== Share Modal ===== */}
       {showShareModal && (
@@ -231,25 +508,42 @@ export default function ChairAnalytics() {
 }
 
 /* ================= Student Analytics View ================= */
-function StudentAnalyticsView({ studentPerformanceData, passFailData, COLORS }) {
+function StudentAnalyticsView({ studentPerformanceData, passFailData, COLORS, analytics, selectedSemester, onSemesterChange }) {
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <KPICard
           icon={<TrendingUp className="text-green-500" />}
           title="Average GPA"
-          value="3.42"
+          value={analytics.avgGPA}
         />
         <KPICard
           icon={<Users className="text-blue-500" />}
           title="Total Students"
-          value="240"
+          value={analytics.totalStudents}
         />
-        <KPICard
-          icon={<BookOpen className="text-purple-500" />}
-          title="Courses Offered"
-          value="25"
-        />
+      </div>
+
+      {/* Semester Filter */}
+      <div className="bg-white p-4 rounded-2xl shadow">
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Filter by Semester:
+        </label>
+        <select
+          value={selectedSemester}
+          onChange={(e) => onSemesterChange(e.target.value)}
+          className="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        >
+          <option value="all">All Semesters</option>
+          <option value="1">Semester 1</option>
+          <option value="2">Semester 2</option>
+          <option value="3">Semester 3</option>
+          <option value="4">Semester 4</option>
+          <option value="5">Semester 5</option>
+          <option value="6">Semester 6</option>
+          <option value="7">Semester 7</option>
+          <option value="8">Semester 8</option>
+        </select>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -257,108 +551,86 @@ function StudentAnalyticsView({ studentPerformanceData, passFailData, COLORS }) 
           <h2 className="text-lg font-semibold text-gray-700 mb-4">
             Average GPA by Course
           </h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={studentPerformanceData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="course" />
-              <YAxis domain={[0, 4]} />
-              <Tooltip />
-              <Bar dataKey="avgGPA" fill="#3b82f6" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {studentPerformanceData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={studentPerformanceData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="course" />
+                <YAxis domain={[0, 4]} />
+                <Tooltip />
+                <Bar dataKey="avgGPA" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-gray-500">
+              No course data available for selected semester
+            </div>
+          )}
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow">
           <h2 className="text-lg font-semibold text-gray-700 mb-4">
             Pass / Fail Ratio
           </h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={passFailData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={85}
-                label
-              >
-                {passFailData.map((entry, i) => (
-                  <Cell key={i} fill={COLORS[i]} />
-                ))}
-              </Pie>
-              <Legend />
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          {passFailData.length > 0 && passFailData.some(d => d.value > 0) ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={passFailData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={85}
+                  label
+                >
+                  {passFailData.map((entry, i) => (
+                    <Cell key={i} fill={COLORS[i]} />
+                  ))}
+                </Pie>
+                <Legend />
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-gray-500">
+              No grade data available
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  );
-}
 
-/* ================= Faculty Analytics View ================= */
-function FacultyAnalyticsView({ facultyPerformanceData, researchData, COLORS }) {
-  return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <KPICard
-          icon={<GraduationCap className="text-indigo-500" />}
-          title="Average Faculty Rating"
-          value="4.6 / 5"
-        />
-        <KPICard
-          icon={<Users className="text-teal-500" />}
-          title="Active Faculty"
-          value="18"
-        />
-        <KPICard
-          icon={<BookOpen className="text-rose-500" />}
-          title="Research Projects"
-          value="35"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl shadow col-span-2">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">
-            Faculty Performance (Avg Rating)
-          </h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={facultyPerformanceData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis domain={[0, 5]} />
-              <Tooltip />
-              <Bar dataKey="avgRating" fill="#6366f1" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">
-            Research Work Overview
-          </h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={researchData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={85}
-                label
-              >
-                {researchData.map((entry, i) => (
-                  <Cell key={i} fill={COLORS[i]} />
+      {/* Semester-wise Courses Table */}
+      <div className="bg-white p-6 rounded-2xl shadow">
+        <h2 className="text-lg font-semibold text-gray-700 mb-4">
+          {selectedSemester === "all" ? "All Courses" : `Semester ${selectedSemester} Courses`}
+        </h2>
+        {studentPerformanceData.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700">#</th>
+                  <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700">Course Name</th>
+                  <th className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700">CGPA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {studentPerformanceData.map((course, index) => (
+                  <tr key={index} className="hover:bg-gray-50 transition border-b border-gray-300">
+                    <td className="border border-gray-300 px-4 py-3 text-gray-600">{index + 1}</td>
+                    <td className="border border-gray-300 px-4 py-3 text-gray-800 font-medium">{course.course}</td>
+                    <td className="border border-gray-300 px-4 py-3 text-center text-blue-600 font-semibold">{course.avgGPA?.toFixed(2) || "N/A"}</td>
+                  </tr>
                 ))}
-              </Pie>
-              <Legend />
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            No courses available for {selectedSemester === "all" ? "all semesters" : `semester ${selectedSemester}`}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -152,3 +152,49 @@ export const getSent = async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 };
+
+export const deleteMessage = async (req, res) => {
+  try {
+    const authUserId = req.user?.id;
+    if (!authUserId) return res.status(401).json({ error: "Unauthorized" });
+    
+    let facultyId;
+    try {
+      facultyId = await mapAuthToFacultyId(authUserId);
+    } catch (err) {
+      console.error("Faculty lookup failed (delete):", err.message);
+      return res.status(403).json({ error: err.message });
+    }
+
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: "Message ID is required" });
+
+    // Check if the message belongs to the faculty (either sender or recipient)
+    const { data: message, error: fetchError } = await supabaseClient
+      .from("faculty_messages")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    // Only allow deletion if the user is the sender or recipient
+    if (message.sender_faculty_id !== facultyId && message.recipient_faculty_id !== facultyId) {
+      return res.status(403).json({ error: "You do not have permission to delete this message" });
+    }
+
+    const { error: deleteError } = await supabaseClient
+      .from("faculty_messages")
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) throw deleteError;
+
+    return res.json({ message: "Message deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting message:", err);
+    return res.status(500).json({ error: err.message });
+  }
+};

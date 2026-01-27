@@ -30,7 +30,7 @@ export default function HandleRequests() {
       const token = localStorage.getItem("admin_token");
       console.log("Fetching with token:", token ? "present" : "missing");
       
-      const response = await fetch("http://localhost:5000/api/admin/student-requests", {
+      const response = await fetch("http://localhost:5000/requests/admin/student-requests", {
         headers: {
           "Authorization": `Bearer ${token}`,
         },
@@ -90,7 +90,7 @@ export default function HandleRequests() {
       setError("");
       const token = localStorage.getItem("admin_token");
       
-      const response = await fetch(`http://localhost:5000/api/admin/requests/${requestId}/approve-profile-edit`, {
+      const response = await fetch(`http://localhost:5000/requests/admin/requests/${requestId}/approve-profile-edit`, {
         method: "PATCH",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -124,7 +124,7 @@ export default function HandleRequests() {
       setError("");
       const token = localStorage.getItem("admin_token");
       
-      const response = await fetch(`http://localhost:5000/api/admin/requests/${requestId}/reject-profile-edit`, {
+      const response = await fetch(`http://localhost:5000/requests/admin/requests/${requestId}/reject-profile-edit`, {
         method: "PATCH",
         headers: {
           "Authorization": `Bearer ${token}`,

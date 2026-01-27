@@ -2,7 +2,6 @@ import { useState } from "react";
 import { CheckCircle, XCircle, ClipboardList, User, Users, Building2, Search, UserCheck } from "lucide-react";
 
 export default function Approvals() {
-  const [activeTab, setActiveTab] = useState("faculty");
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen animate__animated animate__fadeIn">
@@ -16,30 +15,8 @@ export default function Approvals() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-4 mb-6 border-b border-gray-200">
-        {[
-          { id: "coordinator", label: "Coordinator Requests", icon: <UserCheck size={16} /> },
-          { id: "department", label: "Department Requests", icon: <Building2 size={16} /> },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-all ${
-              activeTab === tab.id
-                ? "border-blue-600 text-blue-600 font-semibold"
-                : "border-transparent text-gray-500 hover:text-blue-500"
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Render active tab */}
-      {activeTab === "coordinator" && <CoordinatorApprovals />}
-      {activeTab === "department" && <DepartmentApprovals />}
+      {/* Coordinator Approvals */}
+      <CoordinatorApprovals />
     </div>
   );
 }
@@ -88,40 +65,7 @@ function CoordinatorApprovals() {
   );
 }
 
-function DepartmentApprovals() {
-  const [requests, setRequests] = useState([
-    {
-      id: 1,
-      name: "Event Proposal",
-      type: "Seminar Approval",
-      details: "Research Seminar on AI in Business",
-      date: "2025-10-12",
-      status: "Pending",
-    },
-    {
-      id: 2,
-      name: "Budget Request",
-      type: "Resource Purchase",
-      details: "Request to purchase new lab equipment",
-      date: "2025-10-11",
-      status: "Pending",
-    },
-  ]);
 
-  const handleAction = (id, newStatus) => {
-    setRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
-    );
-  };
-
-  return (
-    <RequestTable
-      data={requests}
-      onApprove={(id) => handleAction(id, "Approved")}
-      onReject={(id) => handleAction(id, "Rejected")}
-    />
-  );
-}
 
 // 🔍 Reusable Search Bar Component
 function SearchBar({ value, onChange, placeholder }) {

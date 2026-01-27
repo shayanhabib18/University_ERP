@@ -8,6 +8,7 @@ import {
   Mail,
   Clock,
   Download,
+  Trash2,
 } from "lucide-react";
 import facultyMessageAPI from "../../services/facultyMessageAPI";
 
@@ -99,6 +100,19 @@ export default function ContactFaculty() {
     window.open(downloadUrl, "_blank");
   };
 
+  const handleDelete = async (messageId) => {
+    if (!confirm("Are you sure you want to delete this message?")) {
+      return;
+    }
+    try {
+      await facultyMessageAPI.deleteMessage(messageId);
+      alert("✅ Message deleted");
+      loadMessages();
+    } catch (err) {
+      alert(`❌ ${err.message}`);
+    }
+  };
+
   const MessageList = ({ items, title, empty }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
       <div className="flex items-center gap-2 mb-4">
@@ -142,6 +156,12 @@ export default function ContactFaculty() {
                   <Download size={14} /> Download Attachment
                 </button>
               )}
+              <button
+                onClick={() => handleDelete(msg.id)}
+                className="mt-2 ml-3 inline-flex items-center gap-2 text-red-600 hover:underline text-sm"
+              >
+                <Trash2 size={14} /> Delete
+              </button>
             </div>
           ))}
         </div>

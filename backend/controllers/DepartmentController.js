@@ -2,6 +2,7 @@
 import supabase from "../model/supabaseClient.js";
 import crypto from "crypto";
 import { sendHODCredentials, sendHODAssignmentNotification, sendHODRemovalNotification } from "../utils/mailer.js";
+import { trackLoginActivity } from "../utils/loginTracker.js";
 
 // Get all departments
 export const getAllDepartments = async (req, res) => {
@@ -246,6 +247,14 @@ export const hodLogin = async (req, res) => {
       assignment_mode: "manual",
       has_courses: hod.has_courses || false,
     };
+
+    // Track login activity
+    await trackLoginActivity({
+      user_id: hod.id,
+      user_type: 'hod',
+      user_email: hod.hod_email,
+      user_name: hod.hod_full_name
+    }, req, 'success');
 
     res.json({
       success: true,

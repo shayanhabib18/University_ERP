@@ -352,6 +352,8 @@ export const getQuizSubmissions = async (req, res) => {
     const { quizId } = req.params;
     const facultyId = req.user?.faculty_id;
 
+    console.log("📊 getQuizSubmissions called:", { quizId, facultyId });
+
     if (!facultyId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -364,20 +366,41 @@ export const getQuizSubmissions = async (req, res) => {
       .eq("faculty_id", facultyId)
       .maybeSingle();
 
-    if (quizErr) return res.status(500).json({ error: quizErr.message });
-    if (!quiz) return res.status(404).json({ error: "Quiz not found" });
+    if (quizErr) {
+      console.error("❌ Quiz query error:", quizErr);
+      return res.status(500).json({ error: quizErr.message });
+    }
+    if (!quiz) {
+      console.error("❌ Quiz not found or doesn't belong to faculty:", { quizId, facultyId });
+      return res.status(404).json({ error: "Quiz not found" });
+    }
 
-    // Get submissions
+    console.log("✅ Quiz found:", { id: quiz.id, title: quiz.title, faculty_id: quiz.faculty_id });
+
+    // Get submissions with student details
     const { data: submissions, error: subErr } = await supabase
       .from("quiz_submissions")
       .select(`
         *,
-        student:students(id, name, roll_number, email)
+        student:students(id, full_name, roll_number)
       `)
       .eq("quiz_id", quizId)
       .order("submitted_at", { ascending: false });
 
-    if (subErr) return res.status(500).json({ error: subErr.message });
+    if (subErr) {
+      console.error("❌ Submissions query error:", subErr);
+      return res.status(500).json({ error: subErr.message });
+    }
+
+    console.log("📋 Quiz submissions found:", {
+      count: submissions?.length || 0,
+      sample: submissions?.[0] ? {
+        id: submissions[0].id,
+        student_id: submissions[0].student_id,
+        student: submissions[0].student,
+        score: submissions[0].score
+      } : null
+    });
 
     return res.json({
       success: true,

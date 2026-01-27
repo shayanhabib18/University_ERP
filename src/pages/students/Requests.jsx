@@ -32,7 +32,8 @@ export default function Requests() {
       const response = await axios.get("http://localhost:5000/requests/student-requests", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setRequests(response.data.requests || []);
+      // Backend returns array directly
+      setRequests(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       console.error("Failed to fetch requests:", err);
       setError(err.response?.data?.error || "Failed to load requests");
@@ -137,6 +138,9 @@ export default function Requests() {
 
       {/* Main Content */}
       <div className="p-6">
+        <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+          Requests are sent to your department coordinator. Students cannot send requests directly to admin, executive, or department chair.
+        </div>
         {view === "create" ? (
           <div className="space-y-6">
             <div>

@@ -5,6 +5,8 @@ import {
   Eye,
   X, 
   CheckCircle,
+  Trash2,
+  Plus,
 } from "lucide-react";
 
 const REQUEST_TYPE_LABELS = {
@@ -24,6 +26,12 @@ export default function CoordinatorRequests() {
   const [showModal, setShowModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [resolutionNote, setResolutionNote] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newRequest, setNewRequest] = useState({
+    studentRollNo: "",
+    requestType: "OTHER",
+    description: "",
+  });
 
   useEffect(() => {
     fetchRequests();
@@ -88,10 +96,19 @@ export default function CoordinatorRequests() {
         setActionLoading(false);
         return;
       }
+      
+      // Determine final status based on checkboxes
+      let finalStatus = status;
+      if (selectedRequest.forwardToAdmin) {
+        finalStatus = "forwarded_to_admin";
+      } else if (selectedRequest.forwardToDeptChair) {
+        finalStatus = "forwarded_to_chair";
+      }
+      
       await axios.patch(
         `http://localhost:5000/requests/coordinator/requests/${selectedRequest.request.id}`,
         {
-          status,
+          status: finalStatus,
           resolution_note: resolutionNote || null,
         },
         {
@@ -111,6 +128,77 @@ export default function CoordinatorRequests() {
     }
   };
 
+  const handleDeleteRequest = async (requestId) => {
+    if (!confirm("Are you sure you want to delete this request? This action cannot be undone.")) {
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const token = localStorage.getItem("facultyToken");
+      if (!token) {
+        setError("Authentication required. Please log in again.");
+        setActionLoading(false);
+        return;
+      }
+
+      await axios.delete(
+        `http://localhost:5000/requests/coordinator/requests/${requestId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      setShowModal(false);
+      setSelectedRequest(null);
+      setResolutionNote("");
+      await fetchRequests();
+    } catch (err) {
+      console.error("Failed to delete request:", err);
+      setError(err.response?.data?.error || "Failed to delete request");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCreateRequest = async () => {
+    if (!newRequest.studentRollNo || !newRequest.description) {
+      setError("Please fill in all required fields");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const token = localStorage.getItem("facultyToken");
+      if (!token) {
+        setError("Authentication required. Please log in again.");
+        setActionLoading(false);
+        return;
+      }
+
+      await axios.post(
+        "http://localhost:5000/requests/coordinator/create-request",
+        {
+          student_roll_no: newRequest.studentRollNo,
+          request_type: newRequest.requestType,
+          description: newRequest.description,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      setShowCreateModal(false);
+      setNewRequest({ studentRollNo: "", requestType: "OTHER", description: "" });
+      await fetchRequests();
+    } catch (err) {
+      console.error("Failed to create request:", err);
+      setError(err.response?.data?.error || "Failed to create request");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -124,9 +212,18 @@ export default function CoordinatorRequests() {
   return (
     <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-indigo-700 mb-2">📬 Student Requests</h1>
-        <p className="text-gray-600">Review and manage student requests for your department</p>
+      <div className="mb-6 flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-indigo-700 mb-2">📬 Student Requests</h1>
+          <p className="text-gray-600">Review and manage student requests for your department</p>
+        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-all flex items-center gap-2"
+        >
+          <Plus size={20} />
+          Create Request
+        </button>
       </div>
 
       {error && (
@@ -238,18 +335,6 @@ export default function CoordinatorRequests() {
                     <div>📅 {formatDate(req.created_at)}</div>
                     <div>📧 {req.personal_email}</div>
                   </div>
-
-                  {req.priority && (
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      req.priority === "high"
-                        ? "bg-red-100 text-red-700"
-                        : req.priority === "medium"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-blue-100 text-blue-700"
-                    }`}>
-                      Priority: {req.priority.toUpperCase()}
-                    </span>
-                  )}
                 </div>
 
                 <button
@@ -315,6 +400,32 @@ export default function CoordinatorRequests() {
                     rows="3"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none mb-4"
                   />
+                  
+                  {/* Forward To Checkboxes */}
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Forward to:</label>
+                    <div className="flex gap-6">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedRequest?.forwardToAdmin || false}
+                          onChange={(e) => setSelectedRequest({...selectedRequest, forwardToAdmin: e.target.checked})}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-gray-700">Admin</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedRequest?.forwardToDeptChair || false}
+                          onChange={(e) => setSelectedRequest({...selectedRequest, forwardToDeptChair: e.target.checked})}
+                          className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                        />
+                        <span className="text-gray-700">DeptChair</span>
+                      </label>
+                    </div>
+                  </div>
+
                   <div className="flex gap-3">
                     <button
                       onClick={() => handleUpdateStatus("approved")}
@@ -333,6 +444,16 @@ export default function CoordinatorRequests() {
                       {actionLoading ? "Processing..." : "Reject"}
                     </button>
                   </div>
+                  
+                  {/* Delete Button */}
+                  <button
+                    onClick={() => handleDeleteRequest(selectedRequest.request.id)}
+                    disabled={actionLoading}
+                    className="w-full mt-3 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={20} />
+                    {actionLoading ? "Deleting..." : "Delete Request"}
+                  </button>
                 </div>
               )}
 
@@ -349,6 +470,90 @@ export default function CoordinatorRequests() {
                   <p className="text-gray-700">{selectedRequest.request.resolution_note}</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Request Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-indigo-700">Create New Request</h2>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewRequest({ studentRollNo: "", requestType: "OTHER", description: "" });
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Student Roll Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newRequest.studentRollNo}
+                  onChange={(e) => setNewRequest({ ...newRequest, studentRollNo: e.target.value })}
+                  placeholder="Enter student roll number"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Request Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={newRequest.requestType}
+                  onChange={(e) => setNewRequest({ ...newRequest, requestType: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                >
+                  <option value="COURSE_ADD_DROP">Course Add/Drop</option>
+                  <option value="LEAVE">Leave Request</option>
+                  <option value="ATTENDANCE_CORRECTION">Attendance Correction</option>
+                  <option value="TRANSCRIPT">Transcript Request</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={newRequest.description}
+                  onChange={(e) => setNewRequest({ ...newRequest, description: e.target.value })}
+                  placeholder="Enter request description"
+                  rows="4"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                />
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleCreateRequest}
+                  disabled={actionLoading}
+                  className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-all disabled:opacity-50"
+                >
+                  {actionLoading ? "Creating..." : "Create Request"}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setNewRequest({ studentRollNo: "", requestType: "OTHER", description: "" });
+                  }}
+                  className="px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg font-medium transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

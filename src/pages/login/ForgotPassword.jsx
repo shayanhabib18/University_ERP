@@ -1,8 +1,10 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const userType = searchParams.get("type") || "student"; // student, executive, etc.
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -21,7 +23,12 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
-      const resp = await fetch("http://localhost:5000/auth/forgot-password", {
+      // Use different endpoints based on user type
+      const endpoint = userType === "executive" 
+        ? "http://localhost:5000/faculties/forgot-password"
+        : "http://localhost:5000/auth/forgot-password";
+
+      const resp = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -32,7 +39,15 @@ export default function ForgotPassword() {
 
       setSuccess("Password reset link sent to your email! Check your inbox.");
       setEmail("");
-      setTimeout(() => navigate("/login/student"), 3000);
+      
+      // Navigate back to appropriate login page after success
+      setTimeout(() => {
+        if (userType === "executive") {
+          navigate("/login/executive");
+        } else {
+          navigate("/login/student");
+        }
+      }, 3000);
     } catch (err) {
       setError(err.message || "Failed to send reset email");
     } finally {
@@ -47,7 +62,9 @@ export default function ForgotPassword() {
           <svg className="w-16 h-16 mx-auto text-blue-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
           </svg>
-          <h2 className="text-3xl font-bold text-blue-700">Forgot Password</h2>
+          <h2 className="text-3xl font-bold text-blue-700">
+            {userType === "executive" ? "Executive " : ""}Forgot Password
+          </h2>
           <p className="text-gray-600 mt-2 text-sm">Enter your email to receive a password reset link</p>
         </div>
 
@@ -79,7 +96,7 @@ export default function ForgotPassword() {
           <div className="text-center mt-4">
             <button
               type="button"
-              onClick={() => navigate("/login/student")}
+              onClick={() => navigate(userType === "executive" ? "/login/executive" : "/login/student")}
               className="text-sm text-blue-600 hover:underline focus:outline-none"
             >
               ← Back to Login

@@ -7,6 +7,8 @@ import {
   getCoordinatorRequests,
   getCoordinatorRequestDetails,
   updateRequestStatus,
+  deleteCoordinatorRequest,
+  createRequestByCoordinator,
   addCoordinatorComment,
   getCoordinatorAnalytics,
   approveProfileEditRequest,
@@ -39,11 +41,17 @@ router.post('/student-requests/:id/comments', addComment);
 // List all requests for coordinator's department
 router.get('/coordinator/requests', getCoordinatorRequests);
 
+// Create request on behalf of student
+router.post('/coordinator/create-request', createRequestByCoordinator);
+
 // Get request details (with comments and attachments)
 router.get('/coordinator/requests/:id', getCoordinatorRequestDetails);
 
 // Update request status and resolution
 router.patch('/coordinator/requests/:id', updateRequestStatus);
+
+// Delete request
+router.delete('/coordinator/requests/:id', deleteCoordinatorRequest);
 
 // Add comment to request as coordinator
 router.post('/coordinator/requests/:id/comments', addCoordinatorComment);

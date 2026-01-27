@@ -150,6 +150,51 @@ router.get('/rst/student/:student_id', async (req, res) => {
   }
 });
 
+// Get all RSTs for a student with course details (for transcript view)
+router.get('/rst/student/:student_id/transcript', async (req, res) => {
+  try {
+    const { student_id } = req.params;
+
+    const { data, error } = await supabase
+      .from('student_rst')
+      .select(`
+        id,
+        grade,
+        created_at,
+        updated_at,
+        rst_data,
+        courses (
+          id,
+          code,
+          name,
+          credit_hours
+        )
+      `)
+      .eq('student_id', student_id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Format response with course details at top level
+    const formattedData = (data || []).map(rst => ({
+      id: rst.id,
+      course_id: rst.courses?.id,
+      course_code: rst.courses?.code,
+      course_name: rst.courses?.name,
+      credit_hours: rst.courses?.credit_hours || 3,
+      grade: rst.grade || "N/A",
+      rst_data: rst.rst_data,
+      created_at: rst.created_at,
+      updated_at: rst.updated_at
+    }));
+
+    res.json(formattedData);
+  } catch (error) {
+    console.error('Error fetching student transcript RSTs:', error);
+    res.status(500).json({ error: 'Failed to fetch student transcript', details: error.message });
+  }
+});
+
 // Get all RSTs for a course (faculty view)
 router.get('/rst/course/:course_id', async (req, res) => {
   try {

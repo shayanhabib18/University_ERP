@@ -59,7 +59,7 @@ export default function ExecutiveLogin() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out"
-              placeholder="executive@university.edu"
+              placeholder="Enter Your Email"
               required
             />
           </div>
@@ -77,7 +77,7 @@ export default function ExecutiveLogin() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out"
-              placeholder="Password: admin123"
+              placeholder="Enter Your Password"
               required
             />
           </div>
@@ -101,7 +101,7 @@ export default function ExecutiveLogin() {
           <button
             type="button"
             className="text-sm text-blue-600 hover:underline focus:outline-none"
-            onClick={() => navigate("/forgot-password")}
+            onClick={() => navigate("/forgot-password?type=executive")}
           >
             Forgot Password?
           </button>

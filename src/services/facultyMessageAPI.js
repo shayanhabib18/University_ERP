@@ -50,6 +50,22 @@ export const facultyMessageAPI = {
     if (!res.ok) throw new Error("Failed to load sent messages");
     return res.json();
   },
+
+  deleteMessage: async (messageId) => {
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/${messageId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "x-role": "faculty",
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to delete message");
+    }
+    return res.json();
+  },
 };
 
 export default facultyMessageAPI;

@@ -32,7 +32,7 @@ export default function AdminForgotPassword() {
       
       // Redirect to login after 3 seconds
       setTimeout(() => {
-        navigate('/admin/login');
+        navigate('/login/admin');
       }, 3000);
     } catch (err) {
       setError(err.message || 'Failed to send reset link');
@@ -86,7 +86,7 @@ export default function AdminForgotPassword() {
         <div className="mt-6 pt-6 border-t border-gray-200 text-center">
           <button
             type="button"
-            onClick={() => navigate('/admin/login')}
+            onClick={() => navigate('/login/admin')}
             className="text-sm text-blue-600 hover:text-blue-700 font-medium"
           >
             Back to Login

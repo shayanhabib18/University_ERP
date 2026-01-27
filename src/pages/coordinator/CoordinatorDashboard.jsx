@@ -5,20 +5,11 @@ import CoordinatorAnnouncements from "./CoordinatorAnnouncements";
 import CoordinatorRequests from "./CoordinatorRequests";
 import { getAnnouncementsByRole } from "../../services/announcementAPI";
 import CoordinatorFaculty from "./CoordinatorFaculty";
+import CoordinatorTranscripts from "./CoordinatorTranscripts";
 
-const CoordinatorStudents = () => (
-  <div className="p-6 bg-white rounded-xl shadow-lg border border-gray-100">
-    <h2 className="text-2xl font-bold mb-4 text-gray-800">Students / Transcripts</h2>
-    <p className="text-gray-500">Student list, profiles, and transcript generation will appear here.</p>
-  </div>
-);
 
-const CoordinatorFeedback = () => (
-  <div className="p-6 bg-white rounded-xl shadow-lg border border-gray-100">
-    <h2 className="text-2xl font-bold mb-4 text-gray-800">Feedback & Reviews</h2>
-    <p className="text-gray-500">Student reviews of teachers and feedback scores will appear here.</p>
-  </div>
-);
+
+
 
 // Sidebar order as requested
 const sidebarLinks = [
@@ -26,8 +17,7 @@ const sidebarLinks = [
   { name: "Faculty Management", icon: <Users size={18} /> },
   { name: "Students / Transcripts", icon: <User size={18} /> },
   { name: "Announcements", icon: <Bell size={18} /> },
-  { name: "Requests", icon: <Mail size={18} /> },
-  { name: "Feedback", icon: <FileText size={18} /> }
+  { name: "Requests", icon: <Mail size={18} /> }
 ];
 
 export default function CoordinatorDashboard() {
@@ -54,16 +44,17 @@ export default function CoordinatorDashboard() {
         return;
       }
 
-      const token = localStorage.getItem("coordinator_token");
+      const token = localStorage.getItem("coordinator_token") || localStorage.getItem("facultyToken");
       if (token) {
-        fetch("http://localhost:5000/coordinators/me", {
+        // Coordinator-specific profile endpoint
+        fetch("http://localhost:5000/faculties/coordinator/profile", {
           headers: { Authorization: `Bearer ${token}` },
         })
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
-            if (data) {
+            if (data && data.email) {
               localStorage.setItem("coordinator_info", JSON.stringify(data));
-              setCoordinatorName(data.full_name || data.name || "Coordinator");
+              setCoordinatorName(data.full_name || data.name || data.email || "Coordinator");
             }
           })
           .catch((err) => console.warn("Failed to fetch coordinator profile", err));
@@ -98,16 +89,21 @@ export default function CoordinatorDashboard() {
   useEffect(() => {
     const fetchDashboardStats = async () => {
       try {
+        const authToken = localStorage.getItem("coordinator_token") || localStorage.getItem("facultyToken");
+
         const coursesResponse = await fetch("http://localhost:5000/courses");
         const courses = coursesResponse.ok ? await coursesResponse.json() : [];
 
-        const facultyResponse = await fetch("http://localhost:5000/faculty");
+        const facultyResponse = await fetch("http://localhost:5000/faculties");
         const faculty = facultyResponse.ok ? await facultyResponse.json() : [];
 
         const studentsResponse = await fetch("http://localhost:5000/students");
         const students = studentsResponse.ok ? await studentsResponse.json() : [];
 
-        const requestsResponse = await fetch("http://localhost:5000/requests/pending");
+        // Coordinator-specific requests endpoint
+        const requestsResponse = await fetch("http://localhost:5000/requests/coordinator/requests", {
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+        });
         const requests = requestsResponse.ok ? await requestsResponse.json() : [];
 
         setDashboardStats({
@@ -116,7 +112,8 @@ export default function CoordinatorDashboard() {
           totalStudents: students.length,
         });
 
-        setPendingRequests(requests.length);
+        // API returns { requests: [...] }
+        setPendingRequests(requests.requests ? requests.requests.length : Array.isArray(requests) ? requests.length : 0);
       } catch (error) {
         console.error("Failed to fetch dashboard stats:", error);
       }
@@ -276,16 +273,13 @@ export default function CoordinatorDashboard() {
         return <CoordinatorFaculty />;
 
       case "Students / Transcripts":
-        return <CoordinatorStudents />;
+        return <CoordinatorTranscripts />;
 
       case "Announcements":
         return <CoordinatorAnnouncements />;
 
       case "Requests":
         return <CoordinatorRequests setPendingRequests={setPendingRequests} />;
-
-      case "Feedback":
-        return <CoordinatorFeedback />;
 
       default:
         return (

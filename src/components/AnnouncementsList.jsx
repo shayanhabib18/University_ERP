@@ -33,19 +33,43 @@ const AnnouncementsList = ({ role, canSend = false, allowedRecipients = [], sent
         if (sentOnly) {
           const result = await getAnnouncementsBySenderRole(role);
           const fetched = result.data || [];
-          const formatted = fetched.map((ann) => ({
-            id: ann.id,
-            title: ann.title,
-            message: ann.message,
-            senderId: ann.senderId || ann.sender_id,
-            senderName: ann.senderName,
-            senderRole: ann.senderRole,
-            date: ann.createdAt,
-            readBy: [],
-            attachments: [],
-            recipients: ann.recipientRoles || [],
-          }));
-          const sorted = [...formatted].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+          
+          // Fetch full details including attachments for each announcement
+          const formattedWithAttachments = await Promise.all(
+            fetched.map(async (ann) => {
+              let attachments = [];
+              try {
+                const detailResponse = await fetch(
+                  `${API_BASE_URL}/announcements/${ann.id}`
+                );
+                if (detailResponse.ok) {
+                  const detail = await detailResponse.json();
+                  attachments = (detail.data?.attachments || []).map((att) => ({
+                    id: att.id,
+                    fileName: att.file_name || att.fileName,
+                    fileUrl: att.file_url || att.fileUrl,
+                  }));
+                }
+              } catch (err) {
+                console.error(`Failed to fetch details for announcement ${ann.id}:`, err);
+              }
+              
+              return {
+                id: ann.id,
+                title: ann.title,
+                message: ann.message,
+                senderId: ann.senderId || ann.sender_id,
+                senderName: ann.senderName,
+                senderRole: ann.senderRole,
+                date: ann.createdAt,
+                readBy: [],
+                attachments,
+                recipients: ann.recipientRoles || [],
+              };
+            })
+          );
+          
+          const sorted = [...formattedWithAttachments].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
           setAnnouncements(sorted);
         } else {
           const response = await fetch(
@@ -141,29 +165,38 @@ const AnnouncementsList = ({ role, canSend = false, allowedRecipients = [], sent
         formData.append("file", newAnnouncement.file);
 
         try {
+          const token = localStorage.getItem("facultyToken") || localStorage.getItem("coordinator_token") || localStorage.getItem("token");
+          const uploadHeaders = {};
+          if (token) {
+            uploadHeaders.Authorization = `Bearer ${token}`;
+          }
+          
           const uploadResponse = await fetch(`${API_BASE_URL}/announcements/attachment/upload`, {
             method: "POST",
+            headers: uploadHeaders,
             body: formData,
           });
 
           if (!uploadResponse.ok) {
             const uploadError = await uploadResponse.json().catch(() => ({}));
             console.error("Attachment upload failed:", uploadError);
+            throw new Error(uploadError?.error || "Failed to upload attachment");
           } else {
             const uploadResult = await uploadResponse.json();
             if (uploadResult?.data) {
               attachments = [
                 {
                   id: uploadResult.data.id,
-                  fileName: uploadResult.data.fileName,
-                  fileUrl: uploadResult.data.fileUrl,
+                  fileName: uploadResult.data.file_name || uploadResult.data.fileName,
+                  fileUrl: uploadResult.data.file_url || uploadResult.data.fileUrl,
                 },
                 ...attachments,
               ];
             }
           }
         } catch (err) {
-          console.error("Attachment upload threw error:", err);
+          console.error("Attachment upload error:", err);
+          alert("Failed to upload attachment: " + err.message);
         }
       }
 
@@ -200,9 +233,15 @@ const AnnouncementsList = ({ role, canSend = false, allowedRecipients = [], sent
   };
 
   const handleDeleteAnnouncement = async (announcement) => {
-    // Local hide only; does not delete from server per requirement
-    if (!window.confirm("Remove this announcement from your view?")) return;
-    setAnnouncements((prev) => prev.filter((a) => a.id !== announcement.id));
+    if (!window.confirm("Are you sure you want to delete this announcement?")) return;
+    try {
+      await apiDelete(announcement.id);
+      setAnnouncements((prev) => prev.filter((a) => a.id !== announcement.id));
+      // Optionally show a success message
+    } catch (error) {
+      console.error("Failed to delete announcement:", error);
+      alert("Failed to delete announcement. Please try again.");
+    }
   };
 
   return (

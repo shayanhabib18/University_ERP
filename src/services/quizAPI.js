@@ -72,7 +72,10 @@ const quizAPI = {
       throw new Error(error.error || "Failed to fetch submissions");
     }
 
-    return response.json();
+    const data = await response.json();
+    // Backend returns { success: true, submissions: [...], quiz: {...} }
+    // Extract the submissions array
+    return data.submissions || [];
   },
 
   // Get available quizzes for students

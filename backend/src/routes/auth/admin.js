@@ -1,5 +1,6 @@
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { trackLoginActivity } from '../../../utils/loginTracker.js';
 
 const router = express.Router();
 
@@ -46,6 +47,14 @@ router.post('/login', async (req, res) => {
       console.error('Admin verification failed:', adminError?.message || 'Not an admin');
       return res.status(403).json({ error: 'User is not an authorized admin' });
     }
+
+    // Track login activity
+    await trackLoginActivity({
+      user_id: adminRecord.id,
+      user_type: 'admin',
+      user_email: adminRecord.email,
+      user_name: adminRecord.name
+    }, req, 'success');
 
     // Step 3: Return success with tokens and admin info
     res.json({
@@ -155,7 +164,7 @@ router.post('/forgot-password', async (req, res) => {
 
     // Send password reset email (Supabase rate limits this to 1 per 60 seconds)
     const { data, error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-      redirectTo: `http://localhost:5173/admin/reset-password`
+      redirectTo: `http://localhost:5173/reset-password?type=admin`
     });
 
     if (error) throw new Error(error.message);
@@ -185,17 +194,20 @@ router.post('/reset-password', async (req, res) => {
   const supabaseClient = getSupabaseClient();
   if (!supabaseClient) return res.status(500).json({ error: 'Supabase not configured' });
   
-  const { accessToken, password } = req.body;
+  const { accessToken, token, password } = req.body;
   if (!password) {
     return res.status(400).json({ error: 'Password required' });
+    // Support both accessToken (hash-based) and token (query-based)
+    const tokenToUse = accessToken || token;
+    
   }
 
   try {
     // Decode token to get user ID
-    if (!accessToken || typeof accessToken !== 'string' || !accessToken.includes('.') || accessToken.split('.').length !== 3) {
+    if (!tokenToUse || typeof tokenToUse !== 'string' || !tokenToUse.includes('.') || tokenToUse.split('.').length !== 3) {
       return res.status(400).json({ error: 'Invalid access token format' });
     }
-    const jwtPart = accessToken.split('.')[1];
+    const jwtPart = tokenToUse.split('.')[1];
     const jwtPayload = JSON.parse(Buffer.from(jwtPart, 'base64').toString());
     const userId = jwtPayload?.sub;
     

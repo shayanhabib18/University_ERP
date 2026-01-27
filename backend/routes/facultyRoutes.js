@@ -11,6 +11,7 @@ import {
   coordinatorLogin,
   executiveLogin,
   getProfile,
+  getCoordinatorProfile,
   forgotPassword,
   assignExecutive,
   getCurrentExecutive,
@@ -26,6 +27,7 @@ import {
   getCoordinatorDepartmentStudents,
   getCoordinatorOverview,
 } from "../controllers/FacultyController.js";
+import { requireAuth, requireRole } from "../src/middleware/auth.js";
 
 const router = express.Router();
 
@@ -33,11 +35,22 @@ router.post("/login", login);
 router.post("/coordinator/login", coordinatorLogin);
 router.post("/executive/login", executiveLogin);
 router.get("/profile", getProfile);
+router.get("/coordinator/profile", requireAuth, requireRole(["coordinator"]), getCoordinatorProfile);
 router.get("/profile/:email", getProfileByEmail);
 router.post("/forgot-password", forgotPassword);
-router.get("/coordinator/overview", getCoordinatorOverview);
-router.get("/coordinator/department-faculty", getCoordinatorDepartmentFaculty);
-router.get("/coordinator/department-students", getCoordinatorDepartmentStudents);
+router.get("/coordinator/overview", requireAuth, requireRole(["coordinator"]), getCoordinatorOverview);
+router.get(
+  "/coordinator/department-faculty",
+  requireAuth,
+  requireRole(["coordinator"]),
+  getCoordinatorDepartmentFaculty
+);
+router.get(
+  "/coordinator/department-students",
+  requireAuth,
+  requireRole(["coordinator"]),
+  getCoordinatorDepartmentStudents
+);
 router.get("/", getAllFaculty);
 router.get("/executive/current", getCurrentExecutive);
 router.get("/department/:departmentId", getFacultyByDepartment);
