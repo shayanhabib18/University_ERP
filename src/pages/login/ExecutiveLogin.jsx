@@ -1,24 +1,40 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 export default function ExecutiveLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+    setLoading(true);
 
-    // Hardcoded credentials
-    const hardcodedEmail = "executive@university.edu";
-    const hardcodedPassword = "admin123";
+    try {
+      const response = await fetch("http://localhost:5000/faculties/executive/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (email === hardcodedEmail && password === hardcodedPassword) {
-      // Successful login → redirect to dashboard
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Login failed");
+      }
+
+      // Store executive info and token
+      localStorage.setItem("executive_token", data.token);
+      localStorage.setItem("executive_info", JSON.stringify(data.user));
+
       navigate("/executive/dashboard");
-    } else {
-      setError("Invalid email or password. Please try again.");
+    } catch (err) {
+      setError(err.message || "Invalid email or password. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -72,9 +88,12 @@ export default function ExecutiveLogin() {
 
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition duration-300"
+            disabled={loading}
+            className={`w-full bg-blue-600 text-white py-3 rounded-md transition duration-300 ${
+              loading ? "opacity-60 cursor-not-allowed" : "hover:bg-blue-700"
+            }`}
           >
-            Login
+            {loading ? "Loading..." : "Login"}
           </button>
         </form>
 

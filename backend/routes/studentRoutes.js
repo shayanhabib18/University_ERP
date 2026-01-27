@@ -1032,18 +1032,96 @@ router.delete("/:studentId", async (req, res) => {
 
 // ==================== ACADEMIC RECORDS ROUTES ====================
 
-// GET academic records for a student
+// Helper: fetch academic history from student_rst with course + enrollment context
+const fetchAcademicHistory = async (studentId) => {
+  // Fetch RST rows with course metadata
+  const { data: rstRows, error: rstError } = await supabase
+    .from("student_rst")
+    .select(`
+      id,
+      student_id,
+      course_id,
+      faculty_id,
+      grade,
+      rst_data,
+      created_at,
+      updated_at,
+      courses:course_id (
+        id,
+        code,
+        name,
+        credit_hours,
+        semester_id
+      )
+    `)
+    .eq("student_id", studentId);
+
+  if (rstError) throw rstError;
+
+  const rows = rstRows || [];
+  if (!rows.length) return [];
+
+  // Fetch enrollment semesters for these courses to derive semester number
+  const courseIds = [...new Set(rows.map((r) => r.course_id).filter(Boolean))];
+  let enrollmentMap = {};
+
+  if (courseIds.length > 0) {
+    const { data: enrollments, error: enrollError } = await supabase
+      .from("course_enrollments")
+      .select("course_id, semester")
+      .eq("student_id", studentId)
+      .in("course_id", courseIds);
+
+    if (enrollError) throw enrollError;
+
+    enrollmentMap = (enrollments || []).reduce((acc, e) => {
+      acc[e.course_id] = e;
+      return acc;
+    }, {});
+  }
+
+  const enriched = rows.map((row) => {
+    const enrollment = enrollmentMap[row.course_id];
+    const course = row.courses || {};
+    const semesterValue = enrollment?.semester ?? course.semester_id ?? null;
+
+    return {
+      id: row.id,
+      student_id: row.student_id,
+      course_id: row.course_id,
+      faculty_id: row.faculty_id,
+      grade: row.grade,
+      rst_data: row.rst_data,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      course_code: course.code || null,
+      course_name: course.name || null,
+      credit_hours: course.credit_hours || null,
+      semester: semesterValue,
+    };
+  });
+
+  // Sort by semester descending when numeric, then by created_at desc
+  enriched.sort((a, b) => {
+    const aNum = Number(a.semester);
+    const bNum = Number(b.semester);
+    const aIsNum = !Number.isNaN(aNum);
+    const bIsNum = !Number.isNaN(bNum);
+    if (aIsNum && bIsNum && aNum !== bNum) return bNum - aNum;
+    if (aIsNum && !bIsNum) return -1;
+    if (!aIsNum && bIsNum) return 1;
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+  });
+
+  return enriched;
+};
+
+// GET academic records for a student (from student_rst)
 router.get("/academic-records/student/:studentId", async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { data, error } = await supabase
-      .from("academic_records")
-      .select("*")
-      .eq("student_id", studentId)
-      .order("semester", { ascending: false });
-
-    if (error) throw error;
-    res.json(data || []);
+    const data = await fetchAcademicHistory(studentId);
+    res.json(data);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -1055,15 +1133,16 @@ router.get(
   async (req, res) => {
     try {
       const { studentId, semester } = req.params;
-      const { data, error } = await supabase
-        .from("academic_records")
-        .select("*")
-        .eq("student_id", studentId)
-        .eq("semester", parseInt(semester, 10))
-        .single();
+      const allHistory = await fetchAcademicHistory(studentId);
+      const filtered = allHistory.filter(
+        (rec) => String(rec.semester) === String(parseInt(semester, 10))
+      );
 
-      if (error) throw error;
-      res.json(data);
+      if (!filtered.length) {
+        return res.status(404).json({ error: "No record found for this semester" });
+      }
+
+      res.json(filtered);
     } catch (error) {
       res.status(400).json({ error: error.message });
     }

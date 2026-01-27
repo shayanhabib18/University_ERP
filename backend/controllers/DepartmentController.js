@@ -496,3 +496,98 @@ export const assignHOD = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// Get departments with statistics (students, faculty counts)
+export const getDepartmentsWithStats = async (req, res) => {
+  try {
+    // Get all departments
+    const { data: departments, error: deptError } = await supabase
+      .from("departments")
+      .select("*");
+    
+    if (deptError) {
+      return res.status(500).json({ error: deptError.message });
+    }
+
+    // Get statistics for each department
+    const departmentsWithStats = await Promise.all(
+      (departments || []).map(async (dept) => {
+        try {
+          // Get HOD information
+          const { data: hod } = await supabase
+            .from("hods")
+            .select(`
+              id,
+              faculty_id,
+              hod_full_name,
+              hod_email,
+              assignment_mode,
+              has_courses,
+              faculties(id, name, email)
+            `)
+            .eq("department_id", dept.id)
+            .eq("status", "ACTIVE")
+            .maybeSingle();
+          
+          // Get student count for this department
+          const { count: studentCount, error: studentError } = await supabase
+            .from("students")
+            .select("*", { count: "exact", head: true })
+            .eq("department_id", dept.id);
+          
+          if (studentError) {
+            console.error(`Error counting students for dept ${dept.id}:`, studentError);
+          }
+
+          // Get faculty count for this department
+          const { count: facultyCount, error: facultyError } = await supabase
+            .from("faculties")
+            .select("*", { count: "exact", head: true })
+            .eq("department_id", dept.id);
+          
+          if (facultyError) {
+            console.error(`Error counting faculty for dept ${dept.id}:`, facultyError);
+          }
+
+          // Get HOD name from either faculty or manual entry
+          const hodName = hod?.faculties?.name || hod?.hod_full_name || null;
+          const hodEmail = hod?.faculties?.email || hod?.hod_email || null;
+          
+          return {
+            id: dept.id,
+            name: dept.name,
+            code: dept.code,
+            hodName,
+            hodEmail,
+            hodId: hod?.faculty_id || null,
+            studentCount: studentCount || 0,
+            facultyCount: facultyCount || 0,
+            created_at: dept.created_at,
+          };
+        } catch (err) {
+          console.error(`Error fetching stats for department ${dept.id}:`, err);
+          return {
+            id: dept.id,
+            name: dept.name,
+            code: dept.code,
+            hodName: null,
+            hodEmail: null,
+            hodId: null,
+            studentCount: 0,
+            facultyCount: 0,
+            created_at: dept.created_at,
+          };
+        }
+      })
+    );
+    
+    res.json({
+      success: true,
+      totalDepartments: departmentsWithStats.length,
+      departments: departmentsWithStats,
+    });
+  } catch (err) {
+    console.error("Error in getDepartmentsWithStats:", err);
+    res.status(500).json({ error: err.message });
+  }
+};

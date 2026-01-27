@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { FiAlertCircle, FiClock, FiUser, FiChevronDown, FiChevronUp } from "react-icons/fi";
 
-const AnnouncementItem = ({ announcement, role }) => {
+const AnnouncementItem = ({ announcement, role, onEdit, onDelete, canEdit = false, canDismiss = false }) => {
   const [expanded, setExpanded] = useState(false);
   const [read, setRead] = useState(announcement.readBy?.includes(role));
 
@@ -46,13 +46,16 @@ const AnnouncementItem = ({ announcement, role }) => {
         {/* Content */}
         <div className="flex-grow">
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-2 mb-3">
-            <div>
+            <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <h3 className={`font-semibold ${
-                  !read ? "text-gray-900" : "text-gray-700"
-                }`}>
+                <span className="text-sm font-semibold text-gray-700">Title:</span>
+                <span
+                  className={`font-semibold ${
+                    !read ? "text-gray-900" : "text-gray-700"
+                  }`}
+                >
                   {announcement.title}
-                </h3>
+                </span>
                 {announcement.important && (
                   <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">
                     Important
@@ -70,8 +73,34 @@ const AnnouncementItem = ({ announcement, role }) => {
                 <span>{announcement.senderRole}</span>
               </p>
             </div>
-            
-            <div className="flex items-center gap-4 text-sm text-gray-500">
+
+            <div className="flex items-center gap-3 text-sm text-gray-500">
+              {(canEdit || canDismiss) && (
+                <div className="flex gap-2">
+                  {canEdit && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit?.(announcement);
+                      }}
+                      className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {canDismiss && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete?.(announcement);
+                      }}
+                      className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="flex items-center gap-1">
                 <FiClock className="text-gray-400" />
                 <span>{formatDate(announcement.date)}</span>
@@ -100,12 +129,33 @@ const AnnouncementItem = ({ announcement, role }) => {
 
           {/* Message */}
           <div className="mb-4">
+            <p className="text-xs font-semibold text-gray-500 mb-1">Message:</p>
             <p className={`text-gray-700 ${
               expanded ? "" : "line-clamp-2"
             }`}>
               {announcement.message}
             </p>
           </div>
+
+          {announcement.attachments?.length > 0 && (
+            <div className="mb-4">
+              <p className="text-sm font-semibold text-gray-700 mb-2">Attachments</p>
+              <div className="flex flex-wrap gap-2">
+                {announcement.attachments.map((att) => (
+                  <a
+                    key={att.id || att.fileUrl || att.file_url}
+                    href={att.fileUrl || att.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-2 bg-gray-100 text-blue-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {att.fileName || att.file_name || "Attachment"}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Recipients */}
           <div className="flex flex-wrap gap-2">

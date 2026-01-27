@@ -155,6 +155,100 @@ export const sendFacultyCredentials = async ({
   }
 };
 
+// Send executive credentials email (manual assignment)
+export const sendExecutiveCredentials = async ({
+  toEmail,
+  fullName,
+  loginEmail,
+  resetLink,
+  portalUrl,
+}) => {
+  if (!toEmail || !fullName || !loginEmail) {
+    throw new Error("Missing required parameters: toEmail, fullName, or loginEmail");
+  }
+
+  const transporter = getTransporter();
+  const fromEmail = process.env.FROM_EMAIL || "no-reply@university.local";
+  const subject = "Executive Portal Access - Set Your Password";
+  
+  // Different email content based on whether reset link is provided
+  const html = resetLink ? `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color:#1e40af;">Executive Portal Access</h2>
+      <p>Dear ${fullName},</p>
+      <p>You have been assigned as the Executive. Please set your password to access the Executive Portal.</p>
+
+      <div style="background:#f0f7ff;padding:20px;border-radius:8px;margin:20px 0;">
+        <p style="margin:8px 0;"><strong>Login Email:</strong> <code style="background:#fff;padding:5px 10px;border-radius:4px;font-family:monospace;">${loginEmail}</code></p>
+      </div>
+
+      <h3 style="color:#1e40af;margin-top:25px;">Set Your Password:</h3>
+      <p>Click the button below to create your password and access the Executive Portal:</p>
+
+      <p style="text-align:center;margin:30px 0;">
+        <a href="${resetLink}" style="background:#1e40af;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:bold;font-size:16px;">Set Password & Login</a>
+      </p>
+
+      <p style="color:#666;font-size:13px;">After setting your password, you can log in to the Executive Portal using your email address and new password.</p>
+
+      <hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">
+      <p style="color:#555;font-size:13px;"><strong>Security Notice:</strong> This link expires in 24 hours for security purposes.</p>
+      <p style="color:#888;font-size:11px;">If you did not expect this email or have any concerns, please contact the administration office immediately.</p>
+      <p style="color:#888;font-size:11px;">If the button doesn't work, copy and paste this link in your browser:<br>${resetLink}</p>
+    </div>
+  ` : `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color:#1e40af;">Executive Portal Access</h2>
+      <p>Dear ${fullName},</p>
+      <p>You have been assigned as the Executive. Since you are already a faculty member, you can access the Executive Portal using your existing faculty credentials.</p>
+
+      <div style="background:#f0f7ff;padding:20px;border-radius:8px;margin:20px 0;">
+        <p style="margin:8px 0;"><strong>Login Email:</strong> <code style="background:#fff;padding:5px 10px;border-radius:4px;font-family:monospace;">${loginEmail}</code></p>
+        <p style="margin:8px 0;"><strong>Password:</strong> Use your existing faculty password</p>
+      </div>
+
+      <p style="text-align:center;margin:30px 0;">
+        <a href="${portalUrl || 'http://localhost:5173/login/executive'}" style="background:#1e40af;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:bold;font-size:16px;">Go to Executive Portal</a>
+      </p>
+
+      <p style="color:#888;font-size:11px;">If you did not expect this email, please contact the administration office.</p>
+    </div>
+  `;
+
+  if (!transporter) {
+    console.warn("\n" + "⚠️".repeat(30));
+    console.warn("⚠️  SMTP NOT CONFIGURED - EMAILS WILL NOT BE SENT  ⚠️");
+    console.warn("⚠️".repeat(30));
+    console.warn("\n📧 EXECUTIVE EMAIL THAT WOULD BE SENT:");
+    console.warn("=".repeat(60));
+    console.log(`To: ${toEmail}`);
+    console.log(`Name: ${fullName}`);
+    console.log(`Login Email: ${loginEmail}`);
+    if (resetLink) {
+      console.log(`Password Setup Link: ${resetLink}`);
+    } else {
+      console.log(`Note: Use existing faculty credentials`);
+    }
+    console.log(`Portal: ${portalUrl || 'http://localhost:5173/login/executive'}`);
+    console.warn("=".repeat(60) + "\n");
+    return { skipped: true };
+  }
+
+  try {
+    await transporter.sendMail({
+      from: fromEmail,
+      to: toEmail,
+      subject,
+      html,
+    });
+    console.log(`✅ Executive credentials email sent to ${toEmail}`);
+    return { sent: true };
+  } catch (err) {
+    console.error(`❌ Failed to send executive credentials to ${toEmail}:`, err.message);
+    throw err;
+  }
+};
+
 // Send password reset email (for forgot password)
 export const sendPasswordResetEmail = async ({
   toEmail,
@@ -450,6 +544,94 @@ export const sendHODRemovalNotification = async ({
     return { sent: true };
   } catch (err) {
     console.error(`❌ Failed to send HOD removal notification to ${toEmail}:`, err.message);
+    throw err;
+  }
+};
+
+// Send coordinator credentials email with temporary password
+export const sendCoordinatorCredentials = async (fullName, toEmail, resetLink) => {
+  const transporter = getTransporter();
+  const fromEmail = process.env.FROM_EMAIL || "no-reply@university.local";
+
+  const subject = "Welcome to Department Coordinator Portal - Set Your Password";
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+        <h1 style="margin: 0; font-size: 28px;">Department Coordinator Portal</h1>
+      </div>
+      
+      <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px;">
+        <p style="color: #374151; font-size: 16px; margin-top: 0;">Dear ${fullName},</p>
+        
+        <p style="color: #374151; line-height: 1.6;">
+          Congratulations! You have been assigned as a <strong>Department Coordinator</strong>. Your account has been created in the University ERP system.
+        </p>
+
+        <div style="background: white; border: 2px solid #ddd; padding: 20px; border-radius: 6px; margin: 20px 0;">
+          <p style="margin: 0 0 10px 0; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Your Login Email</p>
+          <p style="margin: 5px 0; color: #374151;"><strong>Email:</strong> <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px;">${toEmail}</code></p>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <p style="color: #374151; font-size: 15px; margin-bottom: 20px;"><strong>Click the button below to set your password:</strong></p>
+          <a href="${resetLink}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 32px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">Set Your Password</a>
+        </div>
+
+        <div style="background: #fef3c7; border-left: 4px solid #fbbf24; padding: 15px; margin: 20px 0; border-radius: 4px;">
+          <p style="margin: 0; color: #92400e; font-size: 14px;">
+            <strong>⚠️ Important:</strong> This link expires in 24 hours for security purposes. After setting your password, you can log in using your email and new password.
+          </p>
+        </div>
+
+        <h3 style="color: #1f2937; margin-top: 30px; margin-bottom: 15px;">Your Responsibilities:</h3>
+        <ul style="color: #374151; line-height: 1.8; margin: 0 0 20px 20px;">
+          <li>Manage department-related activities and coordination</li>
+          <li>Monitor department communications and announcements</li>
+          <li>Assist in course management and scheduling</li>
+          <li>Support the Department Chair in administrative tasks</li>
+        </ul>
+
+        <p style="color: #374151; line-height: 1.6; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+          If you have any questions or need assistance, please contact your Department Chair or the system administrator.
+        </p>
+
+        <div style="background: #f3f4f6; padding: 12px; border-radius: 4px; margin-top: 20px;">
+          <p style="color: #6b7280; font-size: 11px; margin: 0; word-break: break-all;">
+            If the button doesn't work, copy and paste this link in your browser:<br>
+            <span style="color: #4f46e5;">${resetLink}</span>
+          </p>
+        </div>
+
+        <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">
+          This is an automated email. Please do not reply to this message. If you did not request this account, please contact your administrator immediately.
+        </p>
+      </div>
+    </div>
+  `;
+
+  if (!transporter) {
+    console.warn("SMTP not configured; coordinator credentials logged to console below.");
+    console.log("\n" + "=".repeat(70));
+    console.log("📧 COORDINATOR PASSWORD RESET EMAIL (SMTP NOT CONFIGURED)");
+    console.log("=".repeat(70));
+    console.log(`To: ${toEmail}`);
+    console.log(`Name: ${fullName}`);
+    console.log(`Password Reset Link: ${resetLink}`);
+    console.log("=".repeat(70) + "\n");
+    return { skipped: true };
+  }
+
+  try {
+    await transporter.sendMail({
+      from: fromEmail,
+      to: toEmail,
+      subject,
+      html,
+    });
+    console.log(`✅ Coordinator credentials email sent to ${toEmail}`);
+    return { sent: true };
+  } catch (err) {
+    console.error(`❌ Failed to send coordinator credentials to ${toEmail}:`, err.message);
     throw err;
   }
 };

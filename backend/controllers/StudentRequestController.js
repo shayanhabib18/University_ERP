@@ -27,13 +27,14 @@ async function getStudentByAuthId(authUserId) {
   return data;
 }
 
-// Helper: Check if user is coordinator
+// Helper: Check if user is coordinator (checks faculties table with role='COORDINATOR')
 async function isCoordinator(authUserId) {
   const { data, error } = await supabase
-    .from('coordinators')
-    .select('id, department_id, is_active')
+    .from('faculties')
+    .select('id, department_id, status')
     .eq('auth_user_id', authUserId)
-    .eq('is_active', true)
+    .eq('role', 'COORDINATOR')
+    .eq('status', 'ACTIVE')
     .single();
   if (error) return null; // Not a coordinator
   return data;

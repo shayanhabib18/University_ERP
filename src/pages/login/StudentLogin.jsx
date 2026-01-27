@@ -38,7 +38,9 @@ export default function StudentLogin() {
       }
 
       accessToken = json.access_token || "";
-      localStorage.setItem("student_token", accessToken);
+      localStorage.setItem("studentToken", accessToken);
+      localStorage.removeItem("student_token"); // Remove old key if it exists
+      localStorage.removeItem("token"); // Remove old key if it exists
 
       // Fetch current student profile to get name/roll/email
       try {

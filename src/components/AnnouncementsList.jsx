@@ -1,23 +1,27 @@
 import React, { useState, useEffect } from "react";
 import AnnouncementItem from "./AnnouncementItem";
 import CreateAnnouncementModal from "./CreateAnnouncementModal";
+import { updateAnnouncement, deleteAnnouncement as apiDelete, getAnnouncementsBySenderRole } from "../services/announcementAPI";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-const AnnouncementsList = ({ role, canSend = false, allowedRecipients = [] }) => {
+const AnnouncementsList = ({ role, canSend = false, allowedRecipients = [], sentOnly = false }) => {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  const currentUserId = localStorage.getItem("userId") || null;
 
   // Define which sender roles are allowed per user role (who they can RECEIVE from)
   const allowedSenders = {
     admin: ["admin"],
-    student: ["faculty", "coordinator"],
-    faculty: ["coordinator", "dept_chair"],
-    dept_chair: ["executive", "coordinator"],
-    executive: ["coordinator", "dept_chair"],
-    coordinator: ["admin", "faculty", "executive", "dept_chair"],
+    student: ["faculty", "coordinator", "student"],
+    faculty: ["coordinator", "dept_chair", "faculty"],
+    dept_chair: ["executive", "coordinator", "dept_chair"],
+    executive: ["coordinator", "dept_chair", "executive"],
+    coordinator: ["admin", "faculty", "executive", "dept_chair", "coordinator"],
   };
 
   useEffect(() => {
@@ -26,35 +30,61 @@ const AnnouncementsList = ({ role, canSend = false, allowedRecipients = [] }) =>
         setLoading(true);
         setError(null);
 
-        // Fetch from backend API
-        const response = await fetch(
-          `${API_BASE_URL}/announcements?role=${role}`
-        );
+        if (sentOnly) {
+          const result = await getAnnouncementsBySenderRole(role);
+          const fetched = result.data || [];
+          const formatted = fetched.map((ann) => ({
+            id: ann.id,
+            title: ann.title,
+            message: ann.message,
+            senderId: ann.senderId || ann.sender_id,
+            senderName: ann.senderName,
+            senderRole: ann.senderRole,
+            date: ann.createdAt,
+            readBy: [],
+            attachments: [],
+            recipients: ann.recipientRoles || [],
+          }));
+          const sorted = [...formatted].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+          setAnnouncements(sorted);
+        } else {
+          const response = await fetch(
+            `${API_BASE_URL}/announcements/with-attachments?role=${role}`
+          );
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch announcements");
+          if (!response.ok) {
+            throw new Error("Failed to fetch announcements");
+          }
+
+          const result = await response.json();
+          const fetchedAnnouncements = result.data || [];
+
+          // Format announcements to match component expectations
+          const formattedAnnouncements = fetchedAnnouncements.map((ann) => ({
+            id: ann.id,
+            title: ann.title,
+            message: ann.message,
+            senderId: ann.senderId || ann.sender_id,
+            senderName: ann.senderName,
+            senderRole: ann.senderRole,
+            date: ann.createdAt,
+            readBy: [],
+            attachments: (ann.attachments || []).map((att) => ({
+              id: att.id,
+              fileName: att.file_name || att.fileName,
+              fileUrl: att.file_url || att.fileUrl,
+            })),
+            recipients: ann.recipientRoles || (ann.recipientRole ? [ann.recipientRole] : []),
+          }));
+
+          const sorted = [...formattedAnnouncements].sort(
+            (a, b) => new Date(b.date || 0) - new Date(a.date || 0)
+          );
+          setAnnouncements(sorted);
         }
-
-        const result = await response.json();
-        const fetchedAnnouncements = result.data || [];
-
-        // Format announcements to match component expectations
-        const formattedAnnouncements = fetchedAnnouncements.map((ann) => ({
-          id: ann.id,
-          title: ann.title,
-          message: ann.message,
-          senderName: ann.senderName,
-          senderRole: ann.senderRole,
-          date: ann.createdAt,
-          readBy: [],
-          attachment: null,
-        }));
-
-        setAnnouncements(formattedAnnouncements);
       } catch (error) {
         console.error("Failed to fetch announcements:", error);
         setError("Failed to load announcements. Please try again later.");
-        // Fallback to empty array
         setAnnouncements([]);
       } finally {
         setLoading(false);
@@ -62,54 +92,117 @@ const AnnouncementsList = ({ role, canSend = false, allowedRecipients = [] }) =>
     };
 
     fetchAnnouncements();
-  }, [role]);
+  }, [role, sentOnly]);
 
-  const handleAddAnnouncement = async (newAnnouncement) => {
+  const handleAddAnnouncement = async (newAnnouncement, editId) => {
     try {
-      // Post to backend
-      const response = await fetch(`${API_BASE_URL}/announcements`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: newAnnouncement.title,
-          message: newAnnouncement.message,
-          senderId: newAnnouncement.senderId,
-          senderRole: newAnnouncement.senderRole,
-          senderName: newAnnouncement.senderName,
-          recipientRoles: newAnnouncement.recipientRoles,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Backend error:", errorData);
-        throw new Error(errorData.error || "Failed to create announcement");
-      }
-
-      const result = await response.json();
-
-      // Format and add to UI
-      const formattedAnnouncement = {
-        id: result.data.id,
-        title: result.data.title,
-        message: result.data.message,
-        senderName: result.data.sender_name,
-        senderRole: result.data.sender_role,
-        date: result.data.created_at,
-        readBy: [],
-        attachment: null,
+      const payload = {
+        title: newAnnouncement.title,
+        message: newAnnouncement.message,
+        senderId: newAnnouncement.senderId,
+        senderRole: newAnnouncement.senderRole,
+        senderName: newAnnouncement.senderName,
+        recipientRoles: newAnnouncement.recipientRoles,
       };
 
-      // Only add to UI if current role can receive from this sender
-      if (allowedSenders[role]?.includes(formattedAnnouncement.senderRole)) {
-        setAnnouncements([formattedAnnouncement, ...announcements]);
+      let result;
+      if (editId) {
+        result = await updateAnnouncement(editId, {
+          title: payload.title,
+          message: payload.message,
+          recipientRoles: payload.recipientRoles,
+        });
+      } else {
+        const response = await fetch(`${API_BASE_URL}/announcements`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error("Backend error:", errorData);
+          throw new Error(errorData.error || "Failed to create announcement");
+        }
+
+        result = await response.json();
+      }
+
+      // Format and add to UI
+      let attachments = editId
+        ? announcements.find((a) => a.id === editId)?.attachments || []
+        : [];
+
+      if (newAnnouncement.file) {
+        const formData = new FormData();
+        formData.append("announcementId", editId || result.data.id);
+        formData.append("file", newAnnouncement.file);
+
+        try {
+          const uploadResponse = await fetch(`${API_BASE_URL}/announcements/attachment/upload`, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!uploadResponse.ok) {
+            const uploadError = await uploadResponse.json().catch(() => ({}));
+            console.error("Attachment upload failed:", uploadError);
+          } else {
+            const uploadResult = await uploadResponse.json();
+            if (uploadResult?.data) {
+              attachments = [
+                {
+                  id: uploadResult.data.id,
+                  fileName: uploadResult.data.fileName,
+                  fileUrl: uploadResult.data.fileUrl,
+                },
+                ...attachments,
+              ];
+            }
+          }
+        } catch (err) {
+          console.error("Attachment upload threw error:", err);
+        }
+      }
+
+      const formattedAnnouncement = {
+        id: editId || result.data.id,
+        title: newAnnouncement.title,
+        message: newAnnouncement.message,
+        senderId: newAnnouncement.senderId,
+        senderName: newAnnouncement.senderName,
+        senderRole: newAnnouncement.senderRole,
+        date:
+          result.data.created_at ||
+          announcements.find((a) => a.id === editId)?.date ||
+          new Date().toISOString(),
+        readBy: [],
+        attachments,
+        recipients: newAnnouncement.recipientRoles || [],
+      };
+
+      if (editId) {
+        setAnnouncements((prev) => prev.map((a) => (a.id === editId ? { ...formattedAnnouncement } : a)));
+      } else {
+        const canReceive =
+          allowedSenders[role]?.includes(formattedAnnouncement.senderRole) ||
+          formattedAnnouncement.senderRole === role;
+        if (canReceive) {
+          setAnnouncements([formattedAnnouncement, ...announcements]);
+        }
       }
     } catch (error) {
       console.error("Failed to create announcement:", error);
       alert("Failed to create announcement");
     }
+  };
+
+  const handleDeleteAnnouncement = async (announcement) => {
+    // Local hide only; does not delete from server per requirement
+    if (!window.confirm("Remove this announcement from your view?")) return;
+    setAnnouncements((prev) => prev.filter((a) => a.id !== announcement.id));
   };
 
   return (
@@ -137,20 +230,39 @@ const AnnouncementsList = ({ role, canSend = false, allowedRecipients = [] }) =>
         <p className="text-gray-500">No announcements found.</p>
       ) : (
         <div className="space-y-4">
-          {announcements.map((announcement) => (
-            <AnnouncementItem
-              key={announcement.id}
-              announcement={announcement}
-              role={role}
-            />
-          ))}
+          {announcements.map((announcement) => {
+            const canEdit = announcement.senderId && currentUserId
+              ? announcement.senderId === currentUserId
+              : announcement.senderRole === role;
+            const canDismiss = true; // everyone can remove from own view
+            return (
+              <AnnouncementItem
+                key={announcement.id}
+                announcement={announcement}
+                role={role}
+                canEdit={canEdit}
+                canDismiss={canDismiss}
+                onEdit={(ann) => {
+                  if (!canEdit) return;
+                  setEditing(ann);
+                  setShowModal(true);
+                }}
+                onDelete={(ann) => handleDeleteAnnouncement(ann)}
+              />
+            );
+          })}
         </div>
       )}
 
       {showModal && (
         <CreateAnnouncementModal
-          onClose={() => setShowModal(false)}
+          onClose={() => {
+            setShowModal(false);
+            setEditing(null);
+          }}
           onSubmit={handleAddAnnouncement}
+          initialData={editing}
+          mode={editing ? "edit" : "create"}
           allowedRecipients={allowedRecipients}
           senderRole={role}
           senderId={localStorage.getItem('userId') || '00000000-0000-0000-0000-000000000000'}

@@ -8,6 +8,8 @@ import {
   uploadAttachment,
   getAnnouncementsBySender,
   getAnnouncementsByDepartment,
+  upload,
+  updateAnnouncement,
 } from "../controllers/AnnouncementController.js";
 
 const router = express.Router();
@@ -30,10 +32,13 @@ router.get("/:id", getAnnouncementById);
 // POST create announcement
 router.post("/", createAnnouncement);
 
+// PUT update announcement
+router.put("/:id", updateAnnouncement);
+
 // DELETE announcement
 router.delete("/:id", deleteAnnouncement);
 
 // POST upload attachment
-router.post("/attachment/upload", uploadAttachment);
+router.post("/attachment/upload", upload.single("file"), uploadAttachment);
 
 export default router;

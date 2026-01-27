@@ -12,6 +12,9 @@ const FacultyManagement = () => {
   const [facultyError, setFacultyError] = useState("");
   const [editingIndex, setEditingIndex] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFaculty, setSelectedFaculty] = useState(null);
+  const [selectedFacultyDocuments, setSelectedFacultyDocuments] = useState([]);
+  const [docLoadingId, setDocLoadingId] = useState(null);
 
   const initialFormState = {
     name: "",
@@ -115,6 +118,24 @@ const FacultyManagement = () => {
     must_change_password: data.mustChangePassword ?? true,
   });
 
+  const openFacultyDetail = async (faculty) => {
+    setSelectedFaculty(faculty);
+    setDocLoadingId(faculty.id);
+    try {
+      const docs = await facultyAPI.getDocuments(faculty.id);
+      setSelectedFacultyDocuments(Array.isArray(docs) ? docs : []);
+    } catch (err) {
+      console.error("Failed to load documents:", err);
+      setSelectedFacultyDocuments([]);
+    } finally {
+      setDocLoadingId(null);
+    }
+  };
+
+  const closeFacultyDetail = () => {
+    setSelectedFaculty(null);
+    setSelectedFacultyDocuments([]);
+  };
   const handleAddOrUpdateFaculty = async (e) => {
     e.preventDefault();
     if (!selectedDept?.id) {
@@ -126,12 +147,19 @@ const FacultyManagement = () => {
       const payload = toPayload(formData);
       const isNewFaculty = editingIndex === null;
       const facultyEmail = formData.email;
+      let savedFaculty;
       
       if (editingIndex !== null) {
         const target = facultyList[editingIndex];
-        await facultyAPI.update(target.id, payload);
+        savedFaculty = await facultyAPI.update(target.id, payload);
       } else {
-        await facultyAPI.create(payload);
+        savedFaculty = await facultyAPI.create(payload);
+      }
+
+      const facultyId = savedFaculty?.id || facultyList[editingIndex]?.id;
+
+      if (facultyId && formData.documents.length > 0) {
+        await facultyAPI.uploadDocuments(facultyId, formData.documents);
       }
       
       await loadFaculty(selectedDept.id);
@@ -425,11 +453,7 @@ const FacultyManagement = () => {
                         required
                       >
                         <option value="">Select Designation</option>
-                        <option value="Professor">Professor</option>
-                        <option value="Associate Professor">Associate Professor</option>
-                        <option value="Assistant Professor">Assistant Professor</option>
                         <option value="Lecturer">Lecturer</option>
-                        <option value="Senior Lecturer">Senior Lecturer</option>
                         <option value="Visiting Faculty">Visiting Faculty</option>
                       </select>
                     </div>
@@ -833,12 +857,144 @@ const FacultyManagement = () => {
                                 </span>
                               )}
                             </div>
+                            <button
+                              onClick={() => openFacultyDetail(faculty)}
+                              className="mt-4 inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                            >
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              View Details
+                            </button>
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Faculty Detail Modal */}
+            {selectedFaculty && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                  {/* Header */}
+                  <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className={`w-16 h-16 bg-white bg-opacity-20 rounded-xl flex items-center justify-center`}>
+                        <span className="text-2xl font-bold">{selectedFaculty.name.charAt(0)}</span>
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold">{selectedFaculty.name}</h2>
+                        <p className="text-blue-100">{selectedFaculty.designation}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={closeFacultyDetail}
+                      className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Body */}
+                  <div className="p-6 space-y-6">
+                    {/* Personal Information */}
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Personal Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium text-gray-600">Email</label>
+                          <p className="text-gray-800 font-medium">{selectedFaculty.email}</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-600">Phone</label>
+                          <p className="text-gray-800 font-medium">{selectedFaculty.phone || "N/A"}</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-600">CNIC</label>
+                          <p className="text-gray-800 font-medium">{selectedFaculty.cnic || "N/A"}</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-600">Status</label>
+                          <p className="text-gray-800 font-medium">{selectedFaculty.status || "ACTIVE"}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Professional Information */}
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Professional Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium text-gray-600">Qualification</label>
+                          <p className="text-gray-800 font-medium">{selectedFaculty.qualification}</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-600">Specialization</label>
+                          <p className="text-gray-800 font-medium">{selectedFaculty.specialization || "General"}</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-600">Experience</label>
+                          <p className="text-gray-800 font-medium">{selectedFaculty.experience ? `${selectedFaculty.experience} years` : "N/A"}</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-600">Joining Date</label>
+                          <p className="text-gray-800 font-medium">{selectedFaculty.joining_date || "N/A"}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Address */}
+                    {selectedFaculty.address && (
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Address</h3>
+                        <p className="text-gray-700 whitespace-pre-wrap">{selectedFaculty.address}</p>
+                      </div>
+                    )}
+
+                    {/* Documents */}
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">Supporting Documents</h3>
+                      {docLoadingId === selectedFaculty.id ? (
+                        <div className="text-center py-6">
+                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                          <p className="text-gray-600 mt-2">Loading documents...</p>
+                        </div>
+                      ) : selectedFacultyDocuments.length === 0 ? (
+                        <p className="text-gray-500 text-center py-6">No documents uploaded for this faculty member.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {selectedFacultyDocuments.map((doc) => (
+                            <a
+                              key={doc.id}
+                              href={doc.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                            >
+                              <svg className="w-5 h-5 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-800">{doc.file_name}</p>
+                                <p className="text-xs text-gray-500">
+                                  {doc.file_type || "File"} • {new Date(doc.uploaded_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                              </svg>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -849,3 +1005,4 @@ const FacultyManagement = () => {
 };
 
 export default FacultyManagement;
+

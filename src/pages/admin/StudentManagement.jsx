@@ -19,6 +19,9 @@ const StudentManagement = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [generatedCredentials, setGeneratedCredentials] = useState(null);
+  const [academicRecords, setAcademicRecords] = useState([]);
+  const [academicRecordsLoading, setAcademicRecordsLoading] = useState(false);
+  const [academicRecordsError, setAcademicRecordsError] = useState("");
 
   const initialFormState = {
     fullName: "",
@@ -279,9 +282,106 @@ const StudentManagement = () => {
     grades: student.grades || "",
   });
 
-  const viewAcademicRecords = (student) => {
-    setSelectedStudentForRecords(normalizeStudent(student));
+  const gradePointMap = {
+    "A+": 4.0,
+    A: 4.0,
+    "A-": 3.7,
+    "B+": 3.3,
+    B: 3.0,
+    "B-": 2.7,
+    "C+": 2.3,
+    C: 2.0,
+    "C-": 1.7,
+    "D+": 1.3,
+    D: 1.0,
+    F: 0,
+  };
+
+  const getGradePoint = (grade) => {
+    if (!grade) return null;
+    const key = String(grade).trim().toUpperCase();
+    return Object.prototype.hasOwnProperty.call(gradePointMap, key) ? gradePointMap[key] : null;
+  };
+
+  const formatGpa = (value) => {
+    if (value === null || Number.isNaN(value)) return "N/A";
+    return value.toFixed(2);
+  };
+
+  const computeSemesterAggregates = (records) => {
+    const grouped = {};
+    let totalCredits = 0;
+    let totalPoints = 0;
+
+    (records || []).forEach((rec) => {
+      const semester = rec.semester ?? "N/A";
+      const credits = Number(rec.credit_hours) || 0;
+      const gradePoint = getGradePoint(rec.grade);
+      const coursePoints = gradePoint !== null ? gradePoint * credits : 0;
+
+      if (!grouped[semester]) {
+        grouped[semester] = { courses: [], credits: 0, points: 0 };
+      }
+      grouped[semester].courses.push(rec);
+      grouped[semester].credits += credits;
+      grouped[semester].points += coursePoints;
+
+      totalCredits += credits;
+      totalPoints += coursePoints;
+    });
+
+    const stats = Object.entries(grouped).map(([semester, info]) => ({
+      semester,
+      courses: info.courses,
+      credits: info.credits,
+      points: info.points,
+      gpa: info.credits > 0 ? info.points / info.credits : null,
+    }));
+
+    const cgpa = totalCredits > 0 ? totalPoints / totalCredits : null;
+
+    return {
+      stats,
+      totalCredits,
+      totalPoints,
+      cgpa,
+    };
+  };
+
+  const sortSemesters = (stats = []) => {
+    return [...stats].sort((a, b) => {
+      const aNum = Number(a.semester);
+      const bNum = Number(b.semester);
+
+      const aIsNum = !Number.isNaN(aNum);
+      const bIsNum = !Number.isNaN(bNum);
+
+      if (aIsNum && bIsNum) return aNum - bNum;
+      if (aIsNum) return -1;
+      if (bIsNum) return 1;
+      return String(a.semester).localeCompare(String(b.semester));
+    });
+  };
+
+  const viewAcademicRecords = async (student) => {
+    const normalized = normalizeStudent(student);
+    setSelectedStudentForRecords(normalized);
+    setAcademicRecords([]);
+    setAcademicRecordsError("");
     setShowAcademicRecordsModal(true);
+
+    if (!student?.id) return;
+
+    try {
+      setAcademicRecordsLoading(true);
+      const records = await academicRecordsAPI.getByStudent(student.id);
+      setAcademicRecords(Array.isArray(records) ? records : []);
+    } catch (err) {
+      setAcademicRecordsError(err?.message || "Failed to load academic records");
+      setAcademicRecords([]);
+    } finally {
+      setAcademicRecordsLoading(false);
+    }
   };
 
   const generateTranscript = async (student) => {
@@ -292,104 +392,71 @@ const StudentManagement = () => {
       const records = await academicRecordsAPI.getByStudent(student.id);
       const courses = Array.isArray(records) ? records : [];
 
-      // Build course rows from real data; fall back to placeholders when missing
-      const tableRows = courses.map((c) => [
-        c.course_code || c.courseCode || "N/A",
-        c.course_name || c.courseName || "N/A",
-        c.grade || "N/A",
-        c.credit_hours != null ? String(c.credit_hours) : "3",
-      ]);
-
-      const totalCredits = courses.reduce(
-        (sum, c) => sum + (Number(c.credit_hours) || 0),
-        0
-      );
+      const { stats: semesterStats, totalCredits, cgpa } = computeSemesterAggregates(courses);
+      const sortedSemesters = sortSemesters(semesterStats);
 
       const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setFont("courier", "normal");
       const pageHeight = doc.internal.pageSize.getHeight();
-      let yPosition = 15;
+      let y = 15;
 
-      // Title
-      doc.setFontSize(16);
-      doc.setFont(undefined, "bold");
-      doc.text("OFFICIAL ACADEMIC TRANSCRIPT", pageWidth / 2, yPosition, { align: "center" });
-      yPosition += 10;
+      const line = (text = "") => {
+        doc.text(text, 15, y, { maxWidth: 180 });
+        y += 6;
+        if (y > pageHeight - 20) {
+          doc.addPage();
+          doc.setFont("courier", "normal");
+          y = 15;
+        }
+      };
 
-      // Student Information Header
-      doc.setFontSize(10);
-      doc.setFont(undefined, "normal");
-      doc.text(`Student Name: ${normalized.fullName}`, 20, yPosition);
-      doc.text(`Roll Number: ${normalized.rollNo}`, 130, yPosition);
-      yPosition += 6;
-      doc.text(`Father's Name: ${normalized.fatherName}`, 20, yPosition);
-      doc.text(`CNIC: ${normalized.cnic}`, 130, yPosition);
-      yPosition += 6;
-      doc.text(`Department: ${selectedDeptName}`, 20, yPosition);
-      doc.text(`Date of Birth: ${normalized.dob}`, 130, yPosition);
-      yPosition += 12;
+      const pad = (str = "", len = 10) => String(str || "").padEnd(len, " ");
 
-      // Semester section header (generic)
-      doc.setFontSize(12);
-      doc.setFont(undefined, "bold");
-      doc.text("SEMESTER 01", 20, yPosition);
-      yPosition += 8;
+      line("========================================");
+      line("STUDENT TRANSCRIPT");
+      line("========================================");
+      line("");
 
-      // Course Grades Table (real data)
-      const tableColumn = ["Course Code", "Course Name", "Grade", "Credit Hours"];
+      line("PERSONAL INFORMATION");
+      line("----------------------------------------");
+      line(`Name: ${normalized.fullName || "N/A"}`);
+      line(`Email: ${normalized.personalEmail || "N/A"}`);
+      line(`Phone: ${normalized.studentPhone || "N/A"}`);
+      line(`Date of Birth: ${normalized.dob || "N/A"}`);
+      line(`CNIC: ${normalized.cnic || "N/A"}`);
+      line(`Father's Name: ${normalized.fatherName || "N/A"}`);
+      line(`Address: ${normalized.permanentAddress || "N/A"}`);
+      line("");
 
-      autoTable(doc, {
-        head: [tableColumn],
-        body: tableRows,
-        startY: yPosition,
-        theme: "grid",
-        headStyles: {
-          fillColor: [41, 128, 185],
-          textColor: 255,
-          fontStyle: "bold",
-          fontSize: 10,
-        },
-        bodyStyles: { fontSize: 9 },
-        alternateRowStyles: { fillColor: [240, 240, 240] },
-        margin: { left: 20, right: 20 },
+      line("ACADEMIC HISTORY");
+      line("----------------------------------------");
+      line("");
+
+      if (sortedSemesters.length === 0) {
+        line("No academic records found.");
+      }
+
+      sortedSemesters.forEach((sem) => {
+        line(`Semester ${sem.semester} (Credits: ${sem.credits || 0}, GPA: ${formatGpa(sem.gpa)})`);
+        line("----------------------------------------");
+        sem.courses.forEach((c) => {
+          const code = pad(c.course_code || c.courseCode || "N/A", 10);
+          const name = pad((c.course_name || c.courseName || "N/A").slice(0, 26), 26);
+          const grade = pad(c.grade || "N/A", 4);
+          const ch = `${c.credit_hours || 0} Credits`;
+          line(`${code} | ${name} | ${grade} | ${ch}`);
+        });
+        line("");
       });
 
-      yPosition = (doc.lastAutoTable?.finalY || yPosition + 40) + 10;
+      line("========================================");
+      line("SUMMARY");
+      line("========================================");
+      line(`Total Credits: ${totalCredits || 0}`);
+      line(`CGPA: ${formatGpa(cgpa)}`);
+      line(`Generated on: ${new Date().toLocaleDateString()}`);
 
-      // Credits Completed Section (real total)
-      doc.setFont(undefined, "bold");
-      doc.setFontSize(11);
-      doc.setFillColor(220, 240, 255);
-      doc.rect(20, yPosition, 170, 25, "F");
-      
-      doc.setTextColor(0, 0, 0);
-      doc.text(`CREDITS COMPLETED: ${totalCredits || "0"}`, 30, yPosition + 8);
-      doc.text(`Overall Grade: ${normalized.grades || "N/A"}`, 30, yPosition + 16);
-
-      yPosition += 35;
-
-      // Academic Summary
-      doc.setFont(undefined, "bold");
-      doc.setFontSize(10);
-      doc.text("ACADEMIC SUMMARY", 20, yPosition);
-      yPosition += 6;
-
-      doc.setFont(undefined, "normal");
-      doc.setFontSize(9);
-      doc.text(`Attendance: ${normalized.attendance || "N/A"}`, 20, yPosition);
-      yPosition += 5;
-      doc.text(`Joining Session: ${normalized.joiningSession || "N/A"}`, 20, yPosition);
-      yPosition += 5;
-      doc.text(`Joining Date: ${normalized.joiningDate || "N/A"}`, 20, yPosition);
-      
-      // Footer
-      doc.setFontSize(8);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, pageHeight - 15);
-      doc.text("This is an official document from the University ERP System", pageWidth / 2, pageHeight - 10, { align: "center" });
-
-      // Save PDF
-      const filename = `Transcript_${normalized.rollNo}_${normalized.fullName.replace(/\s+/g, "_")}.pdf`;
+      const filename = `Transcript_${normalized.rollNo || "student"}_${(normalized.fullName || "").replace(/\s+/g, "_") || "record"}.pdf`;
       doc.save(filename);
       alert("Transcript generated successfully!");
     } catch (err) {
@@ -410,8 +477,16 @@ const StudentManagement = () => {
   });
 
   const studentsForDisplay = students;
+  const academicRecordSummary = computeSemesterAggregates(academicRecords);
+  const sortedAcademicSemesters = sortSemesters(academicRecordSummary.stats);
 
-  const options = ["Add Student", "Search Student", "Delete Student"];
+  const options = [
+    "Add Student",
+    "Search Student",
+    "Freeze Semester",
+    "Add/Drop Courses",
+    "Delete Account",
+  ];
 
   // Function to generate avatar background color based on name
   const getAvatarColor = (name) => {
@@ -545,9 +620,19 @@ const StudentManagement = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                     )}
-                    {opt === "Delete Student" && (
+                    {opt === "Delete Account" && (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    )}
+                    {opt === "Freeze Semester" && (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v18m0-18l-4 4m4-4l4 4m0 10l-4 4m4-4l4-4m-16 0l4 4m-4-4l4-4" />
+                      </svg>
+                    )}
+                    {opt === "Add/Drop Courses" && (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6m13-5h-5V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3H5a2 2 0 00-2 2v8a2 2 0 002 2h14a2 2 0 002-2v-8a2 2 0 00-2-2z" />
                       </svg>
                     )}
                     <span>{opt}</span>
@@ -930,15 +1015,41 @@ const StudentManagement = () => {
             )}
 
 
-            {/* Delete Student */}
-            {activeOption === "Delete Student" && (
+            {/* Freeze Semester */}
+            {activeOption === "Freeze Semester" && (
+              <div className="bg-white rounded-xl border border-blue-200 p-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                  <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v18m0-18l-4 4m4-4l4 4m0 10l-4 4m4-4l4-4m-16 0l4 4m-4-4l4-4" />
+                  </svg>
+                  Freeze Semester
+                </h3>
+                <p className="text-gray-600">This feature is not yet configured. Please use the registrar workflow to freeze a semester, or ask the dev team to wire this action to the backend.</p>
+              </div>
+            )}
+
+            {/* Add / Drop Courses */}
+            {activeOption === "Add/Drop Courses" && (
+              <div className="bg-white rounded-xl border border-indigo-200 p-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                  <svg className="w-6 h-6 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6m13-5h-5V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3H5a2 2 0 00-2 2v8a2 2 0 002 2h14a2 2 0 002-2v-8a2 2 0 00-2-2z" />
+                  </svg>
+                  Add / Drop Courses
+                </h3>
+                <p className="text-gray-600">Course add/drop from admin is pending. Coordinate with the academic office or request backend endpoints to enable this action here.</p>
+              </div>
+            )}
+
+            {/* Delete Account */}
+            {activeOption === "Delete Account" && (
               <div className="bg-white rounded-xl border border-red-200">
                 <div className="p-6 border-b border-red-200 bg-red-50">
                   <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                     <svg className="w-6 h-6 mr-2 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
-                    Delete Student Records
+                    Delete Student Account
                   </h3>
                   <p className="text-sm text-red-600 mt-2">Warning: This action is permanent and cannot be undone.</p>
                 </div>
@@ -976,7 +1087,7 @@ const StudentManagement = () => {
                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
-                            Delete Student
+                            Delete Account
                           </button>
                         </div>
                       </div>
@@ -1142,6 +1253,9 @@ const StudentManagement = () => {
                     onClick={() => {
                       setShowAcademicRecordsModal(false);
                       setSelectedStudentForRecords(null);
+                      setAcademicRecords([]);
+                      setAcademicRecordsError("");
+                      setAcademicRecordsLoading(false);
                     }}
                     className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2 transition-colors"
                   >
@@ -1198,14 +1312,10 @@ const StudentManagement = () => {
                     </svg>
                     Academic Performance
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-lg border border-green-200">
                       <p className="text-sm text-gray-600 mb-2">Roll Number</p>
                       <p className="text-2xl font-bold text-green-700">{selectedStudentForRecords.rollNo}</p>
-                    </div>
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
-                      <p className="text-sm text-gray-600 mb-2">GPA / Grade</p>
-                      <p className="text-2xl font-bold text-blue-700">{selectedStudentForRecords.grades || "N/A"}</p>
                     </div>
                     <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-6 rounded-lg border border-purple-200">
                       <p className="text-sm text-gray-600 mb-2">Attendance</p>
@@ -1232,6 +1342,69 @@ const StudentManagement = () => {
                       <p className="font-semibold text-gray-800">{selectedStudentForRecords.joiningDate || 'N/A'}</p>
                     </div>
                   </div>
+                </div>
+
+                {/* Academic Records */}
+                <div className="mb-6">
+                  <h4 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6M3 13l4-8h10l4 8-4 8H7l-4-8z" />
+                    </svg>
+                    Academic Records (Semester-wise)
+                  </h4>
+
+                  {academicRecordsLoading && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-600">Loading academic records...</div>
+                  )}
+
+                  {!academicRecordsLoading && academicRecordsError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4">{academicRecordsError}</div>
+                  )}
+
+                  {!academicRecordsLoading && !academicRecordsError && academicRecords.length === 0 && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-600">No academic records found.</div>
+                  )}
+
+                  {!academicRecordsLoading && !academicRecordsError && academicRecords.length > 0 && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+                          <p className="text-sm text-gray-600 mb-1">Total Credits</p>
+                          <p className="text-2xl font-bold text-blue-700">{academicRecordSummary.totalCredits || 0}</p>
+                        </div>
+                        <div className="bg-gradient-to-br from-emerald-50 to-green-50 p-4 rounded-lg border border-emerald-200">
+                          <p className="text-sm text-gray-600 mb-1">CGPA</p>
+                          <p className="text-2xl font-bold text-emerald-700">{formatGpa(academicRecordSummary.cgpa)}</p>
+                        </div>
+                        <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-4 rounded-lg border border-purple-200">
+                          <p className="text-sm text-gray-600 mb-1">Semesters Recorded</p>
+                          <p className="text-2xl font-bold text-purple-700">{sortedAcademicSemesters.length}</p>
+                        </div>
+                      </div>
+
+                      {sortedAcademicSemesters.map((sem) => (
+                        <div key={`sem-${sem.semester}`} className="border border-gray-200 rounded-xl overflow-hidden">
+                          <div className="bg-gray-50 px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between">
+                            <div className="font-semibold text-gray-800">Semester {sem.semester}</div>
+                            <div className="flex flex-wrap gap-3 text-sm text-gray-700 mt-2 md:mt-0">
+                              <span className="px-3 py-1 bg-white border border-gray-200 rounded-full">Credits: {sem.credits || 0}</span>
+                              <span className="px-3 py-1 bg-white border border-gray-200 rounded-full">GPA: {formatGpa(sem.gpa)}</span>
+                            </div>
+                          </div>
+                          <div className="divide-y divide-gray-100">
+                            {sem.courses.map((course, idx) => (
+                              <div key={`${sem.semester}-${idx}`} className="px-4 py-3 grid grid-cols-1 md:grid-cols-12 gap-2 text-sm">
+                                <div className="md:col-span-2 font-mono text-gray-800">{course.course_code || course.courseCode || 'N/A'}</div>
+                                <div className="md:col-span-6 text-gray-800">{course.course_name || course.courseName || 'N/A'}</div>
+                                <div className="md:col-span-2 font-semibold text-gray-800">Grade: {course.grade || 'N/A'}</div>
+                                <div className="md:col-span-2 text-gray-700">Credits: {course.credit_hours || 0}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Contact Information */}
@@ -1294,6 +1467,9 @@ const StudentManagement = () => {
                     onClick={() => {
                       setShowAcademicRecordsModal(false);
                       setSelectedStudentForRecords(null);
+                      setAcademicRecords([]);
+                      setAcademicRecordsError("");
+                      setAcademicRecordsLoading(false);
                     }}
                     className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
                   >

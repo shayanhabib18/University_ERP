@@ -13,20 +13,81 @@ const getSupabaseClient = () => {
 
 // ==================== STUDENT LOGIN ====================
 // POST /auth/login
-// Login with email and password
+// Login with email and password - ONLY for students
 router.post('/login', async (req, res) => {
   const supabaseClient = getSupabaseClient();
   if (!supabaseClient) return res.status(500).json({ error: 'Supabase not configured. Set env in backend/.env' });
   
   const { email, password } = req.body;
   
+  console.log(`🔐 Student login attempt for email: ${email}`);
+  
   const { data, error } = await supabaseClient.auth.signInWithPassword({
     email,
     password,
   });
   
-  if (error) return res.status(400).json({ error: error.message });
+  if (error) {
+    console.error('❌ Auth signin error:', error.message);
+    return res.status(400).json({ error: error.message });
+  }
   
+  console.log(`✅ Auth signin successful for: ${email}, auth_user_id: ${data.user.id}`);
+  
+  // Verify that the authenticated user is a student (not faculty/coordinator/hod/etc)
+  // Try lookup by auth_user_id first
+  let { data: student, error: studentError } = await supabaseClient
+    .from('students')
+    .select('id, personal_email, roll_number, auth_user_id')
+    .eq('auth_user_id', data.user.id)
+    .single();
+  
+  if (studentError) {
+    console.log(`ℹ️ Student lookup by auth_user_id failed:`, studentError.message);
+  } else if (student) {
+    console.log(`✅ Found student by auth_user_id: ${student.id}`);
+  }
+  
+  // If not found by auth_user_id, try lookup by email as fallback
+  if ((studentError || !student) && email) {
+    console.log(`🔍 Trying student lookup by personal_email: ${email}`);
+    const { data: studentByEmail, error: emailError } = await supabaseClient
+      .from('students')
+      .select('id, personal_email, roll_number, auth_user_id')
+      .eq('personal_email', email)
+      .single();
+    
+    if (emailError) {
+      console.error(`❌ Student lookup by personal_email failed:`, emailError.message);
+    } else if (studentByEmail) {
+      console.log(`✅ Found student by personal_email: ${studentByEmail.id}`);
+      student = studentByEmail;
+      studentError = null;
+      
+      // Update auth_user_id if not already set
+      if (!studentByEmail.auth_user_id) {
+        console.log(`🔄 Updating auth_user_id for student: ${studentByEmail.id}`);
+        const { error: updateErr } = await supabaseClient
+          .from('students')
+          .update({ auth_user_id: data.user.id })
+          .eq('id', studentByEmail.id);
+        
+        if (updateErr) {
+          console.error(`❌ Failed to update auth_user_id:`, updateErr.message);
+        } else {
+          console.log(`✅ Updated auth_user_id for student: ${studentByEmail.id}`);
+        }
+      }
+    }
+  }
+  
+  if (studentError || !student) {
+    // Not a student - deny access
+    console.warn(`❌ Login denied - user is not a student. Auth user: ${data.user.id}`);
+    return res.status(400).json({ error: 'Invalid email or password' });
+  }
+  
+  console.log(`✅ Student login successful: ${student.email}`);
   res.json({
     access_token: data.session.access_token,
     user: data.user,

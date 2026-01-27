@@ -143,6 +143,32 @@ export const facultyAPI = {
     apiCall(`/faculty-courses/${facultyId}/${courseId}`, {
       method: "DELETE",
     }),
+  uploadDocuments: async (facultyId, files) => {
+    const formData = new FormData();
+    Array.from(files || []).forEach((file) => formData.append("files", file));
+
+    const response = await fetch(`${API_BASE_URL}/faculties/${facultyId}/documents`, {
+      method: "POST",
+      body: formData,
+    });
+
+    const text = await response.text();
+    let parsed;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch (_err) {
+      parsed = null;
+    }
+
+    if (!response.ok) {
+      const detail = parsed?.error || parsed?.message || response.statusText;
+      throw new Error(`API Error: ${detail}`);
+    }
+
+    return parsed;
+  },
+  getDocuments: (facultyId) =>
+    apiCall(`/faculties/${facultyId}/documents`),
 };
 
 // Student API (aligned with new Supabase schema)
@@ -172,29 +198,29 @@ export const studentAPI = {
 // Academic Records API
 export const academicRecordsAPI = {
   // Get all records for a student
-  getByStudent: (studentId) => apiCall(`/academic-records/student/${studentId}`),
+  getByStudent: (studentId) => apiCall(`/students/academic-records/student/${studentId}`),
 
   // Get specific semester record
   getBySemester: (studentId, semester) =>
-    apiCall(`/academic-records/student/${studentId}/semester/${semester}`),
+    apiCall(`/students/academic-records/student/${studentId}/semester/${semester}`),
 
   // Create academic record
   create: (data) =>
-    apiCall("/academic-records", {
+    apiCall("/students/academic-records", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   // Update academic record
   update: (recordId, data) =>
-    apiCall(`/academic-records/${recordId}`, {
+    apiCall(`/students/academic-records/${recordId}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
 
   // Delete academic record
   delete: (recordId) =>
-    apiCall(`/academic-records/${recordId}`, {
+    apiCall(`/students/academic-records/${recordId}`, {
       method: "DELETE",
     }),
 };

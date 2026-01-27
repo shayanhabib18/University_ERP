@@ -24,15 +24,17 @@ const FacultyRoleManagement = () => {
   // Executive Assignment Modal States
   const [showExecutiveModal, setShowExecutiveModal] = useState(false);
   const [selectedFacultyForExecutive, setSelectedFacultyForExecutive] = useState(null);
-  const [executiveAssignmentMode, setExecutiveAssignmentMode] = useState("select_faculty");
+  const [executiveAssignmentMode, setExecutiveAssignmentMode] = useState("manual");
   const [manualExecutiveData, setManualExecutiveData] = useState({
     executiveFullName: "",
     executiveEmail: "",
+    executiveCnic: "",
+    executivePhone: "",
+    executiveAddress: "",
     effectiveFrom: "",
   });
   const [executiveLoading, setExecutiveLoading] = useState(false);
   const [allFacultiesForSelection, setAllFacultiesForSelection] = useState([]);
-  const [executiveSearchQuery, setExecutiveSearchQuery] = useState("");
   const [currentExecutive, setCurrentExecutive] = useState(null);
 
   // Assign Courses Modal States
@@ -117,45 +119,43 @@ const FacultyRoleManagement = () => {
   const handleAssignExecutive = async (faculty) => {
     setSelectedFacultyForExecutive(faculty);
     setAllFacultiesForSelection(faculties);
-    setExecutiveAssignmentMode("select_faculty");
-    setManualExecutiveData({ executiveFullName: "", executiveEmail: "", effectiveFrom: "" });
+    setExecutiveAssignmentMode("manual");
+    setManualExecutiveData({
+      executiveFullName: "",
+      executiveEmail: "",
+      executiveCnic: "",
+      executivePhone: "",
+      executiveAddress: "",
+      effectiveFrom: "",
+    });
     setShowExecutiveModal(true);
   };
 
   const handleConfirmExecutiveAssignment = async () => {
-    if (executiveAssignmentMode === "select_faculty") {
-      if (!selectedFacultyForExecutive?.id) {
-        setError("Please select a faculty member");
-        return;
-      }
-    } else if (executiveAssignmentMode === "manual") {
-      if (!manualExecutiveData.executiveFullName.trim() || !manualExecutiveData.executiveEmail.trim()) {
-        setError("Please enter Executive Full Name and Email");
-        return;
-      }
+    if (!manualExecutiveData.executiveFullName.trim() || !manualExecutiveData.executiveEmail.trim()) {
+      setError("Please enter Executive Full Name and Email");
+      return;
+    }
 
-      // Validate email
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(manualExecutiveData.executiveEmail)) {
-        setError("Please enter a valid email address");
-        return;
-      }
+    // Validate email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(manualExecutiveData.executiveEmail)) {
+      setError("Please enter a valid email address");
+      return;
     }
 
     try {
       setExecutiveLoading(true);
       setError("");
       const payload = {
-        mode: executiveAssignmentMode,
+        mode: "manual",
         effectiveFrom: manualExecutiveData.effectiveFrom || null,
+        executiveFullName: manualExecutiveData.executiveFullName.trim(),
+        executiveEmail: manualExecutiveData.executiveEmail.trim(),
+        executiveCnic: manualExecutiveData.executiveCnic?.trim() || null,
+        executivePhone: manualExecutiveData.executivePhone?.trim() || null,
+        executiveAddress: manualExecutiveData.executiveAddress?.trim() || null,
       };
-
-      if (executiveAssignmentMode === "select_faculty") {
-        payload.facultyId = selectedFacultyForExecutive.id;
-      } else if (executiveAssignmentMode === "manual") {
-        payload.executiveFullName = manualExecutiveData.executiveFullName.trim();
-        payload.executiveEmail = manualExecutiveData.executiveEmail.trim();
-      }
 
       await facultyAPI.assignExecutive(payload);
       setStatusMessage("Executive assigned successfully!");
@@ -171,8 +171,14 @@ const FacultyRoleManagement = () => {
       // Close modal
       setShowExecutiveModal(false);
       setSelectedFacultyForExecutive(null);
-      setManualExecutiveData({ executiveFullName: "", executiveEmail: "", effectiveFrom: "" });
-      setExecutiveSearchQuery("");
+      setManualExecutiveData({
+        executiveFullName: "",
+        executiveEmail: "",
+        executiveCnic: "",
+        executivePhone: "",
+        executiveAddress: "",
+        effectiveFrom: "",
+      });
     } catch (err) {
       setError(err.message || "Failed to assign executive");
       console.error(err);
@@ -319,8 +325,15 @@ const FacultyRoleManagement = () => {
             onClick={() => {
               setSelectedFacultyForExecutive(null);
               setAllFacultiesForSelection(faculties);
-              setExecutiveAssignmentMode("select_faculty");
-              setManualExecutiveData({ executiveFullName: "", executiveEmail: "", effectiveFrom: "" });
+              setExecutiveAssignmentMode("manual");
+              setManualExecutiveData({
+                executiveFullName: "",
+                executiveEmail: "",
+                executiveCnic: "",
+                executivePhone: "",
+                executiveAddress: "",
+                effectiveFrom: "",
+              });
               setShowExecutiveModal(true);
             }}
             className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition font-medium whitespace-nowrap"
@@ -654,8 +667,14 @@ const FacultyRoleManagement = () => {
                 onClick={() => {
                   setShowExecutiveModal(false);
                   setSelectedFacultyForExecutive(null);
-                  setManualExecutiveData({ executiveFullName: "", executiveEmail: "", effectiveFrom: "" });
-                  setExecutiveSearchQuery("");
+                  setManualExecutiveData({
+                    executiveFullName: "",
+                    executiveEmail: "",
+                    executiveCnic: "",
+                    executivePhone: "",
+                    executiveAddress: "",
+                    effectiveFrom: "",
+                  });
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -675,107 +694,8 @@ const FacultyRoleManagement = () => {
               </div>
             )}
 
-            {/* Assignment Mode Tabs */}
-            <div className="mb-6">
-              <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit mx-auto">
-                <button
-                  onClick={() => {
-                    setExecutiveAssignmentMode("select_faculty");
-                    setExecutiveSearchQuery("");
-                  }}
-                  className={`px-6 py-3 rounded-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 ${
-                    executiveAssignmentMode === "select_faculty"
-                      ? "bg-white text-indigo-600 shadow-sm"
-                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                  }`}
-                >
-                  Select Faculty
-                </button>
-                <button
-                  onClick={() => setExecutiveAssignmentMode("manual")}
-                  className={`px-6 py-3 rounded-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 ${
-                    executiveAssignmentMode === "manual"
-                      ? "bg-white text-indigo-600 shadow-sm"
-                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                  }`}
-                >
-                  Manual Entry
-                </button>
-              </div>
-            </div>
-
-            {/* Mode 1: Select from Faculty List */}
-            {executiveAssignmentMode === "select_faculty" && (
-              <div className="space-y-4 mb-6">
-                <p className="text-sm font-medium text-gray-700 mb-2">
-                  Select a faculty member to assign as Executive:
-                </p>
-
-                {/* Search Box */}
-                <input
-                  type="text"
-                  placeholder="Search faculty by name or email..."
-                  value={executiveSearchQuery}
-                  onChange={(e) => setExecutiveSearchQuery(e.target.value)}
-                  className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-indigo-600"
-                />
-
-                {allFacultiesForSelection.length === 0 ? (
-                  <div className="text-center py-4 bg-yellow-50 border border-yellow-200 rounded">
-                    <p className="text-yellow-800">No faculty members available</p>
-                  </div>
-                ) : (
-                  <div className="border border-gray-300 rounded max-h-64 overflow-y-auto">
-                    {allFacultiesForSelection
-                      .filter((faculty) =>
-                        faculty.name.toLowerCase().includes(executiveSearchQuery.toLowerCase()) ||
-                        faculty.email.toLowerCase().includes(executiveSearchQuery.toLowerCase())
-                      )
-                      .map((faculty) => (
-                        <label
-                          key={faculty.id}
-                            className={`flex items-center gap-3 p-3 border-b border-gray-200 hover:bg-gray-50 cursor-pointer ${
-                            selectedFacultyForExecutive?.id === faculty.id ? "bg-indigo-50" : ""
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="executive-select"
-                            value={faculty.id}
-                            checked={selectedFacultyForExecutive?.id === faculty.id}
-                            onChange={() => setSelectedFacultyForExecutive(faculty)}
-                            className="cursor-pointer"
-                          />
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">{faculty.name}</p>
-                            <p className="text-sm text-gray-500">{faculty.email}</p>
-                            <p className="text-xs text-gray-400">{faculty.designation}</p>
-                          </div>
-                        </label>
-                      ))}
-                  </div>
-                )}
-
-                {/* Effective From Date */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">
-                    Effective From Date (Optional)
-                  </label>
-                  <input
-                    type="date"
-                    value={manualExecutiveData.effectiveFrom}
-                    onChange={(e) =>
-                      setManualExecutiveData({ ...manualExecutiveData, effectiveFrom: e.target.value })
-                    }
-                    className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-indigo-600"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Mode 2: Manual Assignment */}
-            {executiveAssignmentMode === "manual" && (
-              <div className="space-y-4 mb-6">
+            {/* Manual Assignment Form */}
+            <div className="space-y-4 mb-6">
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-1">
                     Executive Full Name <span className="text-red-500">*</span>
@@ -808,6 +728,51 @@ const FacultyRoleManagement = () => {
 
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-1">
+                    Executive CNIC Number
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter CNIC number"
+                    value={manualExecutiveData.executiveCnic}
+                    onChange={(e) =>
+                      setManualExecutiveData({ ...manualExecutiveData, executiveCnic: e.target.value })
+                    }
+                    className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-indigo-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">
+                    Executive Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="Enter phone number"
+                    value={manualExecutiveData.executivePhone}
+                    onChange={(e) =>
+                      setManualExecutiveData({ ...manualExecutiveData, executivePhone: e.target.value })
+                    }
+                    className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-indigo-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">
+                    Address
+                  </label>
+                  <textarea
+                    placeholder="Enter address"
+                    value={manualExecutiveData.executiveAddress}
+                    onChange={(e) =>
+                      setManualExecutiveData({ ...manualExecutiveData, executiveAddress: e.target.value })
+                    }
+                    className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-indigo-600"
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">
                     Effective From Date (Optional)
                   </label>
                   <input
@@ -820,7 +785,6 @@ const FacultyRoleManagement = () => {
                   />
                 </div>
               </div>
-            )}
 
             {/* Action Buttons */}
             <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-gray-100">
@@ -828,8 +792,14 @@ const FacultyRoleManagement = () => {
                 onClick={() => {
                   setShowExecutiveModal(false);
                   setSelectedFacultyForExecutive(null);
-                  setManualExecutiveData({ executiveFullName: "", executiveEmail: "", effectiveFrom: "" });
-                  setExecutiveSearchQuery("");
+                  setManualExecutiveData({
+                    executiveFullName: "",
+                    executiveEmail: "",
+                    executiveCnic: "",
+                    executivePhone: "",
+                    executiveAddress: "",
+                    effectiveFrom: "",
+                  });
                 }}
                 className="px-5 py-2.5 rounded-lg font-medium text-gray-700 hover:bg-gray-100 transition-colors border border-gray-300"
               >

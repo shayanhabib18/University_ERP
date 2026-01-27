@@ -1,10 +1,10 @@
 // services/announcementAPI.js
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-// Get announcements for a specific role
+// Get announcements for a specific role (with attachments)
 export const getAnnouncementsByRole = async (role) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/announcements?role=${role}`);
+    const response = await fetch(`${API_BASE_URL}/announcements/with-attachments?role=${role}`);
     if (!response.ok) {
       throw new Error("Failed to fetch announcements");
     }
@@ -15,20 +15,9 @@ export const getAnnouncementsByRole = async (role) => {
   }
 };
 
-// Get announcements with attachments
+// Get announcements with attachments (alias)
 export const getAnnouncementsWithAttachments = async (role) => {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/announcements/with-attachments?role=${role}`
-    );
-    if (!response.ok) {
-      throw new Error("Failed to fetch announcements");
-    }
-    return await response.json();
-  } catch (error) {
-    console.error("Error fetching announcements with attachments:", error);
-    throw error;
-  }
+  return getAnnouncementsByRole(role);
 };
 
 // Get single announcement
@@ -66,6 +55,27 @@ export const createAnnouncement = async (announcementData) => {
   }
 };
 
+// Update announcement
+export const updateAnnouncement = async (id, payload) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/announcements/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update announcement");
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error updating announcement:", error);
+    throw error;
+  }
+};
+
 // Delete announcement
 export const deleteAnnouncement = async (id) => {
   try {
@@ -84,18 +94,15 @@ export const deleteAnnouncement = async (id) => {
 };
 
 // Upload attachment
-export const uploadAttachment = async (announcementId, fileName, fileUrl) => {
+export const uploadAttachment = async (announcementId, file) => {
   try {
+    const formData = new FormData();
+    formData.append("announcementId", announcementId);
+    formData.append("file", file);
+
     const response = await fetch(`${API_BASE_URL}/announcements/attachment/upload`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        announcementId,
-        fileName,
-        fileUrl,
-      }),
+      body: formData,
     });
 
     if (!response.ok) {

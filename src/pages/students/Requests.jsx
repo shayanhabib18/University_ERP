@@ -28,7 +28,7 @@ export default function Requests() {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("student_token");
+      const token = localStorage.getItem("studentToken") || localStorage.getItem("student_token");
       const response = await axios.get("http://localhost:5000/requests/student-requests", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -48,7 +48,7 @@ export default function Requests() {
     setError("");
 
     try {
-      const token = localStorage.getItem("student_token");
+      const token = localStorage.getItem("studentToken") || localStorage.getItem("student_token");
       await axios.post(
         "http://localhost:5000/requests/student-requests",
         {
@@ -86,7 +86,7 @@ export default function Requests() {
 
   const handleCancel = async (id) => {
     try {
-      const token = localStorage.getItem("student_token");
+      const token = localStorage.getItem("studentToken") || localStorage.getItem("student_token");
       await axios.patch(
         `http://localhost:5000/requests/student-requests/${id}`,
         { status: "cancelled" },

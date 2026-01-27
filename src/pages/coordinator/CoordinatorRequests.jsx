@@ -33,7 +33,13 @@ export default function CoordinatorRequests() {
     setLoading(true);
     setError("");
     try {
-      const token = localStorage.getItem("coordinator_token") || localStorage.getItem("admin_token");
+      const token = localStorage.getItem("facultyToken");
+      if (!token) {
+        setError("Authentication required. Please log in again.");
+        setLoading(false);
+        return;
+      }
+      
       const url = filterStatus === "all" 
         ? "http://localhost:5000/requests/coordinator/requests"
         : `http://localhost:5000/requests/coordinator/requests?status=${filterStatus}`;
@@ -52,7 +58,11 @@ export default function CoordinatorRequests() {
 
   const handleViewDetails = async (requestId) => {
     try {
-      const token = localStorage.getItem("coordinator_token") || localStorage.getItem("admin_token");
+      const token = localStorage.getItem("facultyToken");
+      if (!token) {
+        setError("Authentication required. Please log in again.");
+        return;
+      }
       const response = await axios.get(
         `http://localhost:5000/requests/coordinator/requests/${requestId}`,
         {
@@ -72,7 +82,12 @@ export default function CoordinatorRequests() {
 
     setActionLoading(true);
     try {
-      const token = localStorage.getItem("coordinator_token") || localStorage.getItem("admin_token");
+      const token = localStorage.getItem("facultyToken");
+      if (!token) {
+        setError("Authentication required. Please log in again.");
+        setActionLoading(false);
+        return;
+      }
       await axios.patch(
         `http://localhost:5000/requests/coordinator/requests/${selectedRequest.request.id}`,
         {

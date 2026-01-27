@@ -15,6 +15,8 @@ const ResetPassword = () => {
   const [validating, setValidating] = useState(true);
   const [isFacultyReset, setIsFacultyReset] = useState(false);
   const [isHODReset, setIsHODReset] = useState(false);
+  const [isCoordinatorReset, setIsCoordinatorReset] = useState(false);
+  const [isExecutiveReset, setIsExecutiveReset] = useState(false);
   const [tokenSource, setTokenSource] = useState(null); // 'hash' or 'query'
 
   // Extract token from URL hash (Supabase recovery link format) or search params
@@ -28,6 +30,24 @@ const ResetPassword = () => {
         
         console.log("🔍 Token extraction:", { resetType, queryToken, hasToken: !!queryToken, urlHashData: location.hash });
 
+        // Coordinator reset
+        if (resetType === 'coordinator') {
+          if (!queryToken) {
+            console.error("❌ Coordinator reset but no token found");
+            setError('Invalid password reset link. No token found.');
+            setValidating(false);
+            return;
+          }
+          console.log("✅ Coordinator reset detected with token");
+          setToken(queryToken);
+          setIsCoordinatorReset(true);
+          setIsHODReset(false);
+          setIsFacultyReset(false);
+          setTokenSource('query');
+          setValidating(false);
+          return;
+        }
+
         // HOD reset takes priority (manual HOD assignment)
         if (resetType === 'hod') {
           if (!queryToken) {
@@ -40,6 +60,7 @@ const ResetPassword = () => {
           setToken(queryToken);
           setIsHODReset(true);
           setIsFacultyReset(false);
+          setIsCoordinatorReset(false);
           setTokenSource('query');
           setValidating(false);
           return;
@@ -67,7 +88,28 @@ const ResetPassword = () => {
           setToken(tokenToUse);
           setIsFacultyReset(true);
           setIsHODReset(false);
+          setIsCoordinatorReset(false);
+          setIsExecutiveReset(false);
           setTokenSource(queryToken ? 'query' : 'hash');
+          setValidating(false);
+          return;
+        }
+
+        // Executive password setup
+        if (resetType === 'executive') {
+          if (!queryToken) {
+            console.error("❌ Executive reset but no token found");
+            setError('Invalid password setup link. No token found.');
+            setValidating(false);
+            return;
+          }
+          console.log("✅ Executive password setup detected with token");
+          setToken(queryToken);
+          setIsExecutiveReset(true);
+          setIsFacultyReset(false);
+          setIsHODReset(false);
+          setIsCoordinatorReset(false);
+          setTokenSource('query');
           setValidating(false);
           return;
         }
@@ -110,22 +152,26 @@ const ResetPassword = () => {
   useEffect(() => {
     if (success) {
       console.log("🎯 SUCCESS detected, will redirect in 2 seconds");
-      console.log("📊 Current state:", { success, isHODReset, isFacultyReset });
+      console.log("📊 Current state:", { success, isHODReset, isFacultyReset, isCoordinatorReset });
       
       const redirectTimeout = setTimeout(() => {
         let redirectPath = '/login/student';
-        if (isHODReset) {
+        if (isCoordinatorReset) {
+          redirectPath = '/login/coordinator';
+        } else if (isHODReset) {
           redirectPath = '/login/chairman';
         } else if (isFacultyReset) {
           redirectPath = '/login/faculty';
+        } else if (isExecutiveReset) {
+          redirectPath = '/login/executive';
         }
-        console.log("🔄 NOW REDIRECTING:", { isHODReset, isFacultyReset, redirectPath });
+        console.log("🔄 NOW REDIRECTING:", { isHODReset, isFacultyReset, isCoordinatorReset, isExecutiveReset, redirectPath });
         navigate(redirectPath);
       }, 2000);
       
       return () => clearTimeout(redirectTimeout);
     }
-  }, [success, isHODReset, isFacultyReset, navigate]);
+  }, [success, isHODReset, isFacultyReset, isCoordinatorReset, isExecutiveReset, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -152,14 +198,24 @@ const ResetPassword = () => {
       let endpoint = 'http://localhost:5000/auth/reset-password';
       let payload;
 
-      console.log("📤 Submitting password reset", { isFacultyReset, tokenSource });
+      console.log("📤 Submitting password reset", { isFacultyReset, isExecutiveReset, tokenSource });
 
+      // Faculty/Executive manual password setup
+      if (isFacultyReset || isExecutiveReset) {
+        endpoint = 'http://localhost:5000/faculties/set-password';
+        payload = { 
+          token, 
+          password, 
+          type: isExecutiveReset ? 'executive' : 'faculty' 
+        };
+        console.log("📤 Using", isExecutiveReset ? 'executive' : 'faculty', "manual password setup:", endpoint);
+      }
       // Hash-based token (Supabase recovery JWT)
-      if (tokenSource === 'hash') {
+      else if (tokenSource === 'hash') {
         payload = { accessToken: token, password };
         console.log("📤 Using JWT (hash) payload for /auth/reset-password");
       } else {
-        // Query token → manual flow (faculty/HOD invite)
+        // Query token → manual flow (other user types)
         payload = { token, password };
         console.log("📤 Using manual token payload for /auth/reset-password");
       }
@@ -200,14 +256,36 @@ const ResetPassword = () => {
           <p className="text-gray-600 mb-6">{error || 'The password reset link is invalid or expired.'}</p>
           <div className="space-y-3">
             <button
-              onClick={() => navigate('/forgot-password')}
+              onClick={() => {
+                if (isCoordinatorReset) {
+                  navigate('/login/coordinator/forgot-password');
+                } else if (isHODReset) {
+                  navigate('/login/chairman/forgot-password');
+                } else if (isFacultyReset) {
+                  navigate('/login/faculty/forgot-password');
+                } else if (isExecutiveReset) {
+                  navigate('/login/executive');
+                } else {
+                  navigate('/forgot-password');
+                }
+              }}
               className="w-full bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
             >
-              Request New Reset Link
+              {isExecutiveReset ? 'Contact Administration' : 'Request New Reset Link'}
             </button>
             <button
               onClick={() => {
-                window.location.href = '/login/student';
+                if (isCoordinatorReset) {
+                  window.location.href = '/login/coordinator';
+                } else if (isHODReset) {
+                  window.location.href = '/login/chairman';
+                } else if (isFacultyReset) {
+                  window.location.href = '/login/faculty';
+                } else if (isExecutiveReset) {
+                  window.location.href = '/login/executive';
+                } else {
+                  window.location.href = '/login/student';
+                }
               }}
               className="w-full bg-gray-400 text-white px-6 py-2 rounded-lg hover:bg-gray-500 transition"
             >
@@ -221,10 +299,14 @@ const ResetPassword = () => {
 
   if (success) {
     let portalType = 'Student';
-    if (isHODReset) {
-      portalType = 'HOD (Chairman)';
+    if (isCoordinatorReset) {
+      portalType = 'Coordinator';
+    } else if (isHODReset) {
+      portalType = 'Department Chair';
     } else if (isFacultyReset) {
       portalType = 'Faculty';
+    } else if (isExecutiveReset) {
+      portalType = 'Executive';
     }
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-4">
@@ -293,7 +375,17 @@ const ResetPassword = () => {
           <button
             type="button"
             onClick={() => {
-              window.location.href = '/login/student';
+              if (isCoordinatorReset) {
+                window.location.href = '/login/coordinator';
+              } else if (isHODReset) {
+                window.location.href = '/login/chairman';
+              } else if (isFacultyReset) {
+                window.location.href = '/login/faculty';
+              } else if (isExecutiveReset) {
+                window.location.href = '/login/executive';
+              } else {
+                window.location.href = '/login/student';
+              }
             }}
             className="text-blue-600 hover:underline"
           >

@@ -8,20 +8,36 @@ import {
   deleteFaculty,
   setPassword,
   login,
+  coordinatorLogin,
+  executiveLogin,
   getProfile,
   forgotPassword,
   assignExecutive,
   getCurrentExecutive,
   assignCoursesToFaculty,
   getProfileByEmail,
+  uploadFacultyDocuments,
+  facultyDocsUpload,
+  getFacultyDocuments,
+  assignCoordinator,
+  removeCoordinator,
+  assignCoordinatorManually,
+  getCoordinatorDepartmentFaculty,
+  getCoordinatorDepartmentStudents,
+  getCoordinatorOverview,
 } from "../controllers/FacultyController.js";
 
 const router = express.Router();
 
 router.post("/login", login);
+router.post("/coordinator/login", coordinatorLogin);
+router.post("/executive/login", executiveLogin);
 router.get("/profile", getProfile);
 router.get("/profile/:email", getProfileByEmail);
 router.post("/forgot-password", forgotPassword);
+router.get("/coordinator/overview", getCoordinatorOverview);
+router.get("/coordinator/department-faculty", getCoordinatorDepartmentFaculty);
+router.get("/coordinator/department-students", getCoordinatorDepartmentStudents);
 router.get("/", getAllFaculty);
 router.get("/executive/current", getCurrentExecutive);
 router.get("/department/:departmentId", getFacultyByDepartment);
@@ -31,5 +47,10 @@ router.delete("/:id", deleteFaculty);
 router.post("/set-password", setPassword);
 router.post("/assign-executive", assignExecutive);
 router.post("/:id/assign-courses", assignCoursesToFaculty);
+router.put("/:id/assign-coordinator", assignCoordinator);
+router.put("/:id/remove-coordinator", removeCoordinator);
+router.post("/department/:departmentId/coordinator", facultyDocsUpload.single("document"), assignCoordinatorManually);
+router.post("/:id/documents", facultyDocsUpload.array("files", 10), uploadFacultyDocuments);
+router.get("/:id/documents", getFacultyDocuments);
 
 export default router;

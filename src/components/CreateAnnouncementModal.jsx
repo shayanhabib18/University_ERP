@@ -1,11 +1,28 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
-const CreateAnnouncementModal = ({ onClose, onSubmit, allowedRecipients, senderRole, senderId, senderName }) => {
+const CreateAnnouncementModal = ({
+  onClose,
+  onSubmit,
+  allowedRecipients,
+  senderRole,
+  senderId,
+  senderName,
+  initialData = null,
+  mode = "create",
+}) => {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [selectedRecipients, setSelectedRecipients] = useState([]);
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (initialData) {
+      setTitle(initialData.title || "");
+      setMessage(initialData.message || "");
+      setSelectedRecipients(initialData.recipientRoles || initialData.recipients || []);
+    }
+  }, [initialData]);
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
@@ -37,11 +54,11 @@ const CreateAnnouncementModal = ({ onClose, onSubmit, allowedRecipients, senderR
         senderRole: senderRole || "admin",
         senderName: senderName || "Current User",
         recipientRoles: selectedRecipients,
-        attachment: file ? file.name : null,
+        file,
       };
 
       console.log("Submitting announcement:", newAnnouncement);
-      await onSubmit(newAnnouncement);
+      await onSubmit(newAnnouncement, mode === "edit" ? initialData?.id : undefined);
       
       // Reset form
       setTitle("");
@@ -60,7 +77,7 @@ const CreateAnnouncementModal = ({ onClose, onSubmit, allowedRecipients, senderR
   return (
     <div className="fixed inset-0 bg-black/30 flex justify-center items-center z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-semibold mb-4">Create Announcement</h2>
+        <h2 className="text-xl font-semibold mb-4">{mode === "edit" ? "Edit Announcement" : "Create Announcement"}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Title */}
           <div>
@@ -144,7 +161,7 @@ const CreateAnnouncementModal = ({ onClose, onSubmit, allowedRecipients, senderR
               disabled={submitting || selectedRecipients.length === 0}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {submitting ? "Sending..." : "Send"}
+              {submitting ? (mode === "edit" ? "Updating..." : "Sending...") : mode === "edit" ? "Update" : "Send"}
             </button>
           </div>
         </form>

@@ -44,7 +44,7 @@ export default function StudentDashboard() {
       }
 
       // Fallback: fetch from backend using token
-      const token = localStorage.getItem("student_token");
+      const token = localStorage.getItem("studentToken") || localStorage.getItem("student_token");
       if (token) {
         fetch("http://localhost:5000/students/me", {
           headers: { Authorization: `Bearer ${token}` },

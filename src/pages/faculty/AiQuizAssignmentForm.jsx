@@ -15,13 +15,18 @@ import {
   FileCheck,
   Clock
 } from "lucide-react";
+import assignmentAPI from "../../services/assignmentAPI";
 
 const AiQuizAssignmentForm = () => {
   const [form, setForm] = useState({
     course: "",
     type: "mcq",
-    topic: "",
-    file: null,
+    aiPrompt: "",
+    description: "",
+    durationMinutes: 60,
+    totalQuestions: 10,
+    passingScore: 50,
+    deadline: "",
   });
 
   const [assignment, setAssignment] = useState({
@@ -98,64 +103,113 @@ const AiQuizAssignmentForm = () => {
   };
 
   const handleGenerate = async () => {
-    if (!form.course || !form.topic) {
-      alert("Please select a course and enter a topic");
+    if (!form.course || !form.aiPrompt) {
+      alert("Please select a course and enter AI instructions");
       return;
     }
 
     setIsGenerating(true);
-    await new Promise((r) => setTimeout(r, 2000));
 
-    const mockData = form.type === "mcq"
-      ? [
-          {
-            question: "What is the time complexity of binary search algorithm?",
-            options: ["O(n)", "O(log n)", "O(n²)", "O(1)"],
-            correct: 1,
-            explanation:
-              "Binary search divides the search space in half each time, leading to logarithmic time complexity.",
-          },
-          {
-            question: "Which data structure uses LIFO (Last-In-First-Out) principle?",
-            options: ["Queue", "Stack", "Array", "Linked List"],
-            correct: 1,
-            explanation:
-              "Stack follows LIFO principle where the last element added is the first one to be removed.",
-          },
-        ]
-      : [
-          {
-            question:
-              "Explain the difference between stack and queue data structures with real-world examples.",
-            points: ["LIFO vs FIFO", "Use cases", "Implementation differences"],
-            marks: 10,
-          },
-        ];
+    try {
+      const token = localStorage.getItem("facultyToken");
+      if (!token) {
+        alert("Authentication required. Please login again.");
+        setIsGenerating(false);
+        return;
+      }
 
-    setGeneratedQuestions(mockData);
-    setIsGenerating(false);
+      const response = await fetch("http://localhost:5000/quizzes/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          courseId: form.course,
+          type: form.type,
+          aiPrompt: form.aiPrompt,
+          description: form.description,
+          durationMinutes: parseInt(form.durationMinutes),
+          totalQuestions: parseInt(form.totalQuestions),
+          passingScore: parseInt(form.passingScore),
+          deadline: form.deadline || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate quiz");
+      }
+
+      const data = await response.json();
+      setGeneratedQuestions(data.questions);
+
+      alert(`✅ ${data.message}\n\n📊 Questions: ${data.questions.length}\n⏱️ Duration: ${form.durationMinutes} min\n✅ Passing: ${form.passingScore}%`);
+      
+      // Reset form
+      setForm({
+        course: "",
+        type: "mcq",
+        aiPrompt: "",
+        description: "",
+        durationMinutes: 60,
+        totalQuestions: 10,
+        passingScore: 50,
+        deadline: "",
+      });
+      setGeneratedQuestions(null);
+    } catch (error) {
+      console.error("Error generating quiz:", error);
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
-  const handleShare = () => {
-    alert("✅ Question paper shared with students successfully!");
+  const handleDownload = () => {
+    alert("Quiz has been published to students. They can now access it from their portal.");
   };
 
-  const handleAssignmentSubmit = () => {
+  const handleAssignmentSubmit = async () => {
     if (!assignment.course || !assignment.deadline || !assignment.file) {
       alert("Please fill all assignment fields!");
       return;
     }
 
-    const courseName = courses.find((c) => c.id === assignment.course)?.name;
-    alert(
-      `✅ Assignment uploaded for ${courseName}\n📅 Due: ${new Date(
-        assignment.deadline
-      ).toLocaleDateString()}`
-    );
-  };
+    try {
+      const courseName = courses.find((c) => c.id === assignment.course)?.name || "Course";
+      
+      await assignmentAPI.createAssignment(
+        {
+          courseId: assignment.course,
+          title: `Assignment - ${courseName}`,
+          description: "Assignment uploaded from faculty portal",
+          deadline: assignment.deadline,
+        },
+        assignment.file
+      );
 
-  const handleDownload = () => {
-    alert("Downloading generated questions as PDF...");
+      alert(
+        `✅ Assignment uploaded for ${courseName}\n📅 Due: ${new Date(
+          assignment.deadline
+        ).toLocaleDateString()}`
+      );
+      
+      // Reset form
+      setAssignment({
+        course: "",
+        deadline: "",
+        file: null,
+      });
+      
+      // Reset file input
+      const fileInput = document.querySelector('input[type="file"][name="file"]');
+      if (fileInput) fileInput.value = "";
+      
+    } catch (error) {
+      console.error("Error submitting assignment:", error);
+      alert(`❌ Error uploading assignment: ${error.message}`);
+    }
   };
 
   return (
@@ -231,75 +285,125 @@ const AiQuizAssignmentForm = () => {
                   )}
                 </div>
 
-                {/* Quiz Type and Topic */}
-                <div className="grid md:grid-cols-2 gap-6">
+                {/* Quiz Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quiz Type
+                  </label>
+                  <select
+                    name="type"
+                    value={form.type}
+                    onChange={handleChange}
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                  >
+                    <option value="mcq">Multiple Choice Questions (MCQ)</option>
+                    <option value="descriptive">Descriptive Questions</option>
+                  </select>
+                </div>
+
+                {/* AI Prompt */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Brain className="inline w-4 h-4 mr-2" />
+                    AI Instructions (Detailed Prompt)
+                  </label>
+                  <textarea
+                    name="aiPrompt"
+                    value={form.aiPrompt}
+                    onChange={handleChange}
+                    placeholder="Example: Generate questions on Data Structures, focusing on trees and graphs. Include questions on traversal algorithms, complexity analysis, and real-world applications. Make questions challenging for 3rd year CS students."
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    rows={4}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Be specific about topics, difficulty level, and focus areas</p>
+                </div>
+
+                {/* Student Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <FileText className="inline w-4 h-4 mr-2" />
+                    Student Description (Optional)
+                  </label>
+                  <textarea
+                    name="description"
+                    value={form.description}
+                    onChange={handleChange}
+                    placeholder="Instructions for students about this quiz..."
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    rows={3}
+                  />
+                </div>
+
+                {/* Duration, Total Questions, Passing Score */}
+                <div className="grid md:grid-cols-3 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Quiz Type
+                      <Clock className="inline w-4 h-4 mr-2" />
+                      Duration (minutes)
                     </label>
-                    <select
-                      name="type"
-                      value={form.type}
+                    <input
+                      type="number"
+                      name="durationMinutes"
+                      value={form.durationMinutes}
                       onChange={handleChange}
-                      className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                    >
-                      <option value="mcq">Multiple Choice Questions</option>
-                      <option value="descriptive">Descriptive Questions</option>
-                    </select>
+                      min="10"
+                      max="180"
+                      className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <Zap className="inline w-4 h-4 mr-2" />
-                      Topic
+                      <FileText className="inline w-4 h-4 mr-2" />
+                      Total Questions
                     </label>
                     <input
-                      type="text"
-                      name="topic"
-                      value={form.topic}
+                      type="number"
+                      name="totalQuestions"
+                      value={form.totalQuestions}
                       onChange={handleChange}
-                      placeholder="e.g., Binary Search, OOP Principles..."
+                      min="5"
+                      max="50"
+                      className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <CheckCircle className="inline w-4 h-4 mr-2" />
+                      Passing Score (%)
+                    </label>
+                    <input
+                      type="number"
+                      name="passingScore"
+                      value={form.passingScore}
+                      onChange={handleChange}
+                      min="0"
+                      max="100"
                       className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     />
                   </div>
                 </div>
 
-                {/* File Upload */}
+                {/* Deadline */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <UploadCloud className="inline w-4 h-4 mr-2" />
-                    Lecture Materials (Optional)
+                    <Calendar className="inline w-4 h-4 mr-2" />
+                    Deadline (Optional)
                   </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-indigo-400 transition-colors">
-                    <UploadCloud
-                      className="mx-auto text-gray-400 mb-3"
-                      size={32}
-                    />
-                    <p className="text-gray-600 mb-2">
-                      Drag & drop your lecture slides or notes
-                    </p>
-                    <p className="text-sm text-gray-500 mb-4">
-                      Supports PDF, PPT, DOC (Max 10MB)
-                    </p>
-                    <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-                      <Upload size={16} />
-                      Choose Files
-                      <input
-                        type="file"
-                        accept=".pdf,.ppt,.doc,.docx"
-                        name="file"
-                        onChange={handleChange}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
+                  <input
+                    type="datetime-local"
+                    name="deadline"
+                    value={form.deadline}
+                    onChange={handleChange}
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
                 </div>
 
                 {/* Generate Button */}
                 <button
                   onClick={handleGenerate}
-                  disabled={isGenerating || !form.course || !form.topic}
+                  disabled={isGenerating || !form.course || !form.aiPrompt}
                   className={`w-full py-4 px-6 rounded-xl font-semibold text-lg transition-all ${
-                    isGenerating || !form.course || !form.topic
+                    isGenerating || !form.course || !form.aiPrompt
                       ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                       : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                   }`}
@@ -307,12 +411,12 @@ const AiQuizAssignmentForm = () => {
                   {isGenerating ? (
                     <div className="flex items-center justify-center gap-3">
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      AI is generating your quiz...
+                      AI is generating and publishing quiz...
                     </div>
                   ) : (
                     <div className="flex items-center justify-center gap-3">
                       <Sparkles size={20} />
-                      Generate Smart Quiz
+                      Generate & Publish Quiz to Students
                       <ArrowRight size={20} />
                     </div>
                   )}
@@ -444,17 +548,13 @@ const AiQuizAssignmentForm = () => {
                   <button
                     onClick={handleDownload}
                     className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-                    title="Download as PDF"
+                    title="Quiz Published"
                   >
-                    <Download size={20} />
+                    <CheckCircle size={20} />
                   </button>
-                  <button
-                    onClick={handleShare}
-                    className="flex items-center gap-2 px-4 py-2 bg-white text-green-700 rounded-lg hover:bg-white/90 transition-colors font-medium"
-                  >
-                    <Share2 size={16} />
-                    Share
-                  </button>
+                  <span className="text-white text-sm bg-white/20 px-3 py-2 rounded-lg">
+                    Published to Students
+                  </span>
                 </div>
               </div>
             </div>

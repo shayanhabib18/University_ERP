@@ -450,15 +450,17 @@ export default function FacultyManagement() {
       ) : (
         <>
           {/* Search Bar */}
-          <div className="mb-6 flex items-center bg-white rounded-xl shadow-sm border border-gray-200 p-2 px-4 max-w-md">
-            <Search className="text-gray-400" size={18} />
-            <input
-              type="text"
-              placeholder="Search faculty by name or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 px-3 py-2 text-sm outline-none bg-transparent"
-            />
+          <div className="mb-6 flex flex-col sm:flex-row gap-3 items-center">
+            <div className="flex items-center bg-white rounded-xl shadow-sm border border-gray-200 p-2 px-4 flex-1 max-w-md">
+              <Search className="text-gray-400" size={18} />
+              <input
+                type="text"
+                placeholder="Search faculty by name or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 px-3 py-2 text-sm outline-none bg-transparent"
+              />
+            </div>
           </div>
 
           {/* Success Notification */}

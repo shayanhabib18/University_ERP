@@ -6,6 +6,7 @@ import ChairAnalytics from "./ChairAnalytics";
 import ChairTranscripts from "./ChairTranscripts";
 import ChairAnnouncements from "./ChairAnnouncements";
 import ApproveResults from "./ApproveResults";
+import AssignCoordinator from "./AssignCoordinator";
 import {
   Menu,
   X,
@@ -72,29 +73,35 @@ export default function ChairDashboard() {
         );
         const students = studentsRes.ok ? await studentsRes.json() : [];
 
-        // Fetch pending requests (only if user has permission)
+        // Fetch pending requests (role may not have access) – fail-soft
         let pendingCount = 0;
-        const requestsRes = await fetch(
-          "http://localhost:5000/requests/coordinator/requests",
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        if (requestsRes.ok) {
-          const requests = await requestsRes.json();
-          pendingCount = requests.filter((r) => r.status === "PENDING").length;
-        } else if (requestsRes.status === 403) {
-          // HOD doesn't have access to coordinator requests, set to 0
+        try {
+          const requestsRes = await fetch(
+            "http://localhost:5000/requests/coordinator/requests",
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          if (requestsRes.ok) {
+            const requests = await requestsRes.json();
+            pendingCount = (requests || []).filter((r) => r.status === "PENDING").length;
+          }
+        } catch (err) {
           pendingCount = 0;
         }
 
-        // Fetch announcements (handle errors gracefully)
+        // Fetch announcements for dept chair role (handle errors gracefully)
         let announcementCount = 0;
-        const announcementsRes = await fetch(
-          `http://localhost:5000/announcements`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        if (announcementsRes.ok) {
-          const announcements = await announcementsRes.json();
-          announcementCount = announcements.length;
+        try {
+          const announcementsRes = await fetch(
+            `http://localhost:5000/announcements?role=dept_chair`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          if (announcementsRes.ok) {
+            const body = await announcementsRes.json();
+            const announcements = body?.data || [];
+            announcementCount = announcements.length;
+          }
+        } catch (err) {
+          announcementCount = 0;
         }
 
         setStats({
@@ -117,6 +124,7 @@ export default function ChairDashboard() {
   const sidebarLinks = [
     { name: "Dashboard", icon: <Home size={18} /> },
     { name: "Faculty Management", icon: <Users size={18} /> },
+    { name: "Assign Coordinator", icon: <Users size={18} /> },
     { name: "Approvals", icon: <ClipboardList size={18} /> },
     { name: "Approve Results", icon: <Award size={18} /> },
     { name: "Analytics", icon: <BarChart3 size={18} /> },
@@ -202,6 +210,8 @@ export default function ChairDashboard() {
         );
       case "Faculty Management":
         return <FacultyManagement />;
+      case "Assign Coordinator":
+        return <AssignCoordinator />;
       case "Approvals":
         return <ChairApprovals />;
       case "Approve Results":

@@ -15,7 +15,14 @@ import studentRequestRoutes from "./routes/studentRequestRoutes.js"; // student 
 import facultyCourseRoutes from "./routes/facultyCourseRoutes.js"; // faculty course assignments
 import rstRoutes from "./routes/rstRoutes.js"; // RST (Result Summary Table) routes
 import resultsRoutes from "./routes/resultsRoutes.js"; // Results approval routes
-import { initializeStorage } from "./controllers/CourseMaterialsController.js"; // storage initialization
+import assignmentRoutes from "./routes/assignmentRoutes.js"; // assignment routes
+import facultyMessageRoutes from "./routes/facultyMessageRoutes.js"; // faculty messaging routes
+import quizRoutes from "./routes/quizRoutes.js"; // quiz routes
+import { initializeStorage } from "./controllers/CourseMaterialsController.js"; // course materials storage initialization
+import { initializeAssignmentStorage } from "./controllers/AssignmentController.js"; // assignments storage initialization
+import { initializeFacultyMessageStorage } from "./controllers/FacultyMessageController.js"; // faculty messages storage initialization
+import { initializeFacultyDocumentStorage } from "./controllers/FacultyController.js"; // faculty documents storage initialization
+import { initializeAnnouncementStorage } from "./controllers/AnnouncementController.js"; // announcement attachments storage initialization
 
 // Import auth routes from organized auth folder
 import { studentAuth, adminAuth } from "./src/routes/auth/index.js";
@@ -48,6 +55,9 @@ app.use("/", rstRoutes); // RST routes
 // Mount materials routes at both /course-materials and /api/course-materials for student portal
 app.use("/course-materials", materialRoutes);
 app.use("/api/course-materials", materialRoutes);
+app.use("/assignments", assignmentRoutes); // assignment routes
+app.use("/faculty-messages", facultyMessageRoutes); // faculty messaging routes
+app.use("/quizzes", quizRoutes); // quiz routes
 
 // Default route (optional)
 app.get("/", (req, res) => {
@@ -57,6 +67,18 @@ app.get("/", (req, res) => {
 // Initialize storage
 initializeStorage().catch(err => {
   console.error("⚠️  Failed to initialize storage:", err.message);
+});
+initializeAssignmentStorage().catch(err => {
+  console.error("⚠️  Failed to initialize assignments storage:", err.message);
+});
+initializeFacultyMessageStorage().catch(err => {
+  console.error("⚠️  Failed to initialize faculty messages storage:", err.message);
+});
+initializeFacultyDocumentStorage().catch(err => {
+  console.error("⚠️  Failed to initialize faculty documents storage:", err.message);
+});
+initializeAnnouncementStorage().catch(err => {
+  console.error("⚠️  Failed to initialize announcement attachments storage:", err.message);
 });
 
 // Start server

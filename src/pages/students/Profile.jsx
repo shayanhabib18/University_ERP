@@ -50,7 +50,7 @@ export default function Profile() {
   useEffect(() => {
     const checkPendingRequests = async () => {
       try {
-        const token = localStorage.getItem("student_token");
+        const token = localStorage.getItem("studentToken") || localStorage.getItem("student_token");
         const response = await fetch("http://localhost:5000/api/student-requests", {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -128,7 +128,7 @@ export default function Profile() {
       setIsEditing(false);
       setRequestStatus("Sending request...");
 
-      const token = localStorage.getItem("student_token");
+      const token = localStorage.getItem("studentToken") || localStorage.getItem("student_token");
       const studentInfo = JSON.parse(localStorage.getItem("student_info") || "{}");
 
       // Prepare the changes payload
@@ -183,25 +183,6 @@ export default function Profile() {
         <h2 className="text-2xl font-bold text-indigo-700">
           🎓 Personal Details
         </h2>
-
-        {/* Edit / Request Admin Button */}
-        <button
-          onClick={() => (isEditing ? handleRequestApproval() : setIsEditing(true))}
-          disabled={pendingRequest?.status === "pending"}
-          className={`px-4 py-2 rounded-lg text-white font-medium shadow transition-all ${
-            pendingRequest?.status === "pending"
-              ? "bg-gray-400 cursor-not-allowed"
-              : isEditing
-              ? "bg-green-600 hover:bg-green-700"
-              : "bg-blue-600 hover:bg-blue-700"
-          }`}
-        >
-          {pendingRequest?.status === "pending"
-            ? "Request Pending..."
-            : isEditing
-            ? "Request Admin Approval"
-            : "Edit / Request Admin"}
-        </button>
       </div>
 
       {/* Student Details */}
@@ -248,23 +229,6 @@ export default function Profile() {
           </div>
         ))}
       </div>
-
-      {/* Status Message */}
-      {requestStatus && (
-        <div
-          className={`mt-4 p-3 rounded-lg text-sm ${
-            requestStatus.includes("rejected")
-              ? "text-red-700 bg-red-100"
-              : requestStatus.includes("pending")
-              ? "text-orange-700 bg-orange-100"
-              : requestStatus.includes("updated") || requestStatus.includes("sent")
-              ? "text-green-700 bg-green-100"
-              : "text-blue-700 bg-blue-100"
-          }`}
-        >
-          {requestStatus}
-        </div>
-      )}
     </div>
   );
 }
