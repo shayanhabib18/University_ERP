@@ -22,6 +22,7 @@ import FacultyRoleManagement from "./FacultyRoleManagement";
 import StudentManagement from "./StudentManagement";
 import HandleRequests from "./HandleRequests";
 import AdminAnnouncements from "./AdminAnnouncement";
+import CourseAddDrop from "./CourseAddDrop";
 import LoginHeatmap from "../../components/LoginHeatmap";
 import { departmentAPI, courseAPI, facultyAPI, studentAPI } from "../../services/api";
 
@@ -31,6 +32,7 @@ const sidebarLinks = [
   "Faculty Management",
   "Faculty Role Management",
   "Student Management",
+  "Course Add/Drop",
   "Requests",
   "Announcements",
 ];
@@ -276,6 +278,9 @@ export default function AdminDashboard() {
 
       case "Student Management":
         return <StudentManagement />;
+
+      case "Course Add/Drop":
+        return <CourseAddDrop />;
 
       case "Requests":
         return <HandleRequests />;

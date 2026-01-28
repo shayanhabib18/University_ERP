@@ -483,8 +483,6 @@ const StudentManagement = () => {
   const options = [
     "Add Student",
     "Search Student",
-    "Freeze Semester",
-    "Add/Drop Courses",
     "Delete Account",
   ];
 
@@ -623,16 +621,6 @@ const StudentManagement = () => {
                     {opt === "Delete Account" && (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    )}
-                    {opt === "Freeze Semester" && (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v18m0-18l-4 4m4-4l4 4m0 10l-4 4m4-4l4-4m-16 0l4 4m-4-4l4-4" />
-                      </svg>
-                    )}
-                    {opt === "Add/Drop Courses" && (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6m13-5h-5V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3H5a2 2 0 00-2 2v8a2 2 0 002 2h14a2 2 0 002-2v-8a2 2 0 00-2-2z" />
                       </svg>
                     )}
                     <span>{opt}</span>
@@ -1011,33 +999,6 @@ const StudentManagement = () => {
                     </button>
                   </div>
                 </form>
-              </div>
-            )}
-
-
-            {/* Freeze Semester */}
-            {activeOption === "Freeze Semester" && (
-              <div className="bg-white rounded-xl border border-blue-200 p-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                  <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v18m0-18l-4 4m4-4l4 4m0 10l-4 4m4-4l4-4m-16 0l4 4m-4-4l4-4" />
-                  </svg>
-                  Freeze Semester
-                </h3>
-                <p className="text-gray-600">This feature is not yet configured. Please use the registrar workflow to freeze a semester, or ask the dev team to wire this action to the backend.</p>
-              </div>
-            )}
-
-            {/* Add / Drop Courses */}
-            {activeOption === "Add/Drop Courses" && (
-              <div className="bg-white rounded-xl border border-indigo-200 p-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                  <svg className="w-6 h-6 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6m13-5h-5V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3H5a2 2 0 00-2 2v8a2 2 0 002 2h14a2 2 0 002-2v-8a2 2 0 00-2-2z" />
-                  </svg>
-                  Add / Drop Courses
-                </h3>
-                <p className="text-gray-600">Course add/drop from admin is pending. Coordinate with the academic office or request backend endpoints to enable this action here.</p>
               </div>
             )}
 

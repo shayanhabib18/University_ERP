@@ -28,9 +28,15 @@ export default function CoordinatorRequests() {
   const [resolutionNote, setResolutionNote] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newRequest, setNewRequest] = useState({
-    studentRollNo: "",
+    title: "",
     requestType: "OTHER",
     description: "",
+    recipients: {
+      admin: false,
+      faculty: false,
+      deptChair: false,
+      executive: false,
+    },
   });
 
   useEffect(() => {
@@ -162,8 +168,17 @@ export default function CoordinatorRequests() {
   };
 
   const handleCreateRequest = async () => {
-    if (!newRequest.studentRollNo || !newRequest.description) {
+    if (!newRequest.title || !newRequest.description) {
       setError("Please fill in all required fields");
+      return;
+    }
+
+    const selectedRecipients = Object.keys(newRequest.recipients).filter(
+      key => newRequest.recipients[key]
+    );
+
+    if (selectedRecipients.length === 0) {
+      setError("Please select at least one recipient");
       return;
     }
 
@@ -179,9 +194,10 @@ export default function CoordinatorRequests() {
       await axios.post(
         "http://localhost:5000/requests/coordinator/create-request",
         {
-          student_roll_no: newRequest.studentRollNo,
+          title: newRequest.title,
           request_type: newRequest.requestType,
           description: newRequest.description,
+          recipients: newRequest.recipients,
         },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -189,7 +205,17 @@ export default function CoordinatorRequests() {
       );
 
       setShowCreateModal(false);
-      setNewRequest({ studentRollNo: "", requestType: "OTHER", description: "" });
+      setNewRequest({ 
+        title: "", 
+        requestType: "OTHER", 
+        description: "",
+        recipients: {
+          admin: false,
+          faculty: false,
+          deptChair: false,
+          executive: false,
+        },
+      });
       await fetchRequests();
     } catch (err) {
       console.error("Failed to create request:", err);
@@ -214,7 +240,7 @@ export default function CoordinatorRequests() {
       {/* Header */}
       <div className="mb-6 flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-indigo-700 mb-2">📬 Student Requests</h1>
+          <h1 className="text-3xl font-bold text-indigo-700 mb-2">📬 Requests</h1>
           <p className="text-gray-600">Review and manage student requests for your department</p>
         </div>
         <button
@@ -401,31 +427,6 @@ export default function CoordinatorRequests() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none mb-4"
                   />
                   
-                  {/* Forward To Checkboxes */}
-                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">Forward to:</label>
-                    <div className="flex gap-6">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedRequest?.forwardToAdmin || false}
-                          onChange={(e) => setSelectedRequest({...selectedRequest, forwardToAdmin: e.target.checked})}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                        />
-                        <span className="text-gray-700">Admin</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedRequest?.forwardToDeptChair || false}
-                          onChange={(e) => setSelectedRequest({...selectedRequest, forwardToDeptChair: e.target.checked})}
-                          className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
-                        />
-                        <span className="text-gray-700">DeptChair</span>
-                      </label>
-                    </div>
-                  </div>
-
                   <div className="flex gap-3">
                     <button
                       onClick={() => handleUpdateStatus("approved")}
@@ -478,13 +479,23 @@ export default function CoordinatorRequests() {
       {/* Create Request Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl">
+          <div className="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-indigo-700">Create New Request</h2>
               <button
                 onClick={() => {
                   setShowCreateModal(false);
-                  setNewRequest({ studentRollNo: "", requestType: "OTHER", description: "" });
+                  setNewRequest({ 
+                    title: "", 
+                    requestType: "OTHER", 
+                    description: "",
+                    recipients: {
+                      admin: false,
+                      faculty: false,
+                      deptChair: false,
+                      executive: false,
+                    },
+                  });
                 }}
                 className="text-gray-500 hover:text-gray-700"
               >
@@ -495,13 +506,13 @@ export default function CoordinatorRequests() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Student Roll Number <span className="text-red-500">*</span>
+                  Request Title <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={newRequest.studentRollNo}
-                  onChange={(e) => setNewRequest({ ...newRequest, studentRollNo: e.target.value })}
-                  placeholder="Enter student roll number"
+                  value={newRequest.title}
+                  onChange={(e) => setNewRequest({ ...newRequest, title: e.target.value })}
+                  placeholder="Enter request title"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                 />
               </div>
@@ -536,6 +547,65 @@ export default function CoordinatorRequests() {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Send To <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex items-center p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newRequest.recipients.admin}
+                      onChange={(e) => setNewRequest({
+                        ...newRequest,
+                        recipients: { ...newRequest.recipients, admin: e.target.checked }
+                      })}
+                      className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-gray-700">Admin</span>
+                  </label>
+
+                  <label className="flex items-center p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newRequest.recipients.faculty}
+                      onChange={(e) => setNewRequest({
+                        ...newRequest,
+                        recipients: { ...newRequest.recipients, faculty: e.target.checked }
+                      })}
+                      className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-gray-700">Faculty</span>
+                  </label>
+
+                  <label className="flex items-center p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newRequest.recipients.deptChair}
+                      onChange={(e) => setNewRequest({
+                        ...newRequest,
+                        recipients: { ...newRequest.recipients, deptChair: e.target.checked }
+                      })}
+                      className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-gray-700">Dept Chair</span>
+                  </label>
+
+                  <label className="flex items-center p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newRequest.recipients.executive}
+                      onChange={(e) => setNewRequest({
+                        ...newRequest,
+                        recipients: { ...newRequest.recipients, executive: e.target.checked }
+                      })}
+                      className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-gray-700">Executive</span>
+                  </label>
+                </div>
+              </div>
+
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={handleCreateRequest}
@@ -547,7 +617,17 @@ export default function CoordinatorRequests() {
                 <button
                   onClick={() => {
                     setShowCreateModal(false);
-                    setNewRequest({ studentRollNo: "", requestType: "OTHER", description: "" });
+                    setNewRequest({ 
+                      title: "", 
+                      requestType: "OTHER", 
+                      description: "",
+                      recipients: {
+                        admin: false,
+                        faculty: false,
+                        deptChair: false,
+                        executive: false,
+                      },
+                    });
                   }}
                   className="px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg font-medium transition-all"
                 >

@@ -154,6 +154,11 @@ export default function StudentDashboard() {
         // Group enrollments by semester
         const grouped = {};
         enrollments.forEach(enrollment => {
+          // Filter out dropped courses
+          if (enrollment.status === 'dropped') {
+            return;
+          }
+          
           const semester = enrollment.semester || 1;
           if (!grouped[semester]) {
             grouped[semester] = { semester, courses: [] };

@@ -217,6 +217,11 @@ export default function Courses() {
       
       if (data && Array.isArray(data)) {
         data.forEach((enrollment) => {
+          // Filter out dropped courses
+          if (enrollment.status === 'dropped') {
+            return;
+          }
+          
           const semester = enrollment.semester || 1;
           const academicYear = enrollment.academic_year || "2025-2026";
           
@@ -299,6 +304,11 @@ export default function Courses() {
         
         if (data && Array.isArray(data)) {
           data.forEach((enrollment) => {
+            // Filter out dropped courses
+            if (enrollment.status === 'dropped') {
+              return;
+            }
+            
             const semester = enrollment.semester || 1;
             const academicYear = enrollment.academic_year || "2025-2026";
             

@@ -1034,6 +1034,8 @@ router.delete("/:studentId", async (req, res) => {
 
 // Helper: fetch academic history from student_rst with course + enrollment context
 const fetchAcademicHistory = async (studentId) => {
+  console.log(`[fetchAcademicHistory] Starting for student: ${studentId}`);
+  
   // Fetch RST rows with course metadata
   const { data: rstRows, error: rstError } = await supabase
     .from("student_rst")
@@ -1056,13 +1058,26 @@ const fetchAcademicHistory = async (studentId) => {
     `)
     .eq("student_id", studentId);
 
-  if (rstError) throw rstError;
+  if (rstError) {
+    console.error(`[fetchAcademicHistory] Supabase error:`, rstError);
+    throw rstError;
+  }
+
+  console.log(`[fetchAcademicHistory] RST rows found: ${rstRows?.length || 0}`);
+  if (rstRows && rstRows.length > 0) {
+    console.log(`[fetchAcademicHistory] Sample RST row:`, rstRows[0]);
+  }
 
   const rows = rstRows || [];
-  if (!rows.length) return [];
+  if (!rows.length) {
+    console.log(`[fetchAcademicHistory] No records found for student ${studentId}`);
+    return [];
+  }
 
   // Fetch enrollment semesters for these courses to derive semester number
   const courseIds = [...new Set(rows.map((r) => r.course_id).filter(Boolean))];
+  console.log(`[fetchAcademicHistory] Found ${courseIds.length} unique courses`);
+  
   let enrollmentMap = {};
 
   if (courseIds.length > 0) {
@@ -1072,7 +1087,12 @@ const fetchAcademicHistory = async (studentId) => {
       .eq("student_id", studentId)
       .in("course_id", courseIds);
 
-    if (enrollError) throw enrollError;
+    if (enrollError) {
+      console.error(`[fetchAcademicHistory] Enrollment fetch error:`, enrollError);
+      throw enrollError;
+    }
+
+    console.log(`[fetchAcademicHistory] Enrollments found: ${enrollments?.length || 0}`);
 
     enrollmentMap = (enrollments || []).reduce((acc, e) => {
       acc[e.course_id] = e;
@@ -1113,6 +1133,7 @@ const fetchAcademicHistory = async (studentId) => {
     return new Date(b.created_at || 0) - new Date(a.created_at || 0);
   });
 
+  console.log(`[fetchAcademicHistory] Returning ${enriched.length} enriched records`);
   return enriched;
 };
 
@@ -1120,10 +1141,22 @@ const fetchAcademicHistory = async (studentId) => {
 router.get("/academic-records/student/:studentId", async (req, res) => {
   try {
     const { studentId } = req.params;
+    console.log(`📚 Fetching academic records for student: ${studentId}`);
+    
     const data = await fetchAcademicHistory(studentId);
-    res.json(data);
+    console.log(`✅ Academic records fetched for ${studentId}:`, {
+      recordCount: Array.isArray(data) ? data.length : 0,
+      dataType: typeof data,
+      isArray: Array.isArray(data),
+    });
+    
+    // Always return array, even if empty
+    const responseData = Array.isArray(data) ? data : [];
+    res.json(responseData);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error(`❌ Error fetching academic history for ${req.params.studentId}:`, error);
+    // Return empty array on error instead of 400
+    res.json([]);
   }
 });
 
