@@ -19,7 +19,6 @@ import {
   BookOpen,
   BarChart3,
   Download,
-  Share2,
   CheckCircle,
   Loader,
 } from "lucide-react";
@@ -27,9 +26,6 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
 export default function ChairAnalytics() {
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [shareTarget, setShareTarget] = useState("");
-  const [sharedSuccess, setSharedSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
   const [departmentName, setDepartmentName] = useState("Software Engineering");
   const [studentPerformanceData, setStudentPerformanceData] = useState([]);
@@ -365,39 +361,73 @@ export default function ChairAnalytics() {
     const reportElement = reportRef.current;
     if (!reportElement) return;
 
-    const canvas = await html2canvas(reportElement, { scale: 2 });
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("p", "mm", "a4");
+    try {
+      // Clone the element to avoid modifying the original
+      const clonedElement = reportElement.cloneNode(true);
+      
+      // Create a temporary container outside the viewport
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.top = '-9999px';
+      tempContainer.style.width = reportElement.offsetWidth + 'px';
+      tempContainer.appendChild(clonedElement);
+      document.body.appendChild(tempContainer);
+      
+      // Walk through all elements and sanitize styles to avoid oklch colors
+      const walker = document.createTreeWalker(
+        clonedElement,
+        NodeFilter.SHOW_ELEMENT,
+        null,
+        false
+      );
+      
+      let node;
+      while (node = walker.nextNode()) {
+        // Remove potentially problematic styles and set safe fallbacks
+        node.style.color = window.getComputedStyle(node).color.includes('oklch') ? '#000000' : '';
+        node.style.backgroundColor = window.getComputedStyle(node).backgroundColor.includes('oklch') ? 'transparent' : '';
+        node.style.borderColor = window.getComputedStyle(node).borderColor.includes('oklch') ? '#cccccc' : '';
+      }
+      
+      // Generate canvas from the sanitized clone
+      const canvas = await html2canvas(clonedElement, { 
+        scale: 2,
+        allowTaint: true,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+      
+      // Clean up temporary container
+      document.body.removeChild(tempContainer);
+      
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
 
-    const imgWidth = 190;
-    const pageHeight = 295;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const imgWidth = 190;
+      const pageHeight = 295;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    let heightLeft = imgHeight;
-    let position = 10;
+      let heightLeft = imgHeight;
+      let position = 10;
 
-    pdf.text("Student Analytics Report", 14, 10);
-    pdf.addImage(imgData, "PNG", 10, position + 10, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-
-    while (heightLeft >= 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
+      pdf.text("Student Analytics Report", 14, 10);
       pdf.addImage(imgData, "PNG", 10, position + 10, imgWidth, imgHeight);
       heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 10, position + 10, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save("Student_Analytics_Report.pdf");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert("Error generating PDF. Please try again.");
     }
-
-    pdf.save("Student_Analytics_Report.pdf");
-  };
-
-  // ======= Simulated Share Function =======
-  const handleShareReport = () => {
-    setSharedSuccess(true);
-    setTimeout(() => {
-      setShowShareModal(false);
-      setSharedSuccess(false);
-      setShareTarget("");
-    }, 2000);
   };
 
   return (
@@ -419,14 +449,6 @@ export default function ChairAnalytics() {
           >
             <Download size={16} />
             Download
-          </button>
-
-          <button
-            onClick={() => setShowShareModal(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium shadow-md transition"
-          >
-            <Share2 size={16} />
-            Share
           </button>
         </div>
       </div>
@@ -454,55 +476,7 @@ export default function ChairAnalytics() {
         </>
       )}
 
-      {/* ===== Share Modal ===== */}
-      {showShareModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 transition">
-          <div className="bg-white p-6 rounded-xl shadow-2xl w-96 relative animate-fadeIn">
-            <button
-              onClick={() => setShowShareModal(false)}
-              className="absolute top-2 right-3 text-gray-500 hover:text-gray-700"
-            >
-              ✖
-            </button>
-
-            <h3 className="text-xl font-semibold mb-5 text-center text-gray-800">
-              Share Analytics Report
-            </h3>
-
-            <label className="block mb-2 text-sm font-semibold text-gray-600">
-              Send To:
-            </label>
-            <select
-              className="w-full border border-gray-300 p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-              value={shareTarget}
-              onChange={(e) => setShareTarget(e.target.value)}
-            >
-              <option value="">Select recipient</option>
-              <option value="executive">Executive Portal</option>
-              <option value="admin">Admin Portal</option>
-            </select>
-
-            <button
-              onClick={handleShareReport}
-              disabled={!shareTarget}
-              className={`w-full py-2.5 rounded-lg text-white font-medium transition ${
-                shareTarget
-                  ? "bg-blue-600 hover:bg-blue-700"
-                  : "bg-gray-400 cursor-not-allowed"
-              }`}
-            >
-              Share Report
-            </button>
-
-            {sharedSuccess && (
-              <div className="mt-3 flex items-center gap-2 text-green-600 text-sm justify-center">
-                <CheckCircle size={16} /> Report successfully shared to{" "}
-                <strong>{shareTarget}</strong>.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Share Modal Removed */}
     </div>
   );
 }
